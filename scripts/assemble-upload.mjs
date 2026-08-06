@@ -23,20 +23,25 @@ if (!Array.isArray(manifest.files) || !manifest.files.length) {
 }
 
 for (const item of manifest.files) {
-  if (!item?.target || !item?.payload || item.encoding !== 'gzip-base64' || !item.sha256) {
+  const payloadNames = Array.isArray(item?.payloads) ? item.payloads : item?.payload ? [item.payload] : [];
+  if (!item?.target || !payloadNames.length || item.encoding !== 'gzip-base64' || !item.sha256) {
     throw new Error('Entrada inválida en staging-upload/manifest.json.');
   }
 
   const target = path.resolve(root, item.target);
-  const payload = path.resolve(root, item.payload);
   if (!target.startsWith(`${path.resolve(root, 'src')}${path.sep}`)) {
     throw new Error(`Destino no permitido: ${item.target}`);
   }
-  if (!payload.startsWith(`${path.resolve(stagingDir)}${path.sep}`)) {
-    throw new Error(`Payload no permitido: ${item.payload}`);
+
+  let encoded = '';
+  for (const payloadName of payloadNames) {
+    const payload = path.resolve(root, payloadName);
+    if (!payload.startsWith(`${path.resolve(stagingDir)}${path.sep}`)) {
+      throw new Error(`Payload no permitido: ${payloadName}`);
+    }
+    encoded += (await fs.readFile(payload, 'utf8')).replace(/\s+/g, '');
   }
 
-  const encoded = (await fs.readFile(payload, 'utf8')).replace(/\s+/g, '');
   const source = zlib.gunzipSync(Buffer.from(encoded, 'base64'));
   const digest = crypto.createHash('sha256').update(source).digest('hex');
   if (digest !== item.sha256) {
