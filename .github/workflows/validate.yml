@@ -5,10 +5,113 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
+  pages: write
+  id-token: write
 
 jobs:
+  repair-piw-qol:
+    if: github.head_ref == 'repair/run-piw-qol-full-now'
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Reconstruir PIW-QOL completo
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import zlib from 'node:zlib';
+          import crypto from 'node:crypto';
+
+          const partsDir = 'dist/piw-qol-es-parts';
+          const files = fs.readdirSync(partsDir).filter(name => /^part\d+\.b64$/.test(name)).sort();
+          if (files.length !== 9) throw new Error(`Se esperaban 9 bloques y hay ${files.length}.`);
+          const encoded = files.map(name => fs.readFileSync(path.join(partsDir, name), 'utf8').replace(/\s+/g, '')).join('');
+          const source = zlib.gunzipSync(Buffer.from(encoded, 'base64'));
+          const hash = crypto.createHash('sha256').update(source).digest('hex');
+          if (source.length !== 259051) throw new Error(`Tamaño incorrecto: ${source.length}.`);
+          if (hash !== '2ef00b9357c766852709c8d6de7184d369689357f19e7322beff5dcb338e9e8a') throw new Error(`SHA-256 incorrecto: ${hash}.`);
+          fs.writeFileSync('src/piw-qol-es.user.js', source);
+          console.log(`Fuente completa reconstruida: ${source.length} bytes; ${hash}.`);
+          NODE
+
+      - name: Regenerar y validar distribución
+        run: |
+          node --check src/piw-qol-es.user.js
+          npm run build
+          rm -rf dist
+          cp -R .staging/dist dist
+          npm run validate
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          const src = fs.readFileSync('src/piw-qol-es.user.js');
+          const dist = fs.readFileSync('dist/piw-qol-es.user.js');
+          const hash = crypto.createHash('sha256').update(src).digest('hex');
+          if (!src.equals(dist)) throw new Error('src y dist no son idénticos.');
+          if (src.length !== 259051 || hash !== '2ef00b9357c766852709c8d6de7184d369689357f19e7322beff5dcb338e9e8a') throw new Error('El archivo final no coincide con el original completo.');
+          if (fs.existsSync('dist/piw-qol-es-parts')) throw new Error('Siguen existiendo bloques .b64.');
+          const meta = fs.readFileSync('dist/piw-qol-es.meta.js', 'utf8');
+          if (meta.includes('@require') || meta.includes('raw.githubusercontent.com')) throw new Error('Metadatos incorrectos.');
+          const manifest = fs.readFileSync('dist/manifest.json', 'utf8');
+          if (manifest.includes('raw.githubusercontent.com/LosaJR/PokeIdleWorld-Scripts/main/dist/piw-qol-es')) throw new Error('Manifiesto incorrecto.');
+          const index = fs.readFileSync('dist/index.html', 'utf8');
+          if (!index.includes('href="piw-qol-es.user.js"')) throw new Error('Índice incorrecto.');
+          console.log(`Verificación final correcta: ${src.length} bytes; 4.497 líneas; ${hash}.`);
+          NODE
+
+      - name: Restaurar workflows normales y guardar reparación
+        run: |
+          rm -f .github/workflows/repair-piw-qol-full.yml
+          cat > .github/workflows/validate.yml <<'YAML'
+          name: Validar scripts
+
+          on:
+            pull_request:
+              branches: [main]
+
+          permissions:
+            contents: read
+
+          jobs:
+            validate:
+              runs-on: ubuntu-22.04
+              steps:
+                - uses: actions/checkout@v4
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: 22
+                - name: Ensamblar fuentes y respaldos verificados
+                  run: node scripts/assemble-upload.mjs
+                - name: Validar y generar distribución
+                  run: npm run check
+          YAML
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: publicar PIW-QOL 9.10.24 completo [skip ci]"
+          git push origin main
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+      - uses: actions/deploy-pages@v4
+        id: deployment
+
   validate:
+    if: github.head_ref != 'repair/run-piw-qol-full-now'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
