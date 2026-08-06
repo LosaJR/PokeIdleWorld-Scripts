@@ -36,7 +36,8 @@
       "sha256": "b2fb94c54b7756e2b09301538403ca6b40babbe799026664f3edf13e84f65b72",
       "bytes": 207347,
       "payloads": [
-        "staging-upload/pokegrid-hunt-intelligence.user.js.part01.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.head00.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.head01.b64",
         "staging-upload/pokegrid-hunt-intelligence.user.js.part02a.b64",
         "staging-upload/pokegrid-hunt-intelligence.user.js.part02b.b64",
         "staging-upload/pokegrid-hunt-intelligence.user.js.part02c.b64",
