@@ -1,5 +1,6 @@
 name: Reparar PIW-QOL completo
 
+# Activación puntual de la reparación completa.
 on:
   push:
     branches: [main]
