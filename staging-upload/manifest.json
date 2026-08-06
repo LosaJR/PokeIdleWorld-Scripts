@@ -1,0 +1,97 @@
+{
+  "files": [
+    {
+      "target": "src/piw-qol-es.user.js",
+      "encoding": "gzip-base64",
+      "sha256": "ec45381766d808e19b3c30133e7478b989dad89e4a00f0c663b03272338203f8",
+      "bytes": 251190,
+      "payloads": [
+        "staging-upload/piw-qol-es.user.js.part01.b64",
+        "staging-upload/piw-qol-es.user.js.part02.b64",
+        "staging-upload/piw-qol-es.user.js.part03.b64",
+        "staging-upload/piw-qol-es.user.js.part04.b64"
+      ]
+    },
+    {
+      "target": "src/pokegrid-decision-detector.user.js",
+      "encoding": "gzip-base64",
+      "sha256": "dba05a9ceb2fd86b67af8520ac8df5a6c9e65ddb60262ec3c60623137d8ac989",
+      "bytes": 30658,
+      "payloads": [
+        "staging-upload/pokegrid-decision-detector.user.js.part01.b64"
+      ]
+    },
+    {
+      "target": "src/pokegrid-game-structure-monitor.user.js",
+      "encoding": "gzip-base64",
+      "sha256": "f8e4a221fb0a166418b1ecdf5dfa21f44c8a99e445eabe39bfda03c0340528bb",
+      "bytes": 19484,
+      "payloads": [
+        "staging-upload/pokegrid-game-structure-monitor.user.js.part01.b64"
+      ]
+    },
+    {
+      "target": "src/pokegrid-hunt-intelligence.user.js",
+      "encoding": "gzip-base64",
+      "sha256": "b2fb94c54b7756e2b09301538403ca6b40babbe799026664f3edf13e84f65b72",
+      "bytes": 207347,
+      "payloads": [
+        "staging-upload/pokegrid-hunt-intelligence.user.js.head00.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.head01.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.part02a.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.part02b.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.part02c.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.part03a.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.part03b.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.tail00.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.tail01.b64"
+      ]
+    },
+    {
+      "target": "src/pokegrid-script-bridge-health-agent.user.js",
+      "encoding": "gzip-base64",
+      "sha256": "e6dea7708d4ee9ad77a4958de27a0144fdbcc6f1c7be537cd58e674a323e7e9b",
+      "bytes": 22192,
+      "payloads": [
+        "staging-upload/pokegrid-script-bridge-health-agent.user.js.part01.b64"
+      ]
+    }
+  ],
+  "backups": [
+    {
+      "source": "src/piw-qol-es.user.js",
+      "target": "backup/previous/piw-qol-es.user.js",
+      "sha256": "df70d88286929bf29792de82e727bb4e45cf2e79226ecd667dc0a73a1383a8f8",
+      "bytes": 251190,
+      "replacements": [["9.10.18", "9.10.17"]]
+    },
+    {
+      "source": "src/pokegrid-decision-detector.user.js",
+      "target": "backup/previous/pokegrid-decision-detector.user.js",
+      "sha256": "1762939c0b96f14dbb79056b4a9e908cc63f8bdd76d40bfcadb2cca114fc4a64",
+      "bytes": 30658,
+      "replacements": [["V124", "V123"], ["1.2.4", "1.2.3"]]
+    },
+    {
+      "source": "src/pokegrid-game-structure-monitor.user.js",
+      "target": "backup/previous/pokegrid-game-structure-monitor.user.js",
+      "sha256": "ce6ea27478ea9b57cf135a8109eb865859ee3d19b75c3e4f6c335fea77208800",
+      "bytes": 19484,
+      "replacements": [["V121", "V120"], ["1.2.1", "1.2.0"]]
+    },
+    {
+      "source": "src/pokegrid-hunt-intelligence.user.js",
+      "target": "backup/previous/pokegrid-hunt-intelligence.user.js",
+      "sha256": "5501944d50c419b9c3c2613aaeb1c5246855e234e961f9c919006f292c6a38b4",
+      "bytes": 207347,
+      "replacements": [["V113", "V112"], ["1.1.3", "1.1.2"]]
+    },
+    {
+      "source": "src/pokegrid-script-bridge-health-agent.user.js",
+      "target": "backup/previous/pokegrid-script-bridge-health-agent.user.js",
+      "sha256": "16dfccb0fd852a6a89e488436716495a41d002e834219c1ec577f8bdc12fd1da",
+      "bytes": 22190,
+      "replacements": [["V111", "V11"], ["1.1.1", "1.1.0"]]
+    }
+  ]
+}

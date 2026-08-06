@@ -14,24 +14,21 @@ if (await directoriesEqual(stagingDir, distDir)) {
 
 const temporaryBackup = path.join(root, '.staging', 'previous');
 await fs.rm(temporaryBackup, { recursive: true, force: true });
-
-if (await hasPublishedFiles(distDir)) {
-  await fs.cp(distDir, temporaryBackup, { recursive: true });
-}
+const hadPublishedFiles = await hasPublishedFiles(distDir);
+if (hadPublishedFiles) await fs.cp(distDir, temporaryBackup, { recursive: true });
 
 await fs.rm(distDir, { recursive: true, force: true });
 await fs.cp(stagingDir, distDir, { recursive: true });
-await fs.rm(backupDir, { recursive: true, force: true });
 
-try {
-  await fs.access(temporaryBackup);
+if (hadPublishedFiles) {
+  await fs.rm(backupDir, { recursive: true, force: true });
   await fs.cp(temporaryBackup, backupDir, { recursive: true });
-} catch {
+} else if (!await hasPublishedFiles(backupDir)) {
   await fs.mkdir(backupDir, { recursive: true });
   await fs.writeFile(path.join(backupDir, '.gitkeep'), '', 'utf8');
 }
 
-console.log('Publicación preparada: dist actualizado y backup/previous sustituido por la versión anterior.');
+console.log('Publicación preparada: dist actualizado y respaldo anterior conservado o rotado.');
 
 async function assertDirectory(directory, message) {
   try {

@@ -3,9 +3,14 @@ name: Rollback a la versión anterior
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Nueva versión superior que recibirán los usuarios (ej. 1.5.1)'
+      script:
+        description: 'Archivo a restaurar (ej. pokegrid-hunt-intelligence) o all'
         required: true
+        default: 'all'
+        type: string
+      version:
+        description: 'Opcional: versión superior manual, solo al restaurar un único script'
+        required: false
         type: string
 
 permissions:
@@ -32,8 +37,9 @@ jobs:
         with:
           node-version: 22
 
-      - name: Restaurar el código anterior con una versión nueva
+      - name: Restaurar el código anterior con versiones nuevas
         env:
+          ROLLBACK_SCRIPT: ${{ inputs.script }}
           ROLLBACK_VERSION: ${{ inputs.version }}
         run: npm run rollback:local
 
@@ -48,7 +54,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src dist backup/previous
-          git commit -m "revert: rollback publicado como ${{ inputs.version }} [skip ci]"
+          git commit -m "revert: rollback de ${{ inputs.script }} [skip ci]"
           git push
 
       - uses: actions/configure-pages@v5

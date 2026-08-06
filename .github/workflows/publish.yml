@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'staging-upload/**'
       - 'scripts/**'
       - 'config/repository.json'
       - 'package.json'
@@ -36,6 +37,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Ensamblar una carga preparada
+        run: node scripts/assemble-upload.mjs
+
       - name: Validar versiones y cabeceras
         run: npm run validate
 
@@ -45,11 +49,11 @@ jobs:
       - name: Rotar respaldo y publicar
         run: npm run publish:local
 
-      - name: Guardar dist y el único respaldo
+      - name: Guardar fuentes, dist y el único respaldo
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dist backup/previous
+          git add -A
           if ! git diff --cached --quiet; then
             git commit -m "chore: publicar scripts [skip ci]"
             git push
