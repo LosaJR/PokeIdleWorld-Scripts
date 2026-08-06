@@ -1,0 +1,17 @@
+{
+  "name": "pokeidleworld-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Distribución automática de userscripts de Poke Idle World con respaldo rotatorio y rollback.",
+  "scripts": {
+    "validate": "node scripts/validate.mjs",
+    "build": "node scripts/build.mjs",
+    "publish:local": "node scripts/publish.mjs",
+    "rollback:local": "node scripts/rollback.mjs",
+    "check": "npm run validate && npm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
