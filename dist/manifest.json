@@ -1,3 +1,44 @@
 {
-  "scripts": []
+  "scripts": [
+    {
+      "name": "Poke Idle World - Quality of Life (PIW-QOL ES)",
+      "version": "9.10.18",
+      "file": "piw-qol-es.user.js",
+      "metaFile": "piw-qol-es.meta.js",
+      "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/piw-qol-es.user.js",
+      "updateURL": "https://losajr.github.io/PokeIdleWorld-Scripts/piw-qol-es.meta.js"
+    },
+    {
+      "name": "PokeGrid - Detector de Decisiones y Suministros",
+      "version": "1.2.4",
+      "file": "pokegrid-decision-detector.user.js",
+      "metaFile": "pokegrid-decision-detector.meta.js",
+      "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-decision-detector.user.js",
+      "updateURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-decision-detector.meta.js"
+    },
+    {
+      "name": "PokeGrid - Game Structure Monitor",
+      "version": "1.2.1",
+      "file": "pokegrid-game-structure-monitor.user.js",
+      "metaFile": "pokegrid-game-structure-monitor.meta.js",
+      "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-game-structure-monitor.user.js",
+      "updateURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-game-structure-monitor.meta.js"
+    },
+    {
+      "name": "PokeGrid - Hunt Intelligence",
+      "version": "1.1.3",
+      "file": "pokegrid-hunt-intelligence.user.js",
+      "metaFile": "pokegrid-hunt-intelligence.meta.js",
+      "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-hunt-intelligence.user.js",
+      "updateURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-hunt-intelligence.meta.js"
+    },
+    {
+      "name": "PokeGrid - Script Bridge & Health Agent",
+      "version": "1.1.1",
+      "file": "pokegrid-script-bridge-health-agent.user.js",
+      "metaFile": "pokegrid-script-bridge-health-agent.meta.js",
+      "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-script-bridge-health-agent.user.js",
+      "updateURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-script-bridge-health-agent.meta.js"
+    }
+  ]
 }
