@@ -46,6 +46,9 @@ jobs:
       - name: Generar distribución
         run: npm run build
 
+      - name: Reparar el respaldo inicial si falta
+        run: node scripts/seed-initial-backup.mjs
+
       - name: Rotar respaldo y publicar
         run: npm run publish:local
 
