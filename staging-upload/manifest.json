@@ -1,5 +1,6 @@
 {
   "mode": "replace",
+  "replacementReason": "Sustitución limpia solicitada por el usuario; no heredar el código ni el respaldo anterior de Hunt Intelligence.",
   "files": [
     {
       "target": "src/pokegrid-hunt-intelligence.user.js",
