@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 const root = process.cwd();
 const stagingDir = path.join(root, 'staging-upload');
 const manifestPath = path.join(stagingDir, 'manifest.json');
+const replacementMarkerPath = path.join(root, '.publish-replacements.json');
 
 let manifest;
 try {
@@ -53,6 +54,17 @@ for (const item of manifest.files) {
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.writeFile(target, source);
   console.log(`Ensamblado ${item.target} (${source.length} bytes).`);
+}
+
+if (manifest.mode === 'replace') {
+  const files = manifest.files.map(item => path.basename(item.target));
+  if (files.some(file => !file.endsWith('.user.js'))) {
+    throw new Error('Un reemplazo solo puede apuntar a archivos .user.js.');
+  }
+  await fs.writeFile(replacementMarkerPath, `${JSON.stringify({ files }, null, 2)}\n`, 'utf8');
+  await fs.rm(stagingDir, { recursive: true, force: true });
+  console.log(`Carga de reemplazo ensamblada para ${files.join(', ')}; el respaldo heredado se eliminará tras publicar.`);
+  process.exit(0);
 }
 
 if (!Array.isArray(manifest.backups) || manifest.backups.length !== manifest.files.length) {
