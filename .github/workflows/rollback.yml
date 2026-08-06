@@ -1,0 +1,59 @@
+name: Rollback a la versión anterior
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Nueva versión superior que recibirán los usuarios (ej. 1.5.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Restaurar el código anterior con una versión nueva
+        env:
+          ROLLBACK_VERSION: ${{ inputs.version }}
+        run: npm run rollback:local
+
+      - name: Validar, generar y rotar
+        run: |
+          npm run validate
+          npm run build
+          npm run publish:local
+
+      - name: Guardar rollback
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src dist backup/previous
+          git commit -m "revert: rollback publicado como ${{ inputs.version }} [skip ci]"
+          git push
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
