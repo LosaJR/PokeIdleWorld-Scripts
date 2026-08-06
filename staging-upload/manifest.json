@@ -1,0 +1,64 @@
+{
+  "archive": {
+    "encoding": "tar-xz-base64",
+    "sha256": "3a1e62678df7d4bd298863c00644e1c077177472082356360d0c2307f60f4c17",
+    "bytes": 99016,
+    "payloads": [
+      "staging-upload/userscripts.tar.xz.part00.b64",
+      "staging-upload/userscripts.tar.xz.part01.b64",
+      "staging-upload/userscripts.tar.xz.part02.b64"
+    ]
+  },
+  "files": [
+    {
+      "path": "backup/previous/piw-qol-es.user.js",
+      "bytes": 251190,
+      "sha256": "df70d88286929bf29792de82e727bb4e45cf2e79226ecd667dc0a73a1383a8f8"
+    },
+    {
+      "path": "backup/previous/pokegrid-decision-detector.user.js",
+      "bytes": 30658,
+      "sha256": "1762939c0b96f14dbb79056b4a9e908cc63f8bdd76d40bfcadb2cca114fc4a64"
+    },
+    {
+      "path": "backup/previous/pokegrid-game-structure-monitor.user.js",
+      "bytes": 19484,
+      "sha256": "ce6ea27478ea9b57cf135a8109eb865859ee3d19b75c3e4f6c335fea77208800"
+    },
+    {
+      "path": "backup/previous/pokegrid-hunt-intelligence.user.js",
+      "bytes": 207347,
+      "sha256": "5501944d50c419b9c3c2613aaeb1c5246855e234e961f9c919006f292c6a38b4"
+    },
+    {
+      "path": "backup/previous/pokegrid-script-bridge-health-agent.user.js",
+      "bytes": 22190,
+      "sha256": "16dfccb0fd852a6a89e488436716495a41d002e834219c1ec577f8bdc12fd1da"
+    },
+    {
+      "path": "src/piw-qol-es.user.js",
+      "bytes": 251190,
+      "sha256": "ec45381766d808e19b3c30133e7478b989dad89e4a00f0c663b03272338203f8"
+    },
+    {
+      "path": "src/pokegrid-decision-detector.user.js",
+      "bytes": 30658,
+      "sha256": "dba05a9ceb2fd86b67af8520ac8df5a6c9e65ddb60262ec3c60623137d8ac989"
+    },
+    {
+      "path": "src/pokegrid-game-structure-monitor.user.js",
+      "bytes": 19484,
+      "sha256": "f8e4a221fb0a166418b1ecdf5dfa21f44c8a99e445eabe39bfda03c0340528bb"
+    },
+    {
+      "path": "src/pokegrid-hunt-intelligence.user.js",
+      "bytes": 207347,
+      "sha256": "b2fb94c54b7756e2b09301538403ca6b40babbe799026664f3edf13e84f65b72"
+    },
+    {
+      "path": "src/pokegrid-script-bridge-health-agent.user.js",
+      "bytes": 22192,
+      "sha256": "e6dea7708d4ee9ad77a4958de27a0144fdbcc6f1c7be537cd58e674a323e7e9b"
+    }
+  ]
+}
