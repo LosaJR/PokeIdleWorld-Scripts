@@ -1,28 +1,26 @@
 # Poke Idle World Scripts
 
-Repositorio preparado para distribuir userscripts de Tampermonkey con actualización automática, GitHub Pages, un único respaldo rotatorio y rollback manual.
+Distribución de cinco userscripts de Tampermonkey con actualización automática, GitHub Pages, respaldo rotatorio y rollback manual.
 
-## Estado actual
+## Scripts
 
-La infraestructura está creada, pero `src/` está vacío hasta confirmar cuáles son los cinco scripts realmente instalados y cuáles son sus últimas versiones.
+- PIW-QOL ES
+- PokeGrid - Detector de Decisiones y Suministros
+- PokeGrid - Game Structure Monitor
+- PokeGrid - Hunt Intelligence
+- PokeGrid - Script Bridge & Health Agent
 
-## Flujo normal
+## Publicación
 
-1. Colocar o actualizar un archivo `*.user.js` en `src/`.
-2. Incrementar `@version`.
-3. Subir el cambio a `main`.
-4. GitHub Actions valida las cabeceras y que la versión sea superior.
-5. La publicación actual de `dist/` pasa a `backup/previous/`.
-6. Se genera y publica la nueva versión en `dist/` y GitHub Pages.
-7. Tampermonkey detecta la nueva versión mediante `@updateURL` y la descarga mediante `@downloadURL`.
-
-## Respaldo
-
-Solo se conserva una copia en `backup/previous/`: la versión inmediatamente anterior a la publicada.
+1. Los originales publicados en `dist/` sirven como primera versión y respaldo inicial.
+2. Los scripts editables están en `src/` con una versión superior.
+3. Al integrar cambios en `main`, GitHub Actions valida sintaxis y cabeceras.
+4. La distribución anterior pasa a `backup/previous/`.
+5. La nueva distribución se publica mediante GitHub Pages.
 
 ## Rollback
 
-Desde GitHub Actions, ejecutar **Rollback a la versión anterior** e indicar una versión superior a la defectuosa. Por ejemplo, si `1.5.0` está rota, restaurar el código anterior como `1.5.1`. Esto permite que Tampermonkey lo trate como una actualización.
+El workflow **Rollback a la versión anterior** restaura el código de `backup/previous/`. Cada script recibe automáticamente una versión patch superior a la que estaba publicada, por lo que Tampermonkey lo acepta como actualización.
 
 ## Comandos locales
 
@@ -30,9 +28,5 @@ Desde GitHub Actions, ejecutar **Rollback a la versión anterior** e indicar una
 npm run validate
 npm run build
 npm run publish:local
-ROLLBACK_VERSION=1.5.1 npm run rollback:local
+npm run rollback:local
 ```
-
-## Configuración
-
-El repositorio está configurado para `LosaJR/PokeIdleWorld-Scripts` y su publicación mediante GitHub Pages.
