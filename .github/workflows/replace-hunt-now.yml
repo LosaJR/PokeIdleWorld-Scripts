@@ -1,0 +1,75 @@
+name: Sustituir Hunt Intelligence ahora
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/replace-hunt-now.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  publish-files:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Ensamblar sustitución verificada
+        run: node scripts/assemble-upload.mjs
+
+      - name: Validar cabeceras, versión y sintaxis
+        run: npm run validate
+
+      - name: Generar distribución
+        run: npm run build
+
+      - name: Reparar respaldo inicial si procede
+        run: node scripts/seed-initial-backup.mjs
+
+      - name: Publicar distribución
+        run: npm run publish:local
+
+      - name: Eliminar respaldo heredado de Hunt Intelligence
+        run: node scripts/cleanup-replacements.mjs
+
+      - name: Guardar sustitución en main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: sustituir Hunt Intelligence por 1.1.11 [skip ci]"
+          git push origin main
+
+  deploy-pages:
+    needs: publish-files
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Subir distribución publicada
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+      - name: Desplegar GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
