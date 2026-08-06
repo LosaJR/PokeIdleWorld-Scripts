@@ -1,0 +1,22 @@
+{
+  "mode": "replace",
+  "files": [
+    {
+      "target": "src/pokegrid-hunt-intelligence.user.js",
+      "encoding": "gzip-base64",
+      "sha256": "a603346d2030c50722193d50b0252027e0d2e8373655285b0267c0f06bcc6362",
+      "bytes": 244345,
+      "payloads": [
+        "staging-upload/pokegrid-hunt-intelligence.user.js.seg01.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.seg02.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.seg03.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.seg04.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.seg05.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.seg06.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.seg07.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.seg08.b64",
+        "staging-upload/pokegrid-hunt-intelligence.user.js.seg09.b64"
+      ]
+    }
+  ]
+}
