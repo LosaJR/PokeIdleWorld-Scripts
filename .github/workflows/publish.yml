@@ -1,5 +1,6 @@
 name: Publicar scripts
 
+# Runner explícito para evitar fallos de inicialización observados en ubuntu-latest.
 on:
   push:
     branches: [main]
