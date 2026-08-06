@@ -7,7 +7,6 @@
 // @match        https://poke.idleworld.online/play
 // @grant        none
 // @run-at       document-start
-// @require      https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js
-// @updateURL    https://raw.githubusercontent.com/LosaJR/PokeIdleWorld-Scripts/main/dist/piw-qol-es.meta.js
-// @downloadURL  https://raw.githubusercontent.com/LosaJR/PokeIdleWorld-Scripts/main/dist/piw-qol-es.user.js
+// @updateURL     https://losajr.github.io/PokeIdleWorld-Scripts/piw-qol-es.meta.js
+// @downloadURL   https://losajr.github.io/PokeIdleWorld-Scripts/piw-qol-es.user.js
 // ==/UserScript==

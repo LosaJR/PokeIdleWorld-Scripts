@@ -5,8 +5,8 @@
       "version": "9.10.24",
       "file": "piw-qol-es.user.js",
       "metaFile": "piw-qol-es.meta.js",
-      "downloadURL": "https://raw.githubusercontent.com/LosaJR/PokeIdleWorld-Scripts/main/dist/piw-qol-es.user.js",
-      "updateURL": "https://raw.githubusercontent.com/LosaJR/PokeIdleWorld-Scripts/main/dist/piw-qol-es.meta.js"
+      "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/piw-qol-es.user.js",
+      "updateURL": "https://losajr.github.io/PokeIdleWorld-Scripts/piw-qol-es.meta.js"
     },
     {
       "name": "PokeGrid - Detector de Decisiones y Suministros",
