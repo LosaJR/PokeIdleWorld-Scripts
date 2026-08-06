@@ -1,0 +1,22 @@
+{
+  "mode": "replace",
+  "files": [
+    {
+      "target": "src/piw-qol-es.user.js",
+      "encoding": "gzip-base64",
+      "sha256": "2ef00b9357c766852709c8d6de7184d369689357f19e7322beff5dcb338e9e8a",
+      "bytes": 259051,
+      "payloads": [
+        "staging-upload/piw-qol-es.user.js.seg01.b64",
+        "staging-upload/piw-qol-es.user.js.seg02.b64",
+        "staging-upload/piw-qol-es.user.js.seg03.b64",
+        "staging-upload/piw-qol-es.user.js.seg04.b64",
+        "staging-upload/piw-qol-es.user.js.seg05.b64",
+        "staging-upload/piw-qol-es.user.js.seg06.b64",
+        "staging-upload/piw-qol-es.user.js.seg07.b64",
+        "staging-upload/piw-qol-es.user.js.seg08.b64",
+        "staging-upload/piw-qol-es.user.js.seg09.b64"
+      ]
+    }
+  ]
+}
