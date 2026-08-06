@@ -1,5 +1,6 @@
 {
   "mode": "replace",
+  "trigger": "piw-qol-9.10.24",
   "files": [
     {
       "target": "src/piw-qol-es.user.js",
