@@ -41,10 +41,14 @@ for (const item of manifest.files) {
     if (!payload.startsWith(`${path.resolve(stagingDir)}${path.sep}`)) {
       throw new Error(`Payload no permitido: ${payloadName}`);
     }
-    encoded += (await fs.readFile(payload, 'utf8')).replace(/\s+/g, '');
+    const part = (await fs.readFile(payload, 'utf8')).replace(/\s+/g, '');
+    console.log(`${item.target} <- ${payloadName}: ${part.length} caracteres; inicio ${part.slice(0, 12)}; final ${part.slice(-12)}`);
+    encoded += part;
   }
 
-  const source = zlib.gunzipSync(Buffer.from(encoded, 'base64'));
+  const compressed = Buffer.from(encoded, 'base64');
+  console.log(`${item.target}: base64 ${encoded.length}; gzip ${compressed.length}; SHA gzip ${crypto.createHash('sha256').update(compressed).digest('hex')}`);
+  const source = zlib.gunzipSync(compressed);
   await verifyBuffer(item.target, source, item.sha256, item.bytes);
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.writeFile(target, source);
