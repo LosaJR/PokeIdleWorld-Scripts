@@ -1,13 +1,8 @@
 name: Reparar PIW-QOL completo
 
-# Activación puntual de la reparación completa.
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/repair-piw-qol-full.yml'
-  pull_request:
-    branches: [main]
+  schedule:
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -49,10 +44,13 @@ jobs:
             .sort();
           if (files.length !== 9) throw new Error(`Se esperaban 9 bloques y hay ${files.length}.`);
 
-          const encoded = files.map(name => fs.readFileSync(path.join(partsDir, name), 'utf8').replace(/\s+/g, '')).join('');
+          const encoded = files
+            .map(name => fs.readFileSync(path.join(partsDir, name), 'utf8').replace(/\s+/g, ''))
+            .join('');
           const source = zlib.gunzipSync(Buffer.from(encoded, 'base64'));
           const hash = crypto.createHash('sha256').update(source).digest('hex');
           const expectedHash = '2ef00b9357c766852709c8d6de7184d369689357f19e7322beff5dcb338e9e8a';
+
           if (source.length !== 259051) throw new Error(`Tamaño incorrecto: ${source.length}.`);
           if (hash !== expectedHash) throw new Error(`SHA-256 incorrecto: ${hash}.`);
 
@@ -81,24 +79,54 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           import crypto from 'node:crypto';
+
           const src = fs.readFileSync('src/piw-qol-es.user.js');
           const dist = fs.readFileSync('dist/piw-qol-es.user.js');
           const digest = value => crypto.createHash('sha256').update(value).digest('hex');
+
           if (!src.equals(dist)) throw new Error('src y dist no son idénticos.');
           if (src.length !== 259051) throw new Error(`Tamaño final incorrecto: ${src.length}.`);
           if (digest(src) !== '2ef00b9357c766852709c8d6de7184d369689357f19e7322beff5dcb338e9e8a') throw new Error('Hash final incorrecto.');
           if (fs.existsSync('dist/piw-qol-es-parts')) throw new Error('La carpeta de bloques no fue eliminada.');
+
           const meta = fs.readFileSync('dist/piw-qol-es.meta.js', 'utf8');
           if (meta.includes('@require')) throw new Error('El meta conserva @require.');
+          if (meta.includes('raw.githubusercontent.com')) throw new Error('El meta conserva URLs raw incorrectas.');
+
           const manifest = fs.readFileSync('dist/manifest.json', 'utf8');
           if (manifest.includes('raw.githubusercontent.com/LosaJR/PokeIdleWorld-Scripts/main/dist/piw-qol-es')) throw new Error('El manifiesto conserva URLs raw incorrectas.');
+
           const index = fs.readFileSync('dist/index.html', 'utf8');
           if (!index.includes('href="piw-qol-es.user.js"')) throw new Error('El índice no usa el enlace relativo correcto.');
+
           console.log(`Resultado verificado: ${src.length} bytes, 4.497 líneas y SHA-256 ${digest(src)}.`);
           NODE
 
-      - name: Retirar workflow puntual y guardar reparación
+      - name: Restaurar validador y guardar reparación
         run: |
+          cat > .github/workflows/validate.yml <<'YAML'
+          name: Validar scripts
+
+          on:
+            pull_request:
+              branches: [main]
+
+          permissions:
+            contents: read
+
+          jobs:
+            validate:
+              runs-on: ubuntu-22.04
+              steps:
+                - uses: actions/checkout@v4
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: 22
+                - name: Ensamblar fuentes y respaldos verificados
+                  run: node scripts/assemble-upload.mjs
+                - name: Validar y generar distribución
+                  run: npm run check
+          YAML
           rm -f .github/workflows/repair-piw-qol-full.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
