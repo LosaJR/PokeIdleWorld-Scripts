@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'staging-upload/**'
       - 'scripts/**'
       - 'config/repository.json'
       - 'package.json'
@@ -31,38 +32,29 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Validar versiones y cabeceras
+      - name: Ensamblar carga verificada
+        run: node scripts/assemble-upload.mjs
+      - name: Validar versiones, cabeceras y sintaxis
         run: npm run validate
-
       - name: Generar distribución
         run: npm run build
-
       - name: Rotar respaldo y publicar
         run: npm run publish:local
-
-      - name: Guardar dist y el único respaldo
+      - name: Guardar fuentes, dist y respaldo
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dist backup/previous
+          git add -A
           if ! git diff --cached --quiet; then
             git commit -m "chore: publicar scripts [skip ci]"
             git push
           fi
-
-      - name: Configurar GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Subir sitio
-        uses: actions/upload-pages-artifact@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
-
-      - name: Desplegar GitHub Pages
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4
