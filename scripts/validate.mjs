@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { parseUserscript, compareVersions, injectDistributionUrls } from './lib/userscript.mjs';
 
 const root = process.cwd();
@@ -15,7 +16,7 @@ if (!files.length) {
 }
 
 const errors = [];
-const seenNames = new Set();
+const seenIdentities = new Set();
 
 for (const file of files) {
   const sourcePath = path.join(srcDir, file);
@@ -28,11 +29,15 @@ for (const file of files) {
     continue;
   }
 
-  for (const key of ['name', 'version', 'match']) {
+  for (const key of ['name', 'namespace', 'version', 'match']) {
     if (!parsed.metadata.get(key)?.length) errors.push(`${file}: falta @${key}.`);
   }
-  if (seenNames.has(parsed.name)) errors.push(`${file}: @name duplicado (${parsed.name}).`);
-  seenNames.add(parsed.name);
+  const identity = `${parsed.metadata.get('namespace')?.[0] || ''}\n${parsed.name}`;
+  if (seenIdentities.has(identity)) errors.push(`${file}: identidad @namespace + @name duplicada.`);
+  seenIdentities.add(identity);
+
+  const syntax = spawnSync(process.execPath, ['--check', sourcePath], { encoding: 'utf8' });
+  if (syntax.status !== 0) errors.push(`${file}: sintaxis JavaScript inválida.\n${syntax.stderr.trim()}`);
 
   const currentDistPath = path.join(distDir, file);
   try {
