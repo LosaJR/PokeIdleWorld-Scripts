@@ -25,14 +25,6 @@
       "updateURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-game-structure-monitor.meta.js"
     },
     {
-      "name": "PokeGrid - Hunt Intelligence",
-      "version": "1.1.11",
-      "file": "pokegrid-hunt-intelligence.user.js",
-      "metaFile": "pokegrid-hunt-intelligence.meta.js",
-      "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-hunt-intelligence.user.js",
-      "updateURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-hunt-intelligence.meta.js"
-    },
-    {
       "name": "PokeGrid - Script Bridge & Health Agent",
       "version": "1.1.1",
       "file": "pokegrid-script-bridge-health-agent.user.js",

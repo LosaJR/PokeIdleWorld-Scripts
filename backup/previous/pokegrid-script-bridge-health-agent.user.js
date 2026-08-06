@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Script Bridge & Health Agent
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.0
+// @version      1.1.1
 // @description  Puente local para que los scripts publiquen estado, métricas, errores y comandos a la interfaz principal de PokeGrid.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,10 +12,10 @@
 
 (() => {
   'use strict';
-  if (window.__pgScriptBridgeV11) return;
-  window.__pgScriptBridgeV11 = true;
+  if (window.__pgScriptBridgeV111) return;
+  window.__pgScriptBridgeV111 = true;
 
-  const BRIDGE_VERSION = '1.1.0';
+  const BRIDGE_VERSION = '1.1.1';
   const API_VERSION = '1.0.0'; // Contrato base compatible; las pruebas son campos aditivos.
   const EVENT_NAME = 'pokegrid-script-health-update';
   const READY_EVENT = 'pokegrid-health-bridge-ready';
@@ -553,5 +553,5 @@
   } catch {}
 
   try { window.dispatchEvent(new CustomEvent(READY_EVENT, { detail: { apiVersion: API_VERSION, bridgeVersion: BRIDGE_VERSION } })); } catch {}
-  console.info('[PokeGrid Script Bridge] v1.1.0 cargado: pruebas funcionales automáticas activas.');
+  console.info('[PokeGrid Script Bridge] v1.1.1 cargado: pruebas funcionales automáticas activas.');
 })();

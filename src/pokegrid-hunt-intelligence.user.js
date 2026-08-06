@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.3
+// @version      1.1.11
 // @description  Recomendador, No capturados, Item Finder, supervisor e histórico unificados con VIP y bonus diario normalizados.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV113) return;
-  window.__pgHuntIntelligenceCoreV113 = true;
+  if (window.__pgHuntIntelligenceCoreV1111) return;
+  window.__pgHuntIntelligenceCoreV1111 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -679,8 +679,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV113) return;
-  window.__pgHuntIntelligenceItemCoreV113 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1111) return;
+  window.__pgHuntIntelligenceItemCoreV1111 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1164,8 +1164,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV113) return;
-  window.__pgHuntIntelligenceEngineV113 = true;
+  if (window.__pgHuntIntelligenceEngineV1111) return;
+  window.__pgHuntIntelligenceEngineV1111 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2222,14 +2222,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.3 cargado: VIP manual, bonus diario, ranking personal y Pokédex unificados.');
+  console.info('[Hunt Intelligence] Motor v1.1.11 cargado: VIP manual, bonus diario, ranking personal y Pokédex unificados.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV113) return;
-  window.__pgHuntIntelligenceSupervisorV113 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1111) return;
+  window.__pgHuntIntelligenceSupervisorV1111 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -2241,7 +2241,11 @@
   const DAILY_MULT = 1.20;
   const VIP_MULT = 1.50;
   const INACTIVITY_MS = 3 * 60 * 1000;
-  const DEFAULT_CONFIG = { threshold: 80, minMinutes: 8, minKills: 30, refreshSeconds: 15 };
+  const FIXED_MIN_MINUTES = 30;
+  const SAMPLE_WINDOW_SECONDS = FIXED_MIN_MINUTES * 60;
+  const SAMPLE_WINDOW_MS = SAMPLE_WINDOW_SECONDS * 1000;
+  const WINDOW_MIGRATION_KEY = `${NS}:fixed-window-v1`;
+  const DEFAULT_CONFIG = { threshold: 80, minMinutes: FIXED_MIN_MINUTES, minKills: 30, refreshSeconds: 15 };
 
   const norm = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[_-]+/g, ' ').replace(/\[[^\]]*]/g, '').replace(/\([^)]*\)/g, '')
@@ -2256,6 +2260,7 @@
   function saveJson(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
 
   let config = { ...DEFAULT_CONFIG, ...(loadJson(CONFIG_KEY, {}) || {}) };
+  config.minMinutes = FIXED_MIN_MINUTES;
   let segments = Array.isArray(loadJson(SEGMENTS_KEY, [])) ? loadJson(SEGMENTS_KEY, []) : [];
   let calibrationRegistry = loadJson(CALIBRATION_KEY, {}) || {};
   let activeSample = null;
@@ -2303,10 +2308,87 @@
   }
 
   function persist() {
+    config.minMinutes = FIXED_MIN_MINUTES;
     segments = segments.slice(-800);
     saveJson(SEGMENTS_KEY, segments);
     saveJson(CALIBRATION_KEY, calibrationRegistry);
     saveJson(CONFIG_KEY, config);
+  }
+
+  function addCalibrationRow(row, registry = calibrationRegistry) {
+    if (!row?.calibrationValid || !(finite(row.expectedKph) > 0) || !Number.isFinite(Number(row.kph))) return false;
+    const key = calibrationKey(row);
+    const old = registry[key] || { totalSeconds:0,totalKills:0,weightedFactor:0,totalCleanXp:0,samples:0 };
+    const elapsedSeconds = SAMPLE_WINDOW_SECONDS;
+    const oldSeconds = Math.max(0, finite(old.totalSeconds));
+    const oldWeighted = Math.max(0, finite(old.weightedFactor, finite(old.factor) * oldSeconds));
+    const factor = clamp(finite(row.kph) / finite(row.expectedKph), 0.60, 1.60);
+    const totalSeconds = oldSeconds + elapsedSeconds;
+    registry[key] = {
+      factor: totalSeconds ? (oldWeighted + factor * elapsedSeconds) / totalSeconds : factor,
+      weightedFactor: oldWeighted + factor * elapsedSeconds,
+      totalSeconds,
+      totalKills: Math.max(0, finite(old.totalKills)) + Math.max(0, finite(row.kills)),
+      totalCleanXp: Math.max(0, finite(old.totalCleanXp)) + Math.max(0, finite(row.cleanBaseXph)) * (elapsedSeconds / 3600),
+      cleanXpKnown: Boolean(old.cleanXpKnown || (row.vipKnown === true && Number.isFinite(Number(row.cleanBaseXph)))),
+      samples: Math.max(0, finite(old.samples)) + 1,
+      updatedAt: Math.max(finite(old.updatedAt), finite(row.end, Date.now())),
+      leadName: row.leadName || '', huntName: row.huntName || '', move: row.move || '', tm: Boolean(row.tm)
+    };
+    return true;
+  }
+
+  function rebuildCalibrationRegistry() {
+    const rebuilt = {};
+    segments.forEach(row => addCalibrationRow(row, rebuilt));
+    calibrationRegistry = rebuilt;
+  }
+
+  function migrateToFixedWindows() {
+    config.minMinutes = FIXED_MIN_MINUTES;
+    try {
+      if (localStorage.getItem(WINDOW_MIGRATION_KEY) === '1') { persist(); return; }
+    } catch {}
+
+    const converted = [];
+    for (const sourceRow of segments) {
+      const elapsed = Math.max(0, finite(sourceRow.elapsedSeconds));
+      const windows = Math.floor((elapsed + 0.0001) / SAMPLE_WINDOW_SECONDS);
+      if (windows < 1) continue;
+      const sourceEnd = finite(sourceRow.end);
+      const sourceStart = finite(sourceRow.start) || (sourceEnd > 0 ? sourceEnd - elapsed * 1000 : Date.now() - elapsed * 1000);
+      const totalKills = Math.max(0, finite(sourceRow.kills));
+      const totalXp = Math.max(0, finite(sourceRow.xp, finite(sourceRow.rawXph) * elapsed / 3600));
+      const killsPerSecond = elapsed ? totalKills / elapsed : 0;
+      const xpPerSecond = elapsed ? totalXp / elapsed : 0;
+      for (let index = 0; index < windows; index++) {
+        const start = sourceStart + index * SAMPLE_WINDOW_MS;
+        const end = start + SAMPLE_WINDOW_MS;
+        const kills = killsPerSecond * SAMPLE_WINDOW_SECONDS;
+        const xp = xpPerSecond * SAMPLE_WINDOW_SECONDS;
+        const kph = kills * 2;
+        const rawXph = xp * 2;
+        const cleanBaseXph = Number.isFinite(Number(sourceRow.cleanBaseXph))
+          ? Number(sourceRow.cleanBaseXph)
+          : sourceRow.vipKnown === true
+            ? rawXph / (sourceRow.vipActive ? VIP_MULT : 1) / (sourceRow.dailyBoosted ? DAILY_MULT : 1)
+            : null;
+        converted.push({
+          ...sourceRow,
+          id: `${Math.round(start)}-${Math.round(end)}-30m`,
+          start, end,
+          elapsedSeconds: SAMPLE_WINDOW_SECONDS,
+          kills, xp, kph, rawXph, cleanBaseXph,
+          sampleWindowMinutes: FIXED_MIN_MINUTES,
+          calibrationValid: kills >= config.minKills,
+          reason: sourceRow.reason || 'migración a muestras fijas de 30 min'
+        });
+      }
+    }
+    segments = converted.slice(-800);
+    rebuildCalibrationRegistry();
+    persist();
+    try { localStorage.setItem(WINDOW_MIGRATION_KEY, '1'); } catch {}
   }
 
   function currentSlug() { return norm(window.__poke?.ws?.['field-init']?.slug || window.__poke?.lastSlug || window.__poke?.sess?.slug || ''); }
@@ -2356,41 +2438,67 @@
 
   function calibrationKey(meta) { return `${compact(meta.leadId || meta.leadName || 'unknown')}|${compact(meta.huntKey || meta.slug || meta.huntName || 'unknown')}|${compact(meta.move || 'unknown')}|${meta.tm?'tm':'base'}`; }
 
+  function createCompletedWindowRow(sample, startAt, endAt, startKills, endKills, startXp, endXp, reason) {
+    const kills = Math.max(0, endKills - startKills);
+    const xp = Math.max(0, endXp - startXp);
+    const kph = kills * 2;
+    const rawXph = xp * 2;
+    const cleanBaseXph = rawXph / (sample.meta.vipActive ? VIP_MULT : 1) / (sample.meta.dailyBoosted ? DAILY_MULT : 1);
+    return {
+      id: `${Math.round(startAt)}-${Math.round(endAt)}-30m`,
+      start: startAt,
+      end: endAt,
+      elapsedSeconds: SAMPLE_WINDOW_SECONDS,
+      kills,
+      xp,
+      kph,
+      rawXph,
+      cleanBaseXph,
+      reason,
+      sampleWindowMinutes: FIXED_MIN_MINUTES,
+      ...sample.meta,
+      calibrationValid: kills >= config.minKills
+    };
+  }
+
+  function collectCompletedWindows(sample, endAt, reason = 'muestra automática de 30 min') {
+    if (!sample) return [];
+    const safeEnd = Math.max(sample.startedAt, Math.min(endAt, Date.now()));
+    const completed = [];
+    while (safeEnd - sample.startedAt >= SAMPLE_WINDOW_MS) {
+      const span = Math.max(1, safeEnd - sample.startedAt);
+      const ratio = Math.min(1, SAMPLE_WINDOW_MS / span);
+      const boundary = sample.startedAt + SAMPLE_WINDOW_MS;
+      const boundaryKills = sample.baseKills + (sample.lastKills - sample.baseKills) * ratio;
+      const boundaryXp = sample.baseXp + (sample.lastXp - sample.baseXp) * ratio;
+      const row = createCompletedWindowRow(
+        sample, sample.startedAt, boundary,
+        sample.baseKills, boundaryKills,
+        sample.baseXp, boundaryXp,
+        reason
+      );
+      segments.push(row);
+      addCalibrationRow(row);
+      completed.push(row);
+      sample.startedAt = boundary;
+      sample.baseKills = boundaryKills;
+      sample.baseXp = boundaryXp;
+      lastResetReason = 'muestra de 30 min completada';
+    }
+    if (completed.length) {
+      persist();
+      try { window.dispatchEvent(new CustomEvent('pokegrid-intelligence-updated')); } catch {}
+    }
+    return completed;
+  }
+
   function finalizeActiveSample(reason = 'cambio detectado', endAt = Date.now()) {
     const sample = activeSample;
     if (!sample) return null;
-    const safeEnd = Math.max(sample.startedAt, Math.min(endAt, Date.now()));
-    const elapsedSeconds = Math.max(0, (safeEnd - sample.startedAt) / 1000);
-    const kills = Math.max(0, sample.lastKills - sample.baseKills);
-    const xp = Math.max(0, sample.lastXp - sample.baseXp);
+    const completed = collectCompletedWindows(sample, endAt, reason);
     activeSample = null;
     lastResetReason = reason;
-    if (elapsedSeconds < 120 || kills < 5) return null;
-    const hours = elapsedSeconds / 3600;
-    const kph = kills / hours;
-    const rawXph = xp / hours;
-    const cleanBaseXph = rawXph / (sample.meta.vipActive ? VIP_MULT : 1) / (sample.meta.dailyBoosted ? DAILY_MULT : 1);
-    const row = { id:`${sample.startedAt}-${Math.round(safeEnd)}`, start:sample.startedAt, end:safeEnd, elapsedSeconds, kills, xp, kph, rawXph, cleanBaseXph, reason, ...sample.meta,
-      calibrationValid: elapsedSeconds >= Math.max(120, config.minMinutes*60) && kills >= config.minKills };
-    segments.push(row);
-    if (row.calibrationValid && row.expectedKph > 0 && Number.isFinite(kph)) {
-      const key = calibrationKey(row), old = calibrationRegistry[key] || { totalSeconds:0,totalKills:0,weightedFactor:0,totalCleanXp:0,samples:0 };
-      const oldSeconds = Math.max(0, finite(old.totalSeconds));
-      const oldWeighted = Math.max(0, finite(old.weightedFactor, finite(old.factor)*oldSeconds));
-      const factor = clamp(kph / row.expectedKph, 0.60, 1.60);
-      const totalSeconds = oldSeconds + elapsedSeconds;
-      calibrationRegistry[key] = {
-        factor: totalSeconds ? (oldWeighted + factor*elapsedSeconds)/totalSeconds : factor,
-        weightedFactor: oldWeighted + factor*elapsedSeconds,
-        totalSeconds, totalKills: Math.max(0,finite(old.totalKills))+kills,
-        totalCleanXp: Math.max(0,finite(old.totalCleanXp)) + cleanBaseXph*hours,
-        cleanXpKnown: true, samples: Math.max(0,finite(old.samples))+1, updatedAt:Date.now(),
-        leadName:row.leadName,huntName:row.huntName,move:row.move,tm:row.tm
-      };
-    }
-    persist();
-    try { window.dispatchEvent(new CustomEvent('pokegrid-intelligence-updated')); } catch {}
-    return row;
+    return completed.at(-1) || null;
   }
 
   function updateActiveSample(result, current) {
@@ -2409,30 +2517,55 @@
     if (raw.kills > activeSample.lastKills || raw.xp > activeSample.lastXp) activeSample.lastProgressAt = now;
     activeSample.lastKills = raw.kills; activeSample.lastXp = raw.xp;
     const end = now-activeSample.lastProgressAt > INACTIVITY_MS ? activeSample.lastProgressAt : now;
-    const elapsedSeconds = Math.max(0,(end-activeSample.startedAt)/1000), kills=Math.max(0,raw.kills-activeSample.baseKills), xp=Math.max(0,raw.xp-activeSample.baseXp), hours=elapsedSeconds/3600;
-    return { slug:raw.slug,start:activeSample.startedAt,elapsedSeconds,kills,xp,kph:hours?kills/hours:0,xph:hours?xp/hours:0,paused:now-activeSample.lastProgressAt>INACTIVITY_MS,meta:{...activeSample.meta} };
+    const completedRows = collectCompletedWindows(activeSample, end);
+    const elapsedSeconds = Math.max(0,(end-activeSample.startedAt)/1000);
+    const kills=Math.max(0,raw.kills-activeSample.baseKills), xp=Math.max(0,raw.xp-activeSample.baseXp), hours=elapsedSeconds/3600;
+    return {
+      slug:raw.slug,start:activeSample.startedAt,elapsedSeconds,kills,xp,
+      kph:hours?kills/hours:0,xph:hours?xp/hours:0,
+      paused:now-activeSample.lastProgressAt>INACTIVITY_MS,
+      completedRows:clone(completedRows),
+      meta:{...activeSample.meta}
+    };
   }
 
   function confidence(seconds, kills) { return seconds>=7200&&kills>=1000?'alta':seconds>=2400&&kills>=300?'media':'baja'; }
 
   function getPersonalEstimate({ lead, hunt, diff, dailyBoosted=false, vipActive=false } = {}) {
     const key = contextKey(lead,hunt,diff), level = finite(lead?.level), levelBand = Math.max(25, level*0.10), acct=accountId();
-    let rows = segments.filter(row => row.accountId===acct && row.vipKnown===true && Number.isFinite(Number(row.cleanBaseXph)) && calibrationKey(row)===key && Math.abs(finite(row.leadLevel)-level)<=levelBand);
+    const rows = segments.filter(row => row.accountId===acct
+      && finite(row.elapsedSeconds)===SAMPLE_WINDOW_SECONDS
+      && row.vipKnown===true
+      && Number.isFinite(Number(row.cleanBaseXph))
+      && calibrationKey(row)===key
+      && Math.abs(finite(row.leadLevel)-level)<=levelBand);
     if (!rows.length) return null;
-    const totalSeconds=rows.reduce((sum,row)=>sum+Math.max(0,finite(row.elapsedSeconds)),0), totalKills=rows.reduce((sum,row)=>sum+Math.max(0,finite(row.kills)),0);
-    if (totalSeconds<600 || totalKills<80) return null;
-    const hours=totalSeconds/3600;
-    const cleanXp=rows.reduce((sum,row)=>sum+finite(row.cleanBaseXph)*finite(row.elapsedSeconds)/3600,0);
-    const baseXph=hours?cleanXp/hours:0, kph=hours?totalKills/hours:0;
+    const totalSeconds=rows.length*SAMPLE_WINDOW_SECONDS;
+    const totalKills=rows.reduce((sum,row)=>sum+Math.max(0,finite(row.kills)),0);
+    if (totalKills<=0) return null;
+    const baseXph=rows.reduce((sum,row)=>sum+finite(row.cleanBaseXph),0)/rows.length;
+    const kph=rows.reduce((sum,row)=>sum+finite(row.kph),0)/rows.length;
     return { source:'historico-real', baseXph, currentXph:baseXph*(vipActive?VIP_MULT:1)*(dailyBoosted?DAILY_MULT:1), kph, samples:rows.length,totalSeconds,totalKills,confidence:confidence(totalSeconds,totalKills),levelBand };
   }
 
   function getCalibration({ lead, hunt, diff } = {}) {
     const row=calibrationRegistry[contextKey(lead,hunt,diff)];
     if (!row || !Number.isFinite(Number(row.factor))) return null;
-    const seconds=Math.max(0,finite(row.totalSeconds)),kills=Math.max(0,finite(row.totalKills));
-    if (seconds<600||kills<80) return null;
-    return { factor:clamp(finite(row.factor),0.60,1.60),samples:Math.max(1,finite(row.samples)),totalSeconds:seconds,totalKills:kills,confidence:confidence(seconds,kills) };
+    const seconds=Math.max(0,finite(row.totalSeconds)),kills=Math.max(0,finite(row.totalKills)),samples=Math.max(0,finite(row.samples));
+    if (seconds<SAMPLE_WINDOW_SECONDS||samples<1||kills<=0) return null;
+    return { factor:clamp(finite(row.factor),0.60,1.60),samples,totalSeconds:seconds,totalKills:kills,confidence:confidence(seconds,kills) };
+  }
+
+  function latestEvaluationSample(result, current) {
+    const acct=accountId(), key=contextKey(result?.lead,current?.hunt,current?.diff), level=finite(result?.lead?.level);
+    const vip=Boolean(result?.vipActive), daily=Boolean(current?.dailyBoosted);
+    return segments.filter(row=>row.accountId===acct
+      && finite(row.elapsedSeconds)===SAMPLE_WINDOW_SECONDS
+      && calibrationKey(row)===key
+      && finite(row.leadLevel)===level
+      && Boolean(row.vipActive)===vip
+      && Boolean(row.dailyBoosted)===daily)
+      .sort((a,b)=>finite(b.end)-finite(a.end))[0] || null;
   }
 
   async function createReport(force=false) {
@@ -2440,10 +2573,15 @@
     if (!core?.calculateRecommendations) return { error:'El motor Hunt Intelligence todavía no está listo.' };
     const result=await core.calculateRecommendations(force), raw=rawSession(), slug=currentSlug()||raw?.slug||'', current=findCurrentRow(result.rows||[],slug);
     if (!current) return { result,session:null,slug,error:slug?`No puedo relacionar la hunt actual “${slug}” con el ranking.`:'Todavía no detecto una hunt activa.' };
-    const session=updateActiveSample(result,current), expectedKph=Math.max(0,finite(current.theoreticalKph,current.kph)), actualKph=Math.max(0,finite(session?.kph)), efficiency=expectedKph?actualKph/expectedKph:0;
-    const ready=Boolean(session&&!session.paused&&session.elapsedSeconds>=config.minMinutes*60&&session.kills>=config.minKills),percent=efficiency*100;
+    const session=updateActiveSample(result,current);
+    const evaluation=session?.completedRows?.at(-1)||latestEvaluationSample(result,current);
+    const expectedKph=Math.max(0,finite(current.theoreticalKph,current.kph));
+    const actualKph=Math.max(0,finite(evaluation?.kph,session?.kph));
+    const efficiency=expectedKph?actualKph/expectedKph:0;
+    const ready=Boolean(evaluation&&finite(evaluation.elapsedSeconds)===SAMPLE_WINDOW_SECONDS&&finite(evaluation.kills)>=config.minKills);
+    const percent=efficiency*100;
     const level=ready?(percent<config.threshold*.8?'critical':percent<config.threshold?'warning':'good'):'measuring';
-    return { result,session,slug,current,expectedKph,actualKph,efficiency,percent,ready,level,createdAt:Date.now() };
+    return { result,session,evaluation,slug,current,expectedKph,actualKph,efficiency,percent,ready,level,createdAt:Date.now() };
   }
 
   async function refresh(force=false) {
@@ -2456,15 +2594,20 @@
 
   function aggregateHistory() {
     const acct=accountId(), map=new Map();
-    for (const row of segments.filter(row=>row.accountId===acct)) {
+    for (const row of segments.filter(row=>row.accountId===acct&&finite(row.elapsedSeconds)===SAMPLE_WINDOW_SECONDS)) {
       const key=historyGroupKey(row);
-      const agg=map.get(key)||{key,huntName:row.huntName,leadName:row.leadName,move:row.move,tm:row.tm,samples:0,seconds:0,kills:0,cleanXp:0,validSeconds:0,legacy:0,vipYes:0,vipNo:0};
-      agg.samples++; agg.seconds+=finite(row.elapsedSeconds); agg.kills+=finite(row.kills);
-      if (row.vipKnown===true&&Number.isFinite(Number(row.cleanBaseXph))) { agg.cleanXp+=finite(row.cleanBaseXph)*finite(row.elapsedSeconds)/3600; agg.validSeconds+=finite(row.elapsedSeconds); if(row.vipActive)agg.vipYes++;else agg.vipNo++; }
+      const agg=map.get(key)||{key,huntName:row.huntName,leadName:row.leadName,move:row.move,tm:row.tm,samples:0,seconds:0,kills:0,cleanXp:0,legacy:0,vipYes:0,vipNo:0};
+      agg.samples++; agg.seconds+=SAMPLE_WINDOW_SECONDS; agg.kills+=finite(row.kills);
+      if (row.vipKnown===true&&Number.isFinite(Number(row.cleanBaseXph))) { agg.cleanXp+=finite(row.cleanBaseXph); if(row.vipActive)agg.vipYes++;else agg.vipNo++; }
       else agg.legacy++;
       map.set(key,agg);
     }
-    return [...map.values()].map(row=>{const hours=row.seconds/3600,validHours=row.validSeconds/3600,baseXph=validHours?row.cleanXp/validHours:0;return {...row,hours,kph:hours?row.kills/hours:0,baseXph,vipXph:baseXph*VIP_MULT,vipDailyXph:baseXph*VIP_MULT*DAILY_MULT};}).sort((a,b)=>b.baseXph-a.baseXph||b.hours-a.hours);
+    return [...map.values()].map(row=>{
+      const hours=row.samples*0.5;
+      const knownSamples=Math.max(0,row.samples-row.legacy);
+      const baseXph=knownSamples?row.cleanXp/knownSamples:0;
+      return {...row,hours,kph:row.samples?row.kills/hours:0,baseXph,vipXph:baseXph*VIP_MULT,vipDailyXph:baseXph*VIP_MULT*DAILY_MULT};
+    }).sort((a,b)=>b.baseXph-a.baseXph||b.samples-a.samples);
   }
 
   function historyGroupKey(row) {
@@ -2501,26 +2644,40 @@
     return{cleared:true,removedSegments:removed.length,removedCalibrations};
   }
   function clearHistory(){ segments=[];calibrationRegistry={};activeSample=null;persist();try{window.dispatchEvent(new CustomEvent('pokegrid-intelligence-updated'));}catch{}return{cleared:true}; }
-  function adjustConfig(key,delta){ if(!['threshold','minMinutes','minKills','refreshSeconds'].includes(key))return config; const ranges={threshold:[50,120],minMinutes:[2,60],minKills:[5,1000],refreshSeconds:[8,120]},[min,max]=ranges[key];config[key]=clamp(finite(config[key])+finite(delta),min,max);persist();restartTimer();return{...config}; }
+  function adjustConfig(key,delta){
+    config.minMinutes=FIXED_MIN_MINUTES;
+    if(key==='minMinutes')return{...config};
+    if(!['threshold','minKills','refreshSeconds'].includes(key))return{...config};
+    const ranges={threshold:[50,120],minKills:[5,1000],refreshSeconds:[8,120]},[min,max]=ranges[key];
+    config[key]=clamp(finite(config[key])+finite(delta),min,max);persist();restartTimer();return{...config};
+  }
 
   function renderCurrentHtml() {
     const r=lastReport;
     if(!r)return '<div class="pg-u-empty">Esperando la primera medición del supervisor…</div>';
     if(r.error&&!r.current)return `<div class="pg-u-empty">${esc(r.error)}</div>`;
-    const current=r.current||{},session=r.session||{},vip=Boolean(r.result?.vipActive),daily=Boolean(current.dailyBoosted),actualRaw=finite(session.xph),clean=actualRaw/(vip?VIP_MULT:1)/(daily?DAILY_MULT:1),tone=r.ready?(r.level==='good'?'ok':r.level==='warning'?'warn':'bad'):'warn';
+    const current=r.current||{},session=r.session||{},evaluation=r.evaluation||null;
+    const vip=Boolean(r.result?.vipActive),daily=Boolean(current.dailyBoosted);
+    const actualRaw=finite(evaluation?.rawXph,session.xph);
+    const clean=Number.isFinite(Number(evaluation?.cleanBaseXph))?finite(evaluation.cleanBaseXph):actualRaw/(vip?VIP_MULT:1)/(daily?DAILY_MULT:1);
+    const tone=r.ready?(r.level==='good'?'ok':r.level==='warning'?'warn':'bad'):'warn';
     const alternatives=(r.result?.rows||[]).filter(row=>row!==current).slice(0,5);
-    return `<div class="pg-hi-banner ${tone}">${r.ready?(r.level==='good'?`Rendimiento correcto: ${fmt(r.percent,1)} % de la velocidad PIWTools.`:`Rendimiento bajo: ${fmt(r.percent,1)} % de PIWTools.`):`Midiendo: ${fmt(session.elapsedSeconds/60,1)} min · ${fmt(session.kills)} derrotas.`}</div>
-      <div class="pg-hi-hero"><div><b>${esc(current.hunt?.name||r.slug||'Hunt actual')}</b><small>${esc(r.result?.lead?.name||'Pokémon')} Nv. ${fmt(r.result?.lead?.level)} · ${vip?'VIP Sí':'VIP No'}${daily?' · +20 % diario':''}${lastResetReason?` · ${esc(lastResetReason)}`:''}</small></div><div><b>${fmt(r.expectedKph)}</b><small>kills/h PIWTools</small></div><div><b>${fmt(r.actualKph)}</b><small>kills/h reales</small></div><div><b>${fmt(actualRaw)}</b><small>EXP/h observada</small></div><div><b>${fmt(clean)}</b><small>EXP/h base limpia</small></div></div>
-      <div class="pg-hi-grid"><div class="pg-hi-card"><h3>Condiciones y muestra</h3><div class="pg-hi-lines"><span>PIWTools actual</span><b>${fmt(finite(current.theoreticalXph,current.xph))}</b><span>Ranking utilizado</span><b>${fmt(current.xph)}</b><span>Duración útil</span><b>${fmt(session.elapsedSeconds/60,1)} min</b><span>Derrotas</span><b>${fmt(session.kills)}</b></div></div>
+    const progress=Math.min(FIXED_MIN_MINUTES,finite(session.elapsedSeconds)/60);
+    const banner=r.ready
+      ? (r.level==='good'?`Última muestra de 30 min: rendimiento correcto, ${fmt(r.percent,1)} % de la velocidad PIWTools.`:`Última muestra de 30 min: rendimiento bajo, ${fmt(r.percent,1)} % de PIWTools.`)
+      : `Recopilando muestra: ${fmt(progress,1)} / ${FIXED_MIN_MINUTES} min · ${fmt(session.kills)} derrotas.`;
+    return `<div class="pg-hi-banner ${tone}">${banner}</div>
+      <div class="pg-hi-hero"><div><b>${esc(current.hunt?.name||r.slug||'Hunt actual')}</b><small>${esc(r.result?.lead?.name||'Pokémon')} Nv. ${fmt(r.result?.lead?.level)} · ${vip?'VIP Sí':'VIP No'}${daily?' · +20 % diario':''}${lastResetReason?` · ${esc(lastResetReason)}`:''}</small></div><div><b>${fmt(r.expectedKph)}</b><small>kills/h PIWTools</small></div><div><b>${fmt(r.actualKph)}</b><small>${evaluation?'última muestra':'muestra actual'} kills/h</small></div><div><b>${fmt(actualRaw)}</b><small>EXP/h observada</small></div><div><b>${fmt(clean)}</b><small>EXP/h base limpia</small></div></div>
+      <div class="pg-hi-grid"><div class="pg-hi-card"><h3>Condiciones y muestra</h3><div class="pg-hi-lines"><span>PIWTools actual</span><b>${fmt(finite(current.theoreticalXph,current.xph))}</b><span>Ranking utilizado</span><b>${fmt(current.xph)}</b><span>Muestra actual</span><b>${fmt(progress,1)} / ${FIXED_MIN_MINUTES} min</b><span>Derrotas actuales</span><b>${fmt(session.kills)}</b><span>Muestras completas</span><b>${fmt(segments.filter(row=>row.accountId===accountId()&&finite(row.elapsedSeconds)===SAMPLE_WINDOW_SECONDS).length)}</b></div></div>
       <div class="pg-hi-card"><h3>Alternativas calculadas</h3>${alternatives.map(row=>`<div class="pg-hi-alt"><span>${esc(row.hunt?.name||'Hunt')}${row.dailyBoosted?' · +20 %':''}</span><b>${fmt(row.xph)} XP/h</b></div>`).join('')||'<div class="pg-u-empty">Sin alternativas.</div>'}</div></div>
-      <div class="pg-hi-settings"><div>Umbral <span><button data-supervisor-delta="-5" data-supervisor-key="threshold">−</button><b>${fmt(config.threshold)}%</b><button data-supervisor-delta="5" data-supervisor-key="threshold">+</button></span></div><div>Mín. minutos <span><button data-supervisor-delta="-1" data-supervisor-key="minMinutes">−</button><b>${fmt(config.minMinutes)}</b><button data-supervisor-delta="1" data-supervisor-key="minMinutes">+</button></span></div><div>Mín. kills <span><button data-supervisor-delta="-5" data-supervisor-key="minKills">−</button><b>${fmt(config.minKills)}</b><button data-supervisor-delta="5" data-supervisor-key="minKills">+</button></span></div></div>`;
+      <div class="pg-hi-settings"><div>Umbral <span><button data-supervisor-delta="-5" data-supervisor-key="threshold">−</button><b>${fmt(config.threshold)}%</b><button data-supervisor-delta="5" data-supervisor-key="threshold">+</button></span></div><div>Muestra histórica <span><b>${FIXED_MIN_MINUTES} min (fijo)</b></span></div><div>Mín. kills <span><button data-supervisor-delta="-5" data-supervisor-key="minKills">−</button><b>${fmt(config.minKills)}</b><button data-supervisor-delta="5" data-supervisor-key="minKills">+</button></span></div></div>`;
   }
 
   function renderHistoryHtml() {
     const rows=aggregateHistory(),legacy=legacyCount(),vip=Boolean(window.__PGPiwToolsEngine?.getVip?.());
-    return `<div class="pg-u-note">La EXP base limpia elimina tanto el VIP ×1,50 como el bonus diario ×1,20. El ranking puede reutilizar estas muestras con las condiciones actuales.</div>${legacy?`<div class="pg-hi-banner warn">Hay ${fmt(legacy)} tramos antiguos sin estado VIP. Sus kills/h siguen siendo útiles, pero su EXP no se usa hasta clasificarlos. <button data-adopt-legacy-vip>Asignarles VIP actual: ${vip?'Sí':'No'}</button></div>`:''}
-      <div class="pg-hi-history-head"><span>Hunt · Pokémon</span><span>Muestras</span><span>Horas</span><span>Kills/h</span><span>Base limpia</span><span>VIP + diario</span><span></span></div>
-      <div class="pg-hi-history">${rows.map(row=>`<div class="pg-hi-history-row"><span class="pg-hi-history-name"><b>${esc(row.huntName||'Hunt')}</b><small>${esc(row.leadName||'Pokémon')} · ${esc(row.move||'Ataque')}${row.tm?' (MT)':''}${row.legacy?` · ${row.legacy} legado`:''}</small></span><span>${fmt(row.samples)}</span><span>${fmt(row.hours,1)}</span><span>${fmt(row.kph)}</span><span>${row.baseXph?fmt(row.baseXph):'—'}</span><span>${row.baseXph?fmt(row.vipDailyXph):'—'}</span><button class="pg-hi-delete" data-delete-intelligence-history="${esc(row.key)}" data-history-label="${esc(`${row.huntName||'Hunt'} · ${row.leadName||'Pokémon'}`)}" title="Borrar toda esta línea del histórico" aria-label="Borrar histórico de ${esc(row.huntName||'esta hunt')}">🗑️</button></div>`).join('')||'<div class="pg-u-empty">Todavía no hay tramos. Mantén una hunt al menos dos minutos y cinco derrotas.</div>'}</div>
+    return `<div class="pg-u-note">Cada muestra representa exactamente 30 minutos útiles. «Base limpia» es la media de todas las muestras de esa hunt y elimina VIP ×1,50 y bonus diario ×1,20.</div>${legacy?`<div class="pg-hi-banner warn">Hay ${fmt(legacy)} muestras antiguas sin estado VIP. Sus kills/h siguen siendo útiles, pero su EXP no se usa hasta clasificarlas. <button data-adopt-legacy-vip>Asignarles VIP actual: ${vip?'Sí':'No'}</button></div>`:''}
+      <div class="pg-hi-history-head"><span>Hunt · Pokémon</span><span>Muestras</span><span>Horas</span><span>Kills/h</span><span>Base limpia media</span><span>VIP + diario</span><span></span></div>
+      <div class="pg-hi-history">${rows.map(row=>`<div class="pg-hi-history-row"><span class="pg-hi-history-name"><b>${esc(row.huntName||'Hunt')}</b><small>${esc(row.leadName||'Pokémon')} · ${esc(row.move||'Ataque')}${row.tm?' (MT)':''}${row.legacy?` · ${row.legacy} legado`:''}</small></span><span>${fmt(row.samples)}</span><span>${fmt(row.hours,1)}</span><span>${fmt(row.kph)}</span><span>${row.baseXph?fmt(row.baseXph):'—'}</span><span>${row.baseXph?fmt(row.vipDailyXph):'—'}</span><button class="pg-hi-delete" data-delete-intelligence-history="${esc(row.key)}" data-history-label="${esc(`${row.huntName||'Hunt'} · ${row.leadName||'Pokémon'}`)}" title="Borrar todas las muestras de esta línea" aria-label="Borrar histórico de ${esc(row.huntName||'esta hunt')}">🗑️</button></div>`).join('')||'<div class="pg-u-empty">Todavía no hay muestras completas. La primera aparecerá al completar 30 minutos útiles en la misma hunt y condiciones.</div>'}</div>
       <div class="pg-hi-actions"><button data-clear-intelligence-history>🗑️ Borrar histórico</button></div>`;
   }
 
@@ -2536,34 +2693,37 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.3',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getPersonalEstimate,getCalibration,
+    version:'1.1.11',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.3',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.11',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.3',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.11',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   migrateLegacy();
+  migrateToFixedWindows();
   restartTimer();
   setTimeout(()=>refresh(false),1200);
-  console.info('[Hunt Intelligence] Supervisor unificado v1.1.3 cargado: VIP y bonus diario normalizados.');
+  console.info('[Hunt Intelligence] Supervisor unificado v1.1.11 cargado: VIP y bonus diario normalizados.');
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV113) return;
-  window.__pgHuntIntelligenceUiV113 = true;
+  if (window.__pgHuntIntelligenceUiV1111) return;
+  window.__pgHuntIntelligenceUiV1111 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
   const BUTTON_ID = `${NS}-button`;
   const STYLE_ID = `${NS}-style`;
   const TOAST_ID = `${NS}-toast`;
-  const ACTIVE_TAB_KEY = `${NS}:tab`;
+  const LEGACY_ACTIVE_TAB_KEY = `${NS}:tab`;
   const BUTTON_POS_KEY = `${NS}:button-position`;
+  const PANEL_LAYOUT_KEY = `${NS}:panel-layout`;
   let activeTab = 'hunt';
+  let panelCollapsed = false;
   let lastHuntResult = null;
   let lastItemResult = null;
   let lastNotCaughtResult = null;
@@ -2593,10 +2753,14 @@
       #${BUTTON_ID}{position:fixed;right:14px;bottom:48px;z-index:99980;border:1px solid #3a4556;border-radius:999px;background:#111a27;color:#fff;width:44px;height:44px;display:grid;place-items:center;padding:0;font:900 20px/1 system-ui;box-shadow:0 7px 22px #0009;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
       #${BUTTON_ID}:hover{background:#1c293b}
       #${BUTTON_ID}[data-dragging="1"]{cursor:grabbing;background:#263a55;box-shadow:0 11px 30px #000c}
-      #${PANEL_ID}{position:fixed;inset:0;z-index:99990;background:#0008;display:flex;align-items:center;justify-content:center;font-family:system-ui;color:#e8edf5}
-      #${PANEL_ID} .pg-u-card{width:min(790px,96vw);max-height:91vh;overflow:auto;background:#0d131c;border:1px solid #354052;border-radius:14px;box-shadow:0 18px 60px #000d}
-      #${PANEL_ID} .pg-u-head{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#111925;border-bottom:1px solid #29364a}
-      #${PANEL_ID} .pg-u-title{font-weight:850;font-size:15px;margin-right:auto}
+      #${PANEL_ID}{position:fixed;inset:0;z-index:99990;background:transparent;pointer-events:none;font-family:system-ui;color:#e8edf5}
+      #${PANEL_ID} .pg-u-card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(790px,96vw);height:min(720px,91vh);min-width:360px;min-height:220px;max-width:98vw;max-height:96vh;overflow:auto;resize:both;pointer-events:auto;background:#0d131c;border:1px solid #354052;border-radius:14px;box-shadow:0 18px 60px #000d}
+      #${PANEL_ID} .pg-u-card.collapsed{width:min(390px,94vw)!important;height:auto!important;min-width:280px!important;min-height:0!important;resize:none!important;overflow:hidden!important}
+      #${PANEL_ID} .pg-u-card.collapsed .pg-u-tabs,#${PANEL_ID} .pg-u-card.collapsed .pg-u-body,#${PANEL_ID} .pg-u-card.collapsed .pg-u-mode-group,#${PANEL_ID} .pg-u-card.collapsed [data-refresh]{display:none!important}
+      #${PANEL_ID} .pg-u-head{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#111925;border-bottom:1px solid #29364a;cursor:grab;user-select:none;touch-action:none}
+      #${PANEL_ID} .pg-u-head:active{cursor:grabbing}
+      #${PANEL_ID} .pg-u-head button,#${PANEL_ID} .pg-u-head select{cursor:pointer;touch-action:manipulation}
+      #${PANEL_ID} .pg-u-title{font-weight:850;font-size:15px;margin-right:auto;white-space:nowrap}
       #${PANEL_ID} button,#${PANEL_ID} select,#${PANEL_ID} input{background:#182232;color:#edf3fb;border:1px solid #35445a;border-radius:7px;padding:7px 9px;font:650 11px system-ui}
       #${PANEL_ID} button{cursor:pointer}
       #${PANEL_ID} .pg-u-tabs{position:sticky;top:48px;z-index:4;display:flex;background:#0f1722;border-bottom:1px solid #283548;padding:7px 10px 0;gap:5px}
@@ -2666,7 +2830,71 @@
     el.__timer = setTimeout(() => { el.className = ''; }, 4500);
   }
 
-  function closePanel() { document.getElementById(PANEL_ID)?.remove(); }
+  function readPanelLayout() {
+    try {
+      const value=JSON.parse(localStorage.getItem(PANEL_LAYOUT_KEY)||'null');
+      return value&&['left','top','width','height'].every(key=>Number.isFinite(Number(value[key])))?value:null;
+    } catch { return null; }
+  }
+
+  function savePanelLayout(card) {
+    if (!card?.isConnected || card.classList.contains('collapsed')) return;
+    const rect=card.getBoundingClientRect();
+    try { localStorage.setItem(PANEL_LAYOUT_KEY,JSON.stringify({left:rect.left,top:rect.top,width:rect.width,height:rect.height})); } catch {}
+  }
+
+  function clampPanel(card) {
+    if (!card?.isConnected) return;
+    const rect=card.getBoundingClientRect(),margin=4;
+    const left=clamp(rect.left,margin,Math.max(margin,innerWidth-Math.min(rect.width,innerWidth-margin*2)-margin));
+    const top=clamp(rect.top,margin,Math.max(margin,innerHeight-Math.min(rect.height,innerHeight-margin*2)-margin));
+    card.style.left=`${left}px`;card.style.top=`${top}px`;card.style.transform='none';
+  }
+
+  function setPanelCollapsed(card, collapsed) {
+    panelCollapsed=Boolean(collapsed);
+    if (!card) return;
+    card.classList.toggle('collapsed',panelCollapsed);
+    const toggle=card.querySelector('[data-panel-collapse]');
+    if(toggle){toggle.textContent=panelCollapsed?'▾':'▴';toggle.title=panelCollapsed?'Desplegar Hunt Intelligence':'Plegar Hunt Intelligence';}
+    requestAnimationFrame(()=>clampPanel(card));
+  }
+
+  function installPanelInteractions(overlay) {
+    const card=overlay.querySelector('.pg-u-card'),head=overlay.querySelector('.pg-u-head');
+    if(!card||!head)return;
+    const saved=readPanelLayout();
+    if(saved){
+      card.style.left=`${saved.left}px`;card.style.top=`${saved.top}px`;card.style.width=`${saved.width}px`;card.style.height=`${saved.height}px`;card.style.transform='none';
+    }
+    setPanelCollapsed(card,panelCollapsed);
+    let drag=null;
+    head.addEventListener('pointerdown',event=>{
+      if(event.button!==0||event.target.closest('button,select,input'))return;
+      const rect=card.getBoundingClientRect();
+      drag={id:event.pointerId,x:event.clientX,y:event.clientY,left:rect.left,top:rect.top};
+      try{head.setPointerCapture?.(event.pointerId);}catch{}
+    });
+    head.addEventListener('pointermove',event=>{
+      if(!drag||event.pointerId!==drag.id)return;
+      card.style.left=`${clamp(drag.left+event.clientX-drag.x,4,Math.max(4,innerWidth-card.offsetWidth-4))}px`;
+      card.style.top=`${clamp(drag.top+event.clientY-drag.y,4,Math.max(4,innerHeight-card.offsetHeight-4))}px`;
+      card.style.transform='none';event.preventDefault();
+    });
+    const finish=event=>{if(!drag||(event?.pointerId!==undefined&&event.pointerId!==drag.id))return;drag=null;savePanelLayout(card);};
+    head.addEventListener('pointerup',finish);head.addEventListener('pointercancel',finish);
+    if(typeof ResizeObserver==='function'){
+      const observer=new ResizeObserver(()=>{if(!card.classList.contains('collapsed'))savePanelLayout(card);});
+      observer.observe(card);card.__pgResizeObserver=observer;
+    }
+    window.addEventListener('resize',()=>{clampPanel(card);savePanelLayout(card);},{once:true});
+  }
+
+  function closePanel() {
+    const panel=document.getElementById(PANEL_ID),card=panel?.querySelector('.pg-u-card');
+    if(card){savePanelLayout(card);try{card.__pgResizeObserver?.disconnect?.();}catch{}}
+    panel?.remove();
+  }
 
   function shell(bodyHtml, options = {}) {
     closePanel();
@@ -2674,26 +2902,29 @@
     const overlay = document.createElement('div');
     overlay.id = PANEL_ID;
     overlay.innerHTML = `
-      <div class="pg-u-card">
+      <div class="pg-u-card ${panelCollapsed?'collapsed':''}">
         <div class="pg-u-head">
           <span class="pg-u-title">🧠 Hunt Intelligence</span>
           ${activeTab === 'hunt' ? modeControlHtml(H()?.getConfig?.()?.mode || 'xp') : ''}
-          <button data-refresh title="Actualizar datos">↻</button><button data-close>✕</button>
+          <button data-refresh title="Actualizar datos">↻</button><button data-panel-collapse title="${panelCollapsed?'Desplegar':'Plegar'} Hunt Intelligence">${panelCollapsed?'▾':'▴'}</button><button data-close>✕</button>
         </div>
         <div class="pg-u-tabs"><button class="pg-u-tab ${activeTab === 'hunt' ? 'on' : ''}" data-tab="hunt">Hunts</button><button class="pg-u-tab ${activeTab === 'notcaught' ? 'on' : ''}" data-tab="notcaught">No capturados</button><button class="pg-u-tab ${activeTab === 'item' ? 'on' : ''}" data-tab="item">Items</button><button class="pg-u-tab ${activeTab === 'performance' ? 'on' : ''}" data-tab="performance">Rendimiento</button><button class="pg-u-tab ${activeTab === 'history' ? 'on' : ''}" data-tab="history">Histórico</button></div>
         <div class="pg-u-body">${bodyHtml}</div>
       </div>`;
     document.body.appendChild(overlay);
+    installPanelInteractions(overlay);
 
     // El juego y PokeGrid pueden tener manejadores globales de puntero. Estos controles
     // se aíslan en fase de burbuja sin cancelar su acción predeterminada.
-    const protectedSelector = '[data-mode-value],[data-daily-toggle],[data-daily-value],[data-use-tm-button],[data-vip-button],[data-weight-delta],[data-supervisor-delta],[data-adopt-legacy-vip],[data-delete-intelligence-history],[data-clear-intelligence-history],[data-query],[data-item-search],[data-notcaught-search]';
+    const protectedSelector = '[data-mode-value],[data-daily-toggle],[data-daily-value],[data-use-tm-button],[data-vip-button],[data-weight-delta],[data-supervisor-delta],[data-adopt-legacy-vip],[data-delete-intelligence-history],[data-clear-intelligence-history],[data-panel-collapse],[data-query],[data-item-search]';
     const protect = event => { if (event.target.closest?.(protectedSelector)) event.stopPropagation(); };
     overlay.querySelector('.pg-u-card')?.addEventListener('pointerdown', protect);
     overlay.querySelector('.pg-u-card')?.addEventListener('mousedown', protect);
     overlay.querySelector('.pg-u-card')?.addEventListener('touchstart', protect, { passive: true });
 
     overlay.addEventListener('click', event => {
+      const collapseButton=event.target.closest('[data-panel-collapse]');
+      if(collapseButton){event.preventDefault();event.stopPropagation();setPanelCollapsed(overlay.querySelector('.pg-u-card'),!panelCollapsed);return;}
       const modeButton = event.target.closest('[data-mode-value]');
       if (modeButton) {
         event.preventDefault();
@@ -2820,7 +3051,6 @@
 
   function switchTab(tab) {
     activeTab = ['hunt','notcaught','item','performance','history'].includes(tab) ? tab : 'hunt';
-    try { localStorage.setItem(ACTIVE_TAB_KEY, activeTab); } catch {}
     if (activeTab === 'hunt') loadHunt(false);
     else if (activeTab === 'notcaught') loadNotCaught(false);
     else if (activeTab === 'item') renderItemInitial();
@@ -2986,39 +3216,537 @@
     return refreshed.accessToken;
   }
 
+  function normalizePokedexEntry(entry) {
+    if (entry === null || entry === undefined) return null;
+    if (typeof entry === 'string') return { name: entry };
+    if (typeof entry === 'number') return { id: entry };
+    if (typeof entry !== 'object') return null;
+
+    const nested = entry.species || entry.pokemon || entry.creature || entry.poke;
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      return { ...nested, ...entry };
+    }
+    return entry;
+  }
+
+  function normalizePokedexCollection(value) {
+    if (!Array.isArray(value)) return [];
+    return value.map(normalizePokedexEntry).filter(Boolean);
+  }
+
+  function dexKeyName(value) {
+    return norm(value).replace(/\s+/g, '');
+  }
+
+  function collectionInside(value) {
+    if (Array.isArray(value)) return { found: true, items: normalizePokedexCollection(value) };
+    if (!value || typeof value !== 'object') return { found: false, items: [] };
+    for (const key of ['species','pokemon','pokemons','pokes','entries','items','list','results','data']) {
+      if (Array.isArray(value[key])) {
+        return { found: true, items: normalizePokedexCollection(value[key]) };
+      }
+    }
+    return { found: false, items: [] };
+  }
+
+  function findNamedDexCollection(root, aliases) {
+    const wanted = new Set(aliases.map(dexKeyName));
+    const seen = new WeakSet();
+
+    function walk(value, depth = 0) {
+      if (!value || typeof value !== 'object' || depth > 7) return { found: false, items: [] };
+      if (seen.has(value)) return { found: false, items: [] };
+      seen.add(value);
+
+      for (const [key, child] of Object.entries(value)) {
+        if (wanted.has(dexKeyName(key))) {
+          const direct = collectionInside(child);
+          if (direct.found) return direct;
+        }
+      }
+
+      const marker = [
+        value.id, value.key, value.type, value.status, value.mode,
+        value.label, value.name, value.title, value.tab
+      ].map(dexKeyName).find(candidate => wanted.has(candidate));
+      if (marker) {
+        const direct = collectionInside(value);
+        if (direct.found) return direct;
+      }
+
+      for (const child of Object.values(value)) {
+        if (child && typeof child === 'object') {
+          const nested = walk(child, depth + 1);
+          if (nested.found) return nested;
+        }
+      }
+      return { found: false, items: [] };
+    }
+
+    return walk(root, 0);
+  }
+
+  function dedupePokedexEntries(entries) {
+    const seen = new Set();
+    const output = [];
+    for (const entry of entries) {
+      const id = pokedexSpeciesId(entry);
+      const name = pokedexSpeciesName(entry);
+      const key = id ? `id:${id}` : name ? `name:${name}` : '';
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      output.push(entry);
+    }
+    return output;
+  }
+
   function normalizePokedexPayload(payload) {
-    const hasSpeciesList = Array.isArray(payload?.species) || Array.isArray(payload?.data?.species);
-    const species = Array.isArray(payload?.species)
-      ? payload.species
-      : Array.isArray(payload?.data?.species)
-        ? payload.data.species
-        : [];
-    if (!hasSpeciesList) throw new Error('La Pokédex devolvió un formato no reconocido. Abre la Pokédex del juego una vez y vuelve a actualizar.');
-    return { payload, species };
+    // La Pokédex nueva puede devolver dos listados separados. Se buscan por
+    // nombre aunque estén anidados dentro de data, tabs, sections o results.
+    const notCaughtResult = findNamedDexCollection(payload, [
+      'notCaught','not_caught','not-caught','uncaught','notCaptured',
+      'missing','unowned','pending','notRegistered'
+    ]);
+    const caughtResult = findNamedDexCollection(payload, [
+      'caught','captured','owned','registered','completed','complete'
+    ]);
+    const speciesResult = findNamedDexCollection(payload, [
+      'species','pokemon','pokemons','pokes','entries','pokedexEntries'
+    ]);
+
+    let species = speciesResult.items;
+    let caughtSpecies = caughtResult.items;
+    let notCaughtSpecies = notCaughtResult.items;
+    const hasExplicitLists = caughtResult.found || notCaughtResult.found;
+
+    if (!species.length && hasExplicitLists) {
+      species = dedupePokedexEntries([...caughtSpecies, ...notCaughtSpecies]);
+    }
+
+    if (!hasExplicitLists && species.length) {
+      caughtSpecies = species.filter(isPokedexSpeciesCaught);
+      notCaughtSpecies = species.filter(entry => !isPokedexSpeciesCaught(entry));
+    }
+
+    species = dedupePokedexEntries([...species, ...caughtSpecies, ...notCaughtSpecies]);
+    caughtSpecies = dedupePokedexEntries(caughtSpecies);
+    notCaughtSpecies = dedupePokedexEntries(notCaughtSpecies);
+
+    if (!species.length && !hasExplicitLists) {
+      throw new Error('La Pokédex devolvió un formato no reconocido. Abre la Pokédex del juego una vez y vuelve a actualizar.');
+    }
+
+    return {
+      payload,
+      species,
+      caughtSpecies,
+      notCaughtSpecies,
+      hasExplicitLists,
+      sourceMode: hasExplicitLists ? 'listas-caught-notcaught' : 'estado-por-especie'
+    };
+  }
+
+  function dexCellName(cell) {
+    const explicit = [
+      cell?.querySelector?.('.dex-cell-name')?.textContent,
+      cell?.dataset?.name,
+      cell?.dataset?.pokemonName,
+      cell?.dataset?.speciesName,
+      cell?.getAttribute?.('aria-label'),
+      cell?.getAttribute?.('title'),
+      cell?.querySelector?.('img')?.alt
+    ].map(value => String(value || '').trim()).find(Boolean);
+    if (explicit) return explicit;
+
+    const lines = String(cell?.textContent || '')
+      .split(/\n+/)
+      .map(line => line.trim())
+      .filter(Boolean)
+      .filter(line => !/^(caught|not caught|captured|uncaught|capturado|capturados|no capturado|no capturados)$/i.test(line));
+    return lines[0] || '';
+  }
+
+  function dexCellId(cell) {
+    const direct = [
+      cell?.dataset?.id,
+      cell?.dataset?.pokeId,
+      cell?.dataset?.pokemonId,
+      cell?.dataset?.speciesId,
+      cell?.getAttribute?.('data-id'),
+      cell?.getAttribute?.('data-poke-id'),
+      cell?.getAttribute?.('data-species-id')
+    ].find(value => value !== undefined && value !== null && value !== '');
+    if (direct !== undefined) return String(direct);
+
+    const guide = String(cell?.dataset?.guide || cell?.getAttribute?.('data-guide') || '');
+    const guideMatch = guide.match(/(?:pokedex|dex|poke|species)[^0-9]*(\d+)/i);
+    return guideMatch?.[1] || '';
+  }
+
+  function dexCellCaught(cell) {
+    const classText = norm(cell?.className || '');
+    if (/(^| )(not caught|notcaught|uncaught|not captured|notcaptured)( |$)/.test(classText)) return false;
+    if (/(^| )(caught|captured|owned|registered)( |$)/.test(classText)) return true;
+
+    const raw = cell?.dataset?.caught
+      ?? cell?.dataset?.captured
+      ?? cell?.dataset?.owned
+      ?? cell?.getAttribute?.('data-caught')
+      ?? cell?.getAttribute?.('aria-checked');
+    if (raw !== undefined && raw !== null) {
+      return raw === true || raw === 1 || /^(true|1|yes)$/i.test(String(raw));
+    }
+
+    const status = norm([
+      cell?.dataset?.status,
+      cell?.dataset?.state,
+      cell?.getAttribute?.('data-status'),
+      cell?.getAttribute?.('aria-label'),
+      cell?.getAttribute?.('title')
+    ].filter(Boolean).join(' '));
+    if (/\b(not caught|uncaught|not captured|no capturado|no capturados|nao capturado|nao capturados)\b/.test(status)) return false;
+    return /\b(caught|captured|capturado|capturados|owned|registered)\b/.test(status);
+  }
+
+  function dexEntryFromCell(cell, forcedCaught = null) {
+    const name = dexCellName(cell);
+    if (!name) return null;
+    const id = dexCellId(cell);
+    return {
+      ...(id ? { id } : {}),
+      name,
+      caught: forcedCaught === null ? dexCellCaught(cell) : Boolean(forcedCaught)
+    };
+  }
+
+  function isDexCellRendered(cell, dexWindow) {
+    if (!cell || !cell.isConnected || cell.hidden) return false;
+    if (cell.classList.contains('dex-hidden')) return false;
+    if (cell.getAttribute('aria-hidden') === 'true') return false;
+
+    let current = cell;
+    while (current && current !== dexWindow) {
+      const style = getComputedStyle(current);
+      if (style.display === 'none') return false;
+      current = current.parentElement;
+    }
+    return true;
+  }
+
+  function findDexWindow() {
+    return Array.from(document.querySelectorAll('.dex-window'))
+      .find(windowElement => isVisible(windowElement)) || null;
+  }
+
+  function findPokedexLauncher() {
+    const selectors = [
+      '[data-guide*="pokedex" i]',
+      '[data-guide*="pokédex" i]',
+      '[data-guide*="dex" i]',
+      '#dock-btn-pokedex',
+      '#dock-btn-dex',
+      '[id*="pokedex" i]',
+      '[id*="pokédex" i]',
+      '[id*="dex" i][role="button"]',
+      'button[class*="pokedex" i]',
+      'button[class*="dex" i]'
+    ];
+
+    for (const selector of selectors) {
+      const candidate = Array.from(document.querySelectorAll(selector)).find(element =>
+        isVisible(element)
+        && !element.closest(`#${PANEL_ID}`)
+        && !element.closest('.dex-window')
+      );
+      if (candidate) return candidate;
+    }
+
+    return Array.from(document.querySelectorAll('button,a,[role="button"],.dock-btn,[tabindex]'))
+      .filter(element =>
+        isVisible(element)
+        && !element.closest(`#${PANEL_ID}`)
+        && !element.closest('.dex-window')
+      )
+      .find(element => {
+        const image = element.querySelector?.('img');
+        const value = norm([
+          element.textContent,
+          element.title,
+          element.getAttribute?.('aria-label'),
+          element.id,
+          element.className,
+          image?.alt,
+          image?.src
+        ].filter(Boolean).join(' '));
+        return /\b(pokedex|pokédex|poke dex|dex)\b/.test(value);
+      }) || null;
+  }
+
+  async function openPokedexWindowForReading() {
+    const alreadyOpen = findDexWindow();
+    if (alreadyOpen) return { dexWindow: alreadyOpen, openedByScript: false };
+
+    let launcher = findPokedexLauncher();
+    if (!launcher) throw new Error('No se ha encontrado el acceso de la Pokédex en la interfaz del juego.');
+
+    launcher.click();
+    let dexWindow = await waitFor(findDexWindow, 1800, 60);
+
+    if (!dexWindow) {
+      launcher = findPokedexLauncher();
+      if (launcher) launcher.click();
+      dexWindow = await waitFor(findDexWindow, 2500, 60);
+    }
+
+    if (!dexWindow) {
+      throw new Error('La Pokédex no se abrió. Ábrela manualmente una vez y vuelve a actualizar No capturados.');
+    }
+
+    return { dexWindow, openedByScript: true };
+  }
+
+  function nativeDexButtons(dexWindow) {
+    return Array.from(dexWindow.querySelectorAll('button,a,[role="button"],[role="tab"]'))
+      .filter(button => {
+        if (!button?.isConnected || button.hidden || button.disabled) return false;
+        if (button.closest('.dex-script-controls') || button.closest(`#${PANEL_ID}`)) return false;
+        const style = getComputedStyle(button);
+        const rect = button.getBoundingClientRect();
+        return rect.width > 1
+          && rect.height > 1
+          && style.display !== 'none'
+          && style.visibility !== 'hidden';
+      });
+  }
+
+  function dexButtonLabel(button) {
+    return norm([
+      button?.textContent,
+      button?.title,
+      button?.getAttribute?.('aria-label'),
+      button?.dataset?.filter,
+      button?.dataset?.status,
+      button?.dataset?.tab,
+      button?.dataset?.value
+    ].filter(Boolean).join(' '));
+  }
+
+  function findNativeDexFilter(dexWindow, type) {
+    const buttons = nativeDexButtons(dexWindow);
+    const isNotCaught = label =>
+      /(?:^|\b)(not caught|uncaught|not captured|no capturados?|nao capturados?)(?:\b|$)/.test(label);
+    const isCaught = label =>
+      !isNotCaught(label)
+      && /(?:^|\b)(caught|captured|capturados?|capturado|owned|registered)(?:\b|$)/.test(label);
+
+    return buttons.find(button => {
+      const label = dexButtonLabel(button);
+      return type === 'notcaught' ? isNotCaught(label) : isCaught(label);
+    }) || null;
+  }
+
+  function isActiveDexButton(button) {
+    return Boolean(
+      button?.classList?.contains('on')
+      || button?.classList?.contains('active')
+      || button?.getAttribute?.('aria-selected') === 'true'
+      || button?.getAttribute?.('aria-pressed') === 'true'
+      || button?.dataset?.active === 'true'
+    );
+  }
+
+  function dexButtonCount(button) {
+    if (!button) return null;
+    const raw = [
+      button.textContent,
+      button.title,
+      button.getAttribute?.('aria-label')
+    ].filter(Boolean).join(' ');
+    const matches = raw.match(/\d[\d.,\s]*/g) || [];
+    for (let index = matches.length - 1; index >= 0; index -= 1) {
+      const value = Number(matches[index].replace(/[^\d]/g, ''));
+      if (Number.isFinite(value)) return value;
+    }
+    return null;
+  }
+
+  function findDexScrollHost(dexWindow) {
+    const grid = dexWindow.querySelector('.dex-grid');
+    const candidates = [grid, grid?.parentElement, grid?.parentElement?.parentElement, dexWindow]
+      .filter(Boolean);
+    return candidates.find(element => element.scrollHeight > element.clientHeight + 8) || grid || dexWindow;
+  }
+
+  function dexGridSignature(dexWindow) {
+    return Array.from(dexWindow.querySelectorAll('.dex-cell'))
+      .slice(0, 12)
+      .map(cell => `${dexCellId(cell)}:${dexCellName(cell)}:${cell.className}`)
+      .join('|');
+  }
+
+  async function activateNativeDexFilter(dexWindow, type) {
+    const button = findNativeDexFilter(dexWindow, type);
+    if (!button) {
+      throw new Error(`No se encontró la pestaña nativa ${type === 'notcaught' ? 'Not Caught' : 'Caught'} en la Pokédex.`);
+    }
+
+    const before = dexGridSignature(dexWindow);
+    button.click();
+
+    await waitFor(() => {
+      const currentButton = findNativeDexFilter(dexWindow, type);
+      const after = dexGridSignature(dexWindow);
+      return Boolean(
+        currentButton
+        && (
+          isActiveDexButton(currentButton)
+          || (after && after !== before)
+        )
+      );
+    }, 3000, 60);
+
+    // React puede marcar la pestaña antes de terminar de pintar la cuadrícula.
+    await sleep(180);
+    return findNativeDexFilter(dexWindow, type) || button;
+  }
+
+  async function collectCurrentDexView(dexWindow, forcedCaught = null) {
+    const output = new Map();
+    const scrollHost = findDexScrollHost(dexWindow);
+    const initialScroll = Number(scrollHost?.scrollTop || 0);
+
+    const collect = () => {
+      for (const cell of dexWindow.querySelectorAll('.dex-cell')) {
+        if (!isDexCellRendered(cell, dexWindow)) continue;
+        const entry = dexEntryFromCell(cell, forcedCaught);
+        if (!entry) continue;
+        const key = pokedexSpeciesId(entry)
+          ? `id:${pokedexSpeciesId(entry)}`
+          : `name:${pokedexSpeciesName(entry)}`;
+        if (key && !output.has(key)) output.set(key, entry);
+      }
+    };
+
+    collect();
+
+    if (scrollHost && scrollHost.scrollHeight > scrollHost.clientHeight + 8) {
+      let previousTop = -1;
+      for (let step = 0; step < 80; step += 1) {
+        collect();
+        const maxTop = Math.max(0, scrollHost.scrollHeight - scrollHost.clientHeight);
+        if (scrollHost.scrollTop >= maxTop - 2 || scrollHost.scrollTop === previousTop) break;
+        previousTop = scrollHost.scrollTop;
+        scrollHost.scrollTop = Math.min(maxTop, scrollHost.scrollTop + Math.max(120, scrollHost.clientHeight * 0.8));
+        scrollHost.dispatchEvent(new Event('scroll', { bubbles: true }));
+        await sleep(45);
+      }
+      collect();
+      scrollHost.scrollTop = initialScroll;
+      scrollHost.dispatchEvent(new Event('scroll', { bubbles: true }));
+    }
+
+    return [...output.values()];
+  }
+
+  async function readPokedexFromGameInterface() {
+    const { dexWindow, openedByScript } = await openPokedexWindowForReading();
+    const originalStyle = dexWindow.getAttribute('style');
+    const originalActiveLabel = dexButtonLabel(
+      nativeDexButtons(dexWindow).find(isActiveDexButton) || null
+    );
+    const originalScrollHost = findDexScrollHost(dexWindow);
+    const originalScrollTop = Number(originalScrollHost?.scrollTop || 0);
+
+    /*
+     * No capturados solo necesita la pestaña nativa Not Caught.
+     * La versión anterior la leía, pero después abría Caught y descartaba
+     * todo el resultado cuando esa vista no devolvía celdas.
+     */
+    if (openedByScript) {
+      dexWindow.style.setProperty('position', 'fixed', 'important');
+      dexWindow.style.setProperty('left', '-200vw', 'important');
+      dexWindow.style.setProperty('top', '-200vh', 'important');
+      dexWindow.style.setProperty('pointer-events', 'none', 'important');
+      dexWindow.style.setProperty('z-index', '-2147483648', 'important');
+    }
+
+    try {
+      const cellsReady = await waitFor(() => dexWindow.querySelector('.dex-cell'), 4000, 60);
+      if (!cellsReady) {
+        throw new Error('La Pokédex se abrió, pero su cuadrícula no terminó de cargar.');
+      }
+
+      // Solo se usa la etiqueta de Caught para leer un contador opcional.
+      // La pestaña no se abre y nunca puede cancelar el listado.
+      const caughtButton = findNativeDexFilter(dexWindow, 'caught');
+      const caughtCount = dexButtonCount(caughtButton);
+
+      const notCaughtButton = await activateNativeDexFilter(dexWindow, 'notcaught');
+      const notCaughtSpecies = dedupePokedexEntries(
+        await collectCurrentDexView(dexWindow, false)
+      );
+
+      if (!notCaughtSpecies.length) {
+        throw new Error('La pestaña Not Caught se abrió, pero no devolvió ninguna especie.');
+      }
+
+      return {
+        payload: null,
+        species: notCaughtSpecies,
+        caughtSpecies: [],
+        notCaughtSpecies,
+        caughtCount,
+        hasExplicitLists: true,
+        sourceMode: 'interfaz-nativa-notcaught',
+        debug: {
+          cellsRendered: dexWindow.querySelectorAll('.dex-cell').length,
+          caught: caughtCount,
+          notCaught: notCaughtSpecies.length,
+          usedNotCaughtTab: Boolean(notCaughtButton),
+          usedCaughtTab: false,
+          notCaughtLabel: dexButtonLabel(notCaughtButton),
+          caughtLabel: dexButtonLabel(caughtButton),
+          originalActiveLabel
+        }
+      };
+    } finally {
+      if (originalActiveLabel) {
+        const originalButton = nativeDexButtons(dexWindow)
+          .find(button => dexButtonLabel(button) === originalActiveLabel);
+        if (originalButton) {
+          originalButton.click();
+          await sleep(100);
+        }
+      }
+
+      const restoredScrollHost = findDexScrollHost(dexWindow);
+      if (restoredScrollHost) {
+        restoredScrollHost.scrollTop = originalScrollTop;
+        restoredScrollHost.dispatchEvent(new Event('scroll', { bubbles: true }));
+      }
+
+      if (openedByScript) {
+        if (originalStyle === null) dexWindow.removeAttribute('style');
+        else dexWindow.setAttribute('style', originalStyle);
+
+        const closeButton = dexWindow.querySelector(
+          '.cfg-x,.dex-x,[data-action="close"],button[aria-label*="close" i],button[title*="close" i]'
+        );
+        if (closeButton) closeButton.click();
+        else dexWindow.remove();
+      } else if (originalStyle === null) {
+        dexWindow.removeAttribute('style');
+      } else {
+        dexWindow.setAttribute('style', originalStyle);
+      }
+    }
   }
 
   async function loadPokedex(force = false) {
-    if (!force && pokedexCache && Date.now() - pokedexCacheAt < 60_000) return pokedexCache;
-    const gameCache = window.__poke?.api?.['/api/game/pokedex'];
-    if (!force && Array.isArray(gameCache?.species) && gameCache.species.length) {
-      pokedexCache = normalizePokedexPayload(gameCache);
-      pokedexCacheAt = Date.now();
-      return pokedexCache;
-    }
+    if (!force && pokedexCache && Date.now() - pokedexCacheAt < 15_000) return pokedexCache;
 
-    const send = accessToken => fetch('/api/game/pokedex', {
-      method: 'GET',
-      credentials: 'same-origin',
-      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
-    });
-    let response = await send(getGameTokens()?.accessToken);
-    if (response.status === 401) {
-      const refreshedToken = await refreshGameAccessToken();
-      if (refreshedToken) response = await send(refreshedToken);
-    }
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload?.message || `No se pudo consultar la Pokédex (HTTP ${response.status}).`);
-    pokedexCache = normalizePokedexPayload(payload);
+    // Fuente autoritativa: la misma ventana y las mismas pestañas que ve el jugador.
+    pokedexCache = await readPokedexFromGameInterface();
     pokedexCacheAt = Date.now();
     return pokedexCache;
   }
@@ -3033,59 +3761,264 @@
   }
 
   function isPokedexSpeciesCaught(value) {
-    const caught = value?.caught ?? value?.captured ?? value?.isCaught;
-    return caught === true || caught === 1 || String(caught).toLowerCase() === 'true';
+    const caught = value?.caught ?? value?.captured ?? value?.isCaught ?? value?.owned ?? value?.registered;
+    if (caught === true || caught === 1 || String(caught).toLowerCase() === 'true') return true;
+    const status = norm(value?.status ?? value?.state ?? value?.category ?? value?.group ?? '');
+    return ['caught','captured','owned','registered','complete','completed'].includes(status);
   }
 
-  function huntSpeciesId(row) {
-    return pokedexSpeciesId(row?.hunt?.creature) || pokedexSpeciesId(row?.hunt?.marker);
+  function huntSpeciesId(value) {
+    const hunt=value?.hunt||value||{};
+    return pokedexSpeciesId(hunt?.creature) || pokedexSpeciesId(hunt?.marker);
+  }
+
+  function huntSpeciesNames(value) {
+    const hunt=value?.hunt||value||{};
+    return [...new Set([
+      hunt?.creature?.name,hunt?.name,hunt?.marker?.pokemonName,hunt?.marker?.name,hunt?.slug
+    ].filter(Boolean).map(norm).filter(Boolean))];
+  }
+
+  const OUTLAND_VARIANT_WORDS = new Set([
+    'tribal','outland','outlands','ancient','ancestral','alpha','armored','armoured',
+    'corrupted','cursed','dark','desert','forest','frozen','jungle','mountain',
+    'primal','royal','savage','shadow','swamp','volcanic','wild',
+    'alolan','galarian','hisuian','paldean'
+  ]);
+
+  function stripVariantWords(value) {
+    const words=norm(value).split(' ').filter(Boolean);
+    while(words.length>1&&OUTLAND_VARIANT_WORDS.has(words[0]))words.shift();
+    while(words.length>1&&OUTLAND_VARIANT_WORDS.has(words[words.length-1]))words.pop();
+    return words.join(' ');
+  }
+
+  function compactSpeciesName(value) {
+    return norm(value).replace(/\s+/g,'');
+  }
+
+  // Distancia de Damerau-Levenshtein restringida: además de inserciones,
+  // borrados y sustituciones, reconoce una transposición adyacente.
+  // Esto cubre diferencias reales observadas como Feraligart/Feraligatr.
+  function speciesNameDistance(left,right,limit=2) {
+    const a=compactSpeciesName(left),b=compactSpeciesName(right);
+    if(a===b)return 0;
+    if(Math.abs(a.length-b.length)>limit)return limit+1;
+    const matrix=Array.from({length:a.length+1},()=>Array(b.length+1).fill(0));
+    for(let i=0;i<=a.length;i++)matrix[i][0]=i;
+    for(let j=0;j<=b.length;j++)matrix[0][j]=j;
+    for(let i=1;i<=a.length;i++){
+      let rowMin=Infinity;
+      for(let j=1;j<=b.length;j++){
+        const cost=a[i-1]===b[j-1]?0:1;
+        let value=Math.min(
+          matrix[i-1][j]+1,
+          matrix[i][j-1]+1,
+          matrix[i-1][j-1]+cost
+        );
+        if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1]){
+          value=Math.min(value,matrix[i-2][j-2]+1);
+        }
+        matrix[i][j]=value;
+        rowMin=Math.min(rowMin,value);
+      }
+      if(rowMin>limit)return limit+1;
+    }
+    return matrix[a.length][b.length];
+  }
+
+  function fuzzySpeciesMatch(huntName,dexName) {
+    const hunt=compactSpeciesName(huntName),dex=compactSpeciesName(dexName);
+    if(hunt.length<6||dex.length<6||Math.abs(hunt.length-dex.length)>2)return false;
+    if(hunt.slice(0,4)!==dex.slice(0,4))return false;
+    const allowed=Math.max(hunt.length,dex.length)>=15?2:1;
+    return speciesNameDistance(hunt,dex,allowed)<=allowed;
+  }
+
+  function resolveDexSpecies(value, byId, byName) {
+    const names=huntSpeciesNames(value);
+
+    // 1. Nombre exacto antes que ID: las variantes de Outlands pueden tener
+    // un ID propio aunque la Pokédex las agrupe bajo la especie normal.
+    for(const name of names)if(byName.has(name))return byName.get(name);
+
+    // 2. Elimina prefijos/sufijos regionales conocidos, por ejemplo "Tribal".
+    const stripped=[...new Set(names.map(stripVariantWords).filter(Boolean))];
+    for(const name of stripped)if(byName.has(name))return byName.get(name);
+
+    // 3. Busca la especie base dentro del nombre de la variante y tolera
+    // una errata/transposición corta entre el nombre de la hunt y la Pokédex.
+    let best=null,bestScore=-1;
+    for(const huntName of [...names,...stripped]){
+      const padded=` ${huntName} `;
+      for(const [dexName,entry] of byName){
+        let score=-1;
+        if(padded.includes(` ${dexName} `))score=300+dexName.length;
+        else if(huntName.endsWith(` ${dexName}`)||huntName.startsWith(`${dexName} `))score=250+dexName.length;
+        else if(fuzzySpeciesMatch(huntName,dexName))score=200+dexName.length;
+        if(score>bestScore){best=entry;bestScore=score;}
+      }
+    }
+    if(best)return best;
+
+    // 4. El ID queda como último recurso para especies sin variante nominal.
+    const id=huntSpeciesId(value);
+    return id&&byId.has(id)?byId.get(id):null;
   }
 
   function buildNotCaughtResult(huntResult, pokedex) {
-    const byId = new Map();
-    const byName = new Map();
-    const caughtIds = new Set();
-    const caughtNames = new Set();
-    const caughtSpecies = new Set();
-    pokedex.species.forEach(entry => {
+    const canonicalKey = entry => {
       const id = pokedexSpeciesId(entry);
       const name = pokedexSpeciesName(entry);
-      if (id) byId.set(id, entry);
-      if (name) byName.set(name, entry);
-      if (isPokedexSpeciesCaught(entry)) {
-        if (id) caughtIds.add(id);
-        if (name) caughtNames.add(name);
-        if (id || name) caughtSpecies.add(id ? `id:${id}` : `name:${name}`);
-      }
+      return id ? `id:${id}` : name ? `name:${name}` : '';
+    };
+
+    const requiredLevel = hunt => Math.max(1, finite(
+      hunt?.marker?.level,
+      hunt?.marker?.lvl,
+      hunt?.marker?.minLevel,
+      hunt?.creature?.huntLevel,
+      1
+    ));
+
+    const isAccessible = hunt => requiredLevel(hunt) <= Math.max(1, finite(huntResult?.lead?.level, 1));
+
+    /*
+     * La Pokédex sigue siendo la única fuente que decide qué especies faltan.
+     * Después se consulta el catálogo COMPLETO de hunts del mapa. Las filas
+     * calculadas solo aportan XP/h y kills/h; ya no deciden si una especie
+     * disponible debe aparecer o no.
+     */
+    const officialPending = dedupePokedexEntries(
+      pokedex.hasExplicitLists
+        ? (pokedex.notCaughtSpecies || [])
+        : (pokedex.species || []).filter(entry => !isPokedexSpeciesCaught(entry))
+    );
+
+    const officialCaught = dedupePokedexEntries(
+      pokedex.hasExplicitLists
+        ? (pokedex.caughtSpecies || [])
+        : (pokedex.species || []).filter(isPokedexSpeciesCaught)
+    );
+
+    const pendingById = new Map();
+    const pendingByName = new Map();
+    const pendingOrder = new Map();
+
+    officialPending.forEach((entry, index) => {
+      const id = pokedexSpeciesId(entry);
+      const name = pokedexSpeciesName(entry);
+      const key = canonicalKey(entry);
+      if (id) pendingById.set(id, entry);
+      if (name) pendingByName.set(name, entry);
+      if (key) pendingOrder.set(key, index);
     });
 
-    const rows = [];
-    const seen = new Set();
+    // Mejor resultado calculado por especie. huntResult.rows ya está ordenado
+    // de mejor a peor según el ranking de Hunt Intelligence.
+    const bestCalculatedBySpecies = new Map();
     for (const row of huntResult.rows || []) {
-      const id = huntSpeciesId(row);
-      const creatureName = norm(row?.hunt?.creature?.name || row?.hunt?.name || '');
-      const dexEntry = (id && byId.get(id)) || byName.get(creatureName);
-      if ((id && caughtIds.has(id)) || (creatureName && caughtNames.has(creatureName))) continue;
-      const key = id || creatureName;
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      rows.push({ ...row, dexEntry: dexEntry || null });
+      const pendingEntry = resolveDexSpecies(row, pendingById, pendingByName);
+      if (!pendingEntry) continue;
+      const key = canonicalKey(pendingEntry);
+      if (!key || bestCalculatedBySpecies.has(key)) continue;
+      bestCalculatedBySpecies.set(key, {
+        ...row,
+        dexEntry: pendingEntry,
+        calculationAvailable: true
+      });
     }
 
-    const allPendingSpecies = new Set();
-    for (const hunt of huntResult.data?.hunts || []) {
-      const id = pokedexSpeciesId(hunt?.creature) || pokedexSpeciesId(hunt?.marker);
-      const creatureName = norm(hunt?.creature?.name || hunt?.name || '');
-      if ((id && caughtIds.has(id)) || (creatureName && caughtNames.has(creatureName))) continue;
-      const key = id || creatureName;
-      if (key) allPendingSpecies.add(key);
+    // Hunts existentes y desbloqueadas, aunque el motor no haya podido generar
+    // una estimación de rendimiento con el Pokémon equipado.
+    const accessibleHuntsBySpecies = new Map();
+    for (const hunt of huntResult?.data?.hunts || []) {
+      if (!hunt || !isAccessible(hunt)) continue;
+
+      const pendingEntry = resolveDexSpecies(hunt, pendingById, pendingByName);
+      if (!pendingEntry) continue;
+
+      const key = canonicalKey(pendingEntry);
+      if (!key) continue;
+
+      const candidates = accessibleHuntsBySpecies.get(key) || [];
+      candidates.push(hunt);
+      accessibleHuntsBySpecies.set(key, candidates);
     }
+
+    const huntPreference = (hunt, pendingEntry) => {
+      const speciesName = pokedexSpeciesName(pendingEntry);
+      const names = huntSpeciesNames(hunt);
+      const stripped = names.map(stripVariantWords);
+      if (names.includes(speciesName)) return 0;
+      if (stripped.includes(speciesName)) return 1;
+      return 2;
+    };
+
+    for (const [key, candidates] of accessibleHuntsBySpecies) {
+      const pendingEntry = officialPending.find(entry => canonicalKey(entry) === key);
+      candidates.sort((left, right) =>
+        huntPreference(left, pendingEntry) - huntPreference(right, pendingEntry)
+        || requiredLevel(left) - requiredLevel(right)
+        || String(left?.name || '').localeCompare(String(right?.name || ''), 'es')
+      );
+    }
+
+    const calculatedRows = [];
+    const availabilityOnlyRows = [];
+    let totalNoAccessibleHunt = 0;
+
+    for (const pendingEntry of officialPending) {
+      const key = canonicalKey(pendingEntry);
+      if (!key) continue;
+
+      const calculated = bestCalculatedBySpecies.get(key);
+      if (calculated) {
+        calculatedRows.push(calculated);
+        continue;
+      }
+
+      const fallbackHunt = accessibleHuntsBySpecies.get(key)?.[0];
+      if (fallbackHunt) {
+        availabilityOnlyRows.push({
+          hunt: fallbackHunt,
+          dexEntry: pendingEntry,
+          calculationAvailable: false,
+          xph: null,
+          kph: null,
+          diff: null,
+          dailyBoosted: false,
+          source: 'Hunt disponible · sin cálculo con el equipo actual'
+        });
+      } else {
+        totalNoAccessibleHunt += 1;
+      }
+    }
+
+    // Conserva el ranking por XP/h para las filas calculadas. Las especies
+    // disponibles sin cálculo se añaden después siguiendo el orden de Not Caught.
+    calculatedRows.sort((a, b) => finite(b.xph) - finite(a.xph));
+    availabilityOnlyRows.sort((a, b) =>
+      finite(pendingOrder.get(canonicalKey(a.dexEntry)), Number.MAX_SAFE_INTEGER)
+      - finite(pendingOrder.get(canonicalKey(b.dexEntry)), Number.MAX_SAFE_INTEGER)
+    );
+
+    const rows = [...calculatedRows, ...availabilityOnlyRows];
 
     return {
       ...huntResult,
       rows,
-      totalUncaught: Math.max(rows.length, allPendingSpecies.size),
-      totalCaught: caughtSpecies.size
+      totalUncaught: officialPending.length,
+      totalCaught: pokedex.caughtCount !== null
+        && pokedex.caughtCount !== undefined
+        && Number.isFinite(Number(pokedex.caughtCount))
+          ? Number(pokedex.caughtCount)
+          : (officialCaught.length || null),
+      totalCalculated: calculatedRows.length,
+      totalWithoutCalculation: availabilityOnlyRows.length,
+      totalNoAccessibleHunt,
+      pokedexSourceMode: pokedex.sourceMode,
+      officialPending
     };
   }
 
@@ -3093,7 +4026,7 @@
     if (busy) return;
     busy = true;
     activeTab = 'notcaught';
-    renderLoading('Consultando tu Pokédex y las hunts accesibles…');
+    renderLoading('Abriendo y leyendo la pestaña Not Caught de la Pokédex…');
     try {
       const [huntResult, pokedex] = await Promise.all([
         H().calculateRecommendations(force),
@@ -3109,32 +4042,51 @@
   }
 
   function renderNotCaught(result) {
-    const unavailable = Math.max(0, finite(result.totalUncaught) - result.rows.length);
+    const unavailable = Math.max(0, finite(result.totalNoAccessibleHunt, finite(result.totalUncaught) - result.rows.length));
+    const withoutCalculation = Math.max(0, finite(result.totalWithoutCalculation));
+    const hasCaughtCount = result.totalCaught !== null
+      && result.totalCaught !== undefined
+      && Number.isFinite(Number(result.totalCaught));
+    const pokedexSummary = hasCaughtCount
+      ? `${fmt(result.totalCaught)} capturadas`
+      : `${fmt(result.totalUncaught)} pendientes en Not Caught`;
     const body = `
-      <div class="pg-u-note"><b>No capturados:</b> muestra una vez cada especie pendiente y selecciona su mejor hunt accesible según el ranking de XP/h. Pulsa el nombre del Pokémon para viajar directamente.</div>
-      <div class="pg-u-caught-summary"><span><b>${fmt(result.rows.length)}</b> especies pendientes con hunt accesible</span><span>${fmt(result.totalCaught)} capturadas${unavailable ? ` · ${fmt(unavailable)} pendientes sin hunt accesible` : ''}</span></div>
-      <div class="pg-u-search"><input type="search" data-notcaught-search placeholder="Buscar Pokémon no capturado…" autocomplete="off"></div>
+      <div class="pg-u-note"><b>No capturados:</b> lee exclusivamente las celdas de la pestaña nativa <b>Not Caught</b>. La pestaña Caught ya no se abre ni puede cancelar el resultado.</div>
+      <div class="pg-u-caught-summary"><span><b>${fmt(result.rows.length)}</b> especies pendientes con hunt accesible${withoutCalculation ? ` · ${fmt(withoutCalculation)} sin cálculo` : ''}</span><span>${pokedexSummary}${unavailable ? ` · ${fmt(unavailable)} pendientes sin hunt accesible` : ''}</span></div>
       <div data-notcaught-list>${result.rows.map((row, index) => {
-        const pokemonName = row.hunt?.creature?.name || row.hunt?.name || 'Pokémon';
-        const huntName = row.hunt?.name || pokemonName;
-        return `<div class="pg-u-row" data-notcaught-row data-search-name="${esc(norm(pokemonName))}">
-          <div class="pg-u-rank">○</div>
-          <div><button class="pg-u-target" data-hunt-index="${index}" data-source="notcaught" title="Ir directamente a cazar ${esc(pokemonName)}">${esc(pokemonName)}</button><div class="pg-u-sub">Hunt: ${esc(huntName)}${row.dailyBoosted ? ' · +20% diario' : ''}</div></div>
-          <div class="pg-u-metric xp"><b>${fmt(row.xph)}</b><br><small>XP/h</small></div>
-          <div class="pg-u-metric speed"><b>${fmt(row.kph)}</b><br><small>kills/h</small></div>
-          <div class="pg-u-metric hide-mobile"><b>${fmt(row.diff?.level || row.hunt?.marker?.level || 1)}</b><br><small>nivel</small></div>
-          <div class="pg-u-metric eff hide-mobile"><b>×${fmt(row.diff?.offense?.eff, 2)}</b><br><small>efectividad</small></div>
+        const officialName = String(
+          row.dexEntry?.name
+          ?? row.dexEntry?.pokemonName
+          ?? row.dexEntry?.speciesName
+          ?? row.dexEntry?.creatureName
+          ?? ''
+        ).trim();
+        const pokemonName = officialName || row.hunt?.creature?.name || row.hunt?.name || 'Pokémon';
+        const huntName = row.hunt?.name || row.hunt?.creature?.name || pokemonName;
+        const calculated = row.calculationAvailable !== false
+          && Number.isFinite(Number(row.xph))
+          && Number.isFinite(Number(row.kph));
+        const requiredLevel = finite(
+          row.diff?.level,
+          row.hunt?.marker?.level,
+          row.hunt?.marker?.lvl,
+          row.hunt?.marker?.minLevel,
+          row.hunt?.creature?.huntLevel,
+          1
+        );
+        const subtitle = calculated
+          ? `Hunt: ${esc(huntName)}${row.dailyBoosted ? ' · +20% diario' : ''}`
+          : `Hunt: ${esc(huntName)} · disponible, sin cálculo con el equipo actual`;
+        return `<div class="pg-u-row">
+          <div class="pg-u-rank">${calculated ? '○' : '◇'}</div>
+          <div><button class="pg-u-target" data-hunt-index="${index}" data-source="notcaught" title="Ir directamente a cazar ${esc(pokemonName)}">${esc(pokemonName)}</button><div class="pg-u-sub">${subtitle}</div></div>
+          <div class="pg-u-metric xp"><b>${calculated ? fmt(row.xph) : '—'}</b><br><small>XP/h</small></div>
+          <div class="pg-u-metric speed"><b>${calculated ? fmt(row.kph) : '—'}</b><br><small>kills/h</small></div>
+          <div class="pg-u-metric hide-mobile"><b>${fmt(requiredLevel)}</b><br><small>nivel</small></div>
+          <div class="pg-u-metric eff hide-mobile"><b>${calculated ? `×${fmt(row.diff?.offense?.eff, 2)}` : '—'}</b><br><small>efectividad</small></div>
         </div>`;
       }).join('') || '<div class="pg-u-empty">No quedan Pokémon sin capturar con una hunt accesible. ¡Pokédex al día!</div>'}</div>`;
-    shell(body, { after: overlay => {
-      const search = overlay.querySelector('[data-notcaught-search]');
-      search?.addEventListener('input', () => {
-        const query = norm(search.value);
-        overlay.querySelectorAll('[data-notcaught-row]').forEach(row => {
-          row.hidden = Boolean(query) && !String(row.dataset.searchName || '').includes(query);
-        });
-      });
-    }});
+    shell(body);
   }
 
   function renderItemInitial() {
@@ -3575,23 +4527,27 @@
     window.addEventListener('resize', () => clampFloatingButton(button, true));
   }
 
+  function openFullFromButton(){panelCollapsed=false;activeTab='hunt';loadHunt(false);}
+  function openCollapsedFromMap(){panelCollapsed=true;activeTab='hunt';loadHunt(false);}
+
   function install() {
     ensureStyles();
-    try { const stored = localStorage.getItem(ACTIVE_TAB_KEY); activeTab = ['hunt','notcaught','item','performance','history'].includes(stored) ? stored : 'hunt'; } catch { activeTab = 'hunt'; }
+    activeTab='hunt';
+    try { localStorage.removeItem(LEGACY_ACTIVE_TAB_KEY); } catch {}
     document.getElementById('pg-performance-supervisor-v1-button')?.remove();
     document.getElementById('pg-performance-supervisor-v1-panel')?.remove();
     let button = document.getElementById(BUTTON_ID);
     if (!button) {
       button = document.createElement('button'); button.id = BUTTON_ID; button.type = 'button'; button.textContent = '🧠';
       button.setAttribute('aria-label', 'Abrir Hunt Intelligence');
-      button.title = 'Hunt Intelligence · clic para abrir · mantén pulsado y arrastra para mover'; button.addEventListener('click', () => { switchTab(activeTab); });
+      button.title = 'Hunt Intelligence · clic para abrir completo · mantén pulsado y arrastra para mover'; button.addEventListener('click', openFullFromButton);
       document.body.appendChild(button);
     }
     installDraggableButton(button);
 
     document.addEventListener('click', event => {
       if (Date.now() < suppressMapAutoOpenUntil) return;
-      if (looksLikeMapButton(event.target)) { activeTab = 'hunt'; setTimeout(() => loadHunt(false), 250); }
+      if (looksLikeMapButton(event.target)) { setTimeout(openCollapsedFromMap, 250); }
     }, true);
   }
 
@@ -3732,7 +4688,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.3',
+    version: '1.1.11',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -3750,6 +4706,11 @@
     openPerformance: () => { activeTab = 'performance'; return renderPerformance(false); },
     openHistory: () => { activeTab = 'history'; return renderHistory(false); },
     refresh: () => refreshCurrentHealthTarget(true),
+    getPokedexDebug: () => ({
+      source: pokedexCache?.sourceMode || 'sin-cargar',
+      ...(pokedexCache?.debug || {}),
+      sampleNotCaught: (pokedexCache?.notCaughtSpecies || []).slice(0, 12).map(entry => entry.name || entry.pokemonName || entry.speciesName || '')
+    }),
     clearPiwToolsCache: () => {
       localStorage.removeItem('pg-piwtools-engine-v3:productivity-cache');
       return { cleared: true };
@@ -3772,7 +4733,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.3',
+      version: '1.1.11',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -3806,7 +4767,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.3',
+    version: '1.1.11',
     openHunt: () => { activeTab='hunt'; return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; return loadNotCaught(false); },
     openItem: query => { activeTab='item'; return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -3814,6 +4775,7 @@
     openHistory: () => { activeTab='history'; return renderHistory(false); },
     getVip: () => Boolean(H()?.getConfig?.()?.vipActive),
     setVip: value => H()?.setVip?.(Boolean(value)),
+    getPokedexDebug: () => window.__PGHuntAdvisor?.getPokedexDebug?.() || null,
     getState: () => ({ hunt: huntHealthState(), supervisor: S()?.getState?.() || null })
   });
 
@@ -3832,5 +4794,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.3 cargado: Hunts, No capturados, Item Finder, supervisor e histórico unificados.');
+  console.info('[Hunt Intelligence] v1.1.11 cargado: Hunts, No capturados, Item Finder, supervisor e histórico unificados.');
 })();

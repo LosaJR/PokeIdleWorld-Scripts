@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Game Structure Monitor
 // @namespace    ivan-pokegrid-tools
-// @version      1.2.0
+// @version      1.2.1
 // @description  Detecta cambios estructurales en los datos del juego y los publica en Script Bridge para facilitar reparaciones.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,10 +12,10 @@
 
 (() => {
   'use strict';
-  if (window.__pgGameStructureMonitorV120) return;
-  window.__pgGameStructureMonitorV120 = true;
+  if (window.__pgGameStructureMonitorV121) return;
+  window.__pgGameStructureMonitorV121 = true;
 
-  const VERSION = '1.2.0';
+  const VERSION = '1.2.1';
   const SCRIPT_ID = 'game-structure-monitor';
   const BASELINE_KEY = 'pg-game-structure-monitor-v3:baseline';
   const HISTORY_KEY = 'pg-game-structure-monitor-v3:history';
@@ -152,7 +152,7 @@
       } else roots[descriptor.id] = structuralShape(value, 0, descriptor.id);
     }
     return {
-      schemaVersion: '1.2.0',
+      schemaVersion: '1.2.1',
       generatedAt: now(),
       roots,
       missing,
@@ -167,7 +167,7 @@
     const roots = {};
     for (const descriptor of ROOTS) roots[descriptor.id] = mergeShapes(valid.map(snapshot => snapshot.roots?.[descriptor.id]).filter(Boolean));
     return {
-      schemaVersion: '1.2.0',
+      schemaVersion: '1.2.1',
       generatedAt: now(),
       roots,
       missing: [...new Set(valid.flatMap(snapshot => snapshot.missing || []))],
@@ -447,5 +447,5 @@
     scanNow(false);
   }, BASELINE_SAMPLE_MS);
   timer = setInterval(() => scanNow(false), SCAN_MS);
-  console.info('[Game Structure Monitor] v1.2.0 cargado: referencia multimuestra y aprendizaje de estructuras dinámicas.');
+  console.info('[Game Structure Monitor] v1.2.1 cargado: referencia multimuestra y aprendizaje de estructuras dinámicas.');
 })();
