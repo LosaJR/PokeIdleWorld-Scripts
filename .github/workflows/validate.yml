@@ -6,16 +6,11 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   publish-hunt-1-1-12:
     if: github.head_ref == 'publish-hunt-1.1.12-now'
     runs-on: ubuntu-22.04
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,12 +48,6 @@ jobs:
           git add -A
           git commit -m "chore: publicar Hunt Intelligence 1.1.12 [skip ci]"
           git push origin main
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
-        with:
-          path: dist
-      - uses: actions/deploy-pages@v4
-        id: deployment
 
   validate:
     if: github.head_ref != 'publish-hunt-1.1.12-now'
