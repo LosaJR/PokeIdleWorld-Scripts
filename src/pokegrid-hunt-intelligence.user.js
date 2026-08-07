@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.13
+// @version      1.1.14
 // @description  Recomendador, No capturados, Item Finder, supervisor e histórico unificados con VIP y bonus diario normalizados.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1113) return;
-  window.__pgHuntIntelligenceCoreV1113 = true;
+  if (window.__pgHuntIntelligenceCoreV1114) return;
+  window.__pgHuntIntelligenceCoreV1114 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -679,8 +679,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1113) return;
-  window.__pgHuntIntelligenceItemCoreV1113 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1114) return;
+  window.__pgHuntIntelligenceItemCoreV1114 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1164,8 +1164,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1113) return;
-  window.__pgHuntIntelligenceEngineV1113 = true;
+  if (window.__pgHuntIntelligenceEngineV1114) return;
+  window.__pgHuntIntelligenceEngineV1114 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2222,14 +2222,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.13 cargado: ranking personal y Pokédex por API directa.');
+  console.info('[Hunt Intelligence] Motor v1.1.14 cargado: ranking personal y Pokédex por API directa.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1113) return;
-  window.__pgHuntIntelligenceSupervisorV1113 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1114) return;
+  window.__pgHuntIntelligenceSupervisorV1114 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -2693,26 +2693,26 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.13',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getPersonalEstimate,getCalibration,
+    version:'1.1.14',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.13',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.14',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.13',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.14',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   migrateLegacy();
   migrateToFixedWindows();
   restartTimer();
   setTimeout(()=>refresh(false),1200);
-  console.info('[Hunt Intelligence] Supervisor unificado v1.1.13 cargado: VIP y bonus diario normalizados.');
+  console.info('[Hunt Intelligence] Supervisor unificado v1.1.14 cargado: VIP y bonus diario normalizados.');
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1113) return;
-  window.__pgHuntIntelligenceUiV1113 = true;
+  if (window.__pgHuntIntelligenceUiV1114) return;
+  window.__pgHuntIntelligenceUiV1114 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -2800,13 +2800,17 @@
       #${PANEL_ID} .pg-u-step{display:inline-flex;align-items:center;gap:4px}
       #${PANEL_ID} .pg-u-step button{min-width:27px;padding:5px 7px!important}
       #${PANEL_ID} .pg-u-weight-value{min-width:38px;text-align:center;color:#eef5ff;font-weight:850;font-variant-numeric:tabular-nums}
-      #${PANEL_ID} .pg-u-row{display:grid;grid-template-columns:34px minmax(175px,1fr) repeat(4,minmax(76px,auto));gap:8px;align-items:center;padding:9px 8px;border-bottom:1px solid #202b3b;font-size:11px}
+      #${PANEL_ID} .pg-u-table-head,#${PANEL_ID} .pg-u-row{display:grid;grid-template-columns:34px minmax(175px,1fr) repeat(5,minmax(76px,auto));gap:8px;align-items:center}
+      #${PANEL_ID} .pg-u-table-head{padding:7px 8px 5px;border-bottom:1px solid #344155;color:#8392a6;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.02em}
+      #${PANEL_ID} .pg-u-table-head .pg-u-col{text-align:right;white-space:nowrap}
+      #${PANEL_ID} .pg-u-table-head .pg-u-col-name{text-align:left}
+      #${PANEL_ID} .pg-u-row{padding:9px 8px;border-bottom:1px solid #202b3b;font-size:11px}
       #${PANEL_ID} .pg-u-row.best{background:linear-gradient(90deg,#17321f88,#0d131c)}
       #${PANEL_ID} .pg-u-rank{text-align:center;font-weight:900;color:#f0c467;font-size:14px}
       #${PANEL_ID} .pg-u-target{font-weight:800;font-size:12px;color:#f3f6fb;cursor:pointer;text-decoration:none;border-radius:5px;padding:3px 4px;margin-left:-4px;display:inline-block}
       #${PANEL_ID} .pg-u-target:hover{background:#2a3d57;color:#9fd0ff;text-decoration:underline}
       #${PANEL_ID} .pg-u-sub{font-size:9.5px;color:#8290a5;margin-top:2px}
-      #${PANEL_ID} .pg-u-metric{text-align:right;font-variant-numeric:tabular-nums}.xp{color:#72b7ff}.gold{color:#f2cc60}.loot{color:#8ce99a}.score{color:#d4a6ff}.rate{color:#d5a6ff}.speed{color:#72b7ff}.items{color:#8ce99a}.eff{color:#ffd36c}
+      #${PANEL_ID} .pg-u-metric{text-align:right;font-variant-numeric:tabular-nums}.piw-xp{color:#72b7ff}.real-xp{color:#64d8c0}.xp{color:#72b7ff}.gold{color:#f2cc60}.loot{color:#8ce99a}.score{color:#d4a6ff}.rate{color:#d5a6ff}.speed{color:#72b7ff}.items{color:#8ce99a}.eff{color:#ffd36c}
       #${PANEL_ID} .pg-u-search{display:flex;gap:7px;margin-bottom:12px}.pg-u-search input{flex:1;font-size:12px}
       #${PANEL_ID} .pg-u-caught-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 11px;margin-bottom:10px;background:#101925;border:1px solid #36506d;border-radius:9px;color:#b9c8d9;font-size:11px}
       #${PANEL_ID} .pg-u-caught-summary b{color:#9fd0ff;font-size:13px}
@@ -2815,7 +2819,7 @@
       #${PANEL_ID} .pg-u-empty{padding:30px;text-align:center;color:#9ba8ba;line-height:1.6}
       #${TOAST_ID}{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:100050;max-width:min(620px,92vw);background:#101925;color:#eef5ff;border:1px solid #42536c;border-radius:10px;padding:10px 14px;font:650 12px system-ui;box-shadow:0 10px 35px #000c;opacity:0;pointer-events:none;transition:opacity .18s}
       #${TOAST_ID}.show{opacity:1}#${TOAST_ID}.ok{border-color:#368551}#${TOAST_ID}.bad{border-color:#a54343}
-      @media(max-width:700px){#${PANEL_ID} .pg-u-sourcebox{grid-template-columns:1fr}.pg-u-daily{white-space:normal;flex-wrap:wrap}#${PANEL_ID} .pg-u-row{grid-template-columns:28px 1fr 82px 82px}#${PANEL_ID} .hide-mobile{display:none}#${PANEL_ID} .pg-u-settings{grid-template-columns:1fr}#${PANEL_ID} .pg-u-tabs{top:47px}#${PANEL_ID} .pg-hi-grid{grid-template-columns:1fr}#${PANEL_ID} .pg-hi-hero{grid-template-columns:1fr 1fr}#${PANEL_ID} .pg-hi-history-head{display:none}#${PANEL_ID} .pg-hi-history-row{grid-template-columns:1fr 70px 44px}#${PANEL_ID} .pg-hi-history-name{grid-column:1/-1}}
+      @media(max-width:700px){#${PANEL_ID} .pg-u-sourcebox{grid-template-columns:1fr}.pg-u-daily{white-space:normal;flex-wrap:wrap}#${PANEL_ID} .pg-u-table-head,#${PANEL_ID} .pg-u-row{grid-template-columns:28px 1fr 78px 78px 78px}#${PANEL_ID} .hide-mobile{display:none}#${PANEL_ID} .pg-u-settings{grid-template-columns:1fr}#${PANEL_ID} .pg-u-tabs{top:47px}#${PANEL_ID} .pg-hi-grid{grid-template-columns:1fr}#${PANEL_ID} .pg-hi-hero{grid-template-columns:1fr 1fr}#${PANEL_ID} .pg-hi-history-head{display:none}#${PANEL_ID} .pg-hi-history-row{grid-template-columns:1fr 70px 44px}#${PANEL_ID} .pg-hi-history-name{grid-column:1/-1}}
     `;
     document.head.appendChild(style);
   }
@@ -3173,7 +3177,7 @@
     const topRows = result.rows.slice(0, clamp(finite(cfg.topN, 8), 3, 20));
     const product = productivityDescription(result.productivity);
     const body = `
-      <div class="pg-u-note"><b>Ranking inteligente:</b> usa histórico real normalizado cuando existe una muestra comparable; en las demás hunts utiliza PIWTools y, si está disponible, una calibración personal de velocidad. <b>EXP/h:</b> “Tu histórico” son datos obtenidos de tus propias muestras de caza; “Ajuste personal” es una estimación calibrada con tu rendimiento; “PIWTools” es la estimación teórica de referencia. Pulsa un Pokémon para iniciar esa hunt.</div>
+      <div class="pg-u-note"><b>Ranking inteligente:</b> PIWTools XP/h es la estimación teórica de la web; Tu XP/h muestra únicamente el rendimiento real medido en tu histórico para esa misma hunt. Si todavía no existe una muestra comparable, aparecerá “—”. Pulsa un Pokémon para iniciar esa hunt.</div>
       <div class="pg-u-sourcebox ${product.tone}">
         <div><b>Fuente de productividad:</b> ${esc(product.text)}<br>${dailyDescription(result.dailyBonus)} · <b>MT:</b> ${cfg.useTM ? 'incluidas' : 'excluidas'} · <b>VIP:</b> ${cfg.vipActive ? 'activo' : 'inactivo'}</div>
         <div class="pg-u-daily">${dailyControlHtml(cfg.dailyType || 'auto', result.dailyBonus)}${tmControlHtml(cfg.useTM)}${vipControlHtml(cfg.vipActive)}</div>
@@ -3184,20 +3188,24 @@
         ${weightControlHtml('lootWeight', 'Peso loot', cfg.lootWeight)}
         ${weightControlHtml('goldWeight', 'Peso oro NPC', cfg.goldWeight)}
       </div>
+      <div class="pg-u-table-head">
+        <div></div>
+        <div class="pg-u-col-name">Hunt</div>
+        <div class="pg-u-col">PIWTools XP/h</div>
+        <div class="pg-u-col">Tu XP/h</div>
+        <div class="pg-u-col">Items/h</div>
+        <div class="pg-u-col hide-mobile">Oro NPC/h</div>
+        <div class="pg-u-col hide-mobile">${cfg.mode === 'general' ? 'Score' : 'Kills/h'}</div>
+      </div>
       <div>${topRows.map((row, index) => `
         <div class="pg-u-row ${index === 0 ? 'best' : ''}">
           <div class="pg-u-rank">${index === 0 ? '★' : index + 1}</div>
           <div><button class="pg-u-target" data-hunt-index="${index}" data-source="hunt" title="Ir directamente a cazar ${esc(row.hunt.name)}">${esc(row.hunt.name)} ${row.diff.level ? `<span style="color:#8491a3;font-weight:500">Nv. ${fmt(row.diff.level)}</span>` : ''}${row.dailyBoosted ? '<span class="pg-u-badge">+20% diario</span>' : ''}</button><div class="pg-u-sub">${esc(row.source)} · ${esc(row.diff.offense.move)}${row.diff.offense.isTM ? ' (MT)' : ''} ×${fmt(row.diff.offense.eff, 2)} · ${row.lootDataKnown}/${row.lootDataTotal} drops con rate visible${row.personal ? ` · histórico real ${esc(row.personal.confidence)}` : row.calibration ? ` · ajuste velocidad ×${fmt(row.calibration.factor, 2)} (${esc(row.calibration.confidence)})` : ''}</div></div>
-          <div class="pg-u-metric xp"><b>${fmt(row.xph)}</b><br><small>${
-            row.personal
-              ? `Tu histórico · PIWTools: ${fmt(row.theoreticalXph)}`
-              : row.calibration
-                ? `Ajuste personal · PIWTools: ${fmt(row.theoreticalXph)}`
-                : 'PIWTools · EXP/h teórica'
-          }</small></div>
-          <div class="pg-u-metric loot"><b>${fmt(row.lootPh, 2)}</b><br><small>items/h</small></div>
-          <div class="pg-u-metric gold hide-mobile"><b>${fmt(row.netGoldPh)}</b><br><small>oro NPC/h</small></div>
-          <div class="pg-u-metric score hide-mobile"><b>${cfg.mode === 'general' ? fmt(row.generalScore, 1) : fmt(row.kph)}</b><br><small>${cfg.mode === 'general' ? 'score' : 'kills/h'}</small></div>
+          <div class="pg-u-metric piw-xp"><b>${fmt(row.theoreticalXph)}</b></div>
+          <div class="pg-u-metric real-xp"><b>${row.personal ? fmt(row.xph) : '—'}</b></div>
+          <div class="pg-u-metric loot"><b>${fmt(row.lootPh, 2)}</b></div>
+          <div class="pg-u-metric gold hide-mobile"><b>${fmt(row.netGoldPh)}</b></div>
+          <div class="pg-u-metric score hide-mobile"><b>${cfg.mode === 'general' ? fmt(row.generalScore, 1) : fmt(row.kph)}</b></div>
         </div>`).join('') || '<div class="pg-u-empty">No se encontraron hunts desbloqueadas para el nivel actual de este Pokémon.</div>'}</div>`;
     shell(body);
   }
@@ -4312,7 +4320,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.13',
+    version: '1.1.14',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -4359,7 +4367,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.13',
+      version: '1.1.14',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -4393,7 +4401,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.13',
+    version: '1.1.14',
     openHunt: () => { activeTab='hunt'; return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; return loadNotCaught(false); },
     openItem: query => { activeTab='item'; return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -4420,5 +4428,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.13 cargado: Hunts con etiquetas EXP/h claras y No capturados por /api/game/pokedex.');
+  console.info('[Hunt Intelligence] v1.1.14 cargado: Hunts con PIWTools XP/h y Tu XP/h separados, y No capturados por /api/game/pokedex.');
 })();
