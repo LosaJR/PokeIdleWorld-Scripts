@@ -3,8 +3,11 @@
     {
       "target": "src/pokegrid-hunt-intelligence.user.js",
       "payloads": [
+        "staging-upload/hunt-1.1.12.prefix1.b64",
         "staging-upload/hunt-1.1.12.part1.b64",
+        "staging-upload/hunt-1.1.12.prefix2.b64",
         "staging-upload/hunt-1.1.12.part2.b64",
+        "staging-upload/hunt-1.1.12.prefix3.b64",
         "staging-upload/hunt-1.1.12.part3.b64"
       ],
       "encoding": "gzip-base64",
