@@ -1,6 +1,7 @@
 name: Publicar scripts
 
 # Runner explícito para evitar fallos de inicialización observados en ubuntu-latest.
+# Los PR fusionados contra main disparan esta publicación automáticamente.
 on:
   push:
     branches: [main]
