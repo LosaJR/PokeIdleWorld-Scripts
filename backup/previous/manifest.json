@@ -2,7 +2,7 @@
   "scripts": [
     {
       "name": "Poke Idle World - Quality of Life (PIW-QOL ES)",
-      "version": "9.10.18",
+      "version": "9.10.24",
       "file": "piw-qol-es.user.js",
       "metaFile": "piw-qol-es.meta.js",
       "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/piw-qol-es.user.js",
@@ -23,6 +23,14 @@
       "metaFile": "pokegrid-game-structure-monitor.meta.js",
       "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-game-structure-monitor.user.js",
       "updateURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-game-structure-monitor.meta.js"
+    },
+    {
+      "name": "PokeGrid - Hunt Intelligence",
+      "version": "1.1.11",
+      "file": "pokegrid-hunt-intelligence.user.js",
+      "metaFile": "pokegrid-hunt-intelligence.meta.js",
+      "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-hunt-intelligence.user.js",
+      "updateURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-hunt-intelligence.meta.js"
     },
     {
       "name": "PokeGrid - Script Bridge & Health Agent",
