@@ -67,8 +67,14 @@ if (manifest.mode === 'replace') {
   process.exit(0);
 }
 
+if (manifest.backups == null) {
+  await fs.rm(stagingDir, { recursive: true, force: true });
+  console.log('Carga ensamblada y staging-upload eliminado; publish.mjs conservará automáticamente el dist anterior como respaldo.');
+  process.exit(0);
+}
+
 if (!Array.isArray(manifest.backups) || manifest.backups.length !== manifest.files.length) {
-  throw new Error('El manifiesto no contiene un respaldo por cada userscript.');
+  throw new Error('Si se declaran respaldos, debe existir uno por cada userscript.');
 }
 
 await fs.rm(allowedBackupRoot, { recursive: true, force: true });
