@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.12
+// @version      1.1.13
 // @description  Recomendador, No capturados, Item Finder, supervisor e histórico unificados con VIP y bonus diario normalizados.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1112) return;
-  window.__pgHuntIntelligenceCoreV1112 = true;
+  if (window.__pgHuntIntelligenceCoreV1113) return;
+  window.__pgHuntIntelligenceCoreV1113 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -679,8 +679,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1112) return;
-  window.__pgHuntIntelligenceItemCoreV1112 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1113) return;
+  window.__pgHuntIntelligenceItemCoreV1113 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1164,8 +1164,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1112) return;
-  window.__pgHuntIntelligenceEngineV1112 = true;
+  if (window.__pgHuntIntelligenceEngineV1113) return;
+  window.__pgHuntIntelligenceEngineV1113 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2222,14 +2222,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.12 cargado: VIP manual, bonus diario, ranking personal y Pokédex unificados.');
+  console.info('[Hunt Intelligence] Motor v1.1.13 cargado: ranking personal y Pokédex por API directa.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1112) return;
-  window.__pgHuntIntelligenceSupervisorV1112 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1113) return;
+  window.__pgHuntIntelligenceSupervisorV1113 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -2693,26 +2693,26 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.12',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getPersonalEstimate,getCalibration,
+    version:'1.1.13',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.12',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.13',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.12',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.13',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   migrateLegacy();
   migrateToFixedWindows();
   restartTimer();
   setTimeout(()=>refresh(false),1200);
-  console.info('[Hunt Intelligence] Supervisor unificado v1.1.12 cargado: VIP y bonus diario normalizados.');
+  console.info('[Hunt Intelligence] Supervisor unificado v1.1.13 cargado: VIP y bonus diario normalizados.');
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1112) return;
-  window.__pgHuntIntelligenceUiV1112 = true;
+  if (window.__pgHuntIntelligenceUiV1113) return;
+  window.__pgHuntIntelligenceUiV1113 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -3173,7 +3173,7 @@
     const topRows = result.rows.slice(0, clamp(finite(cfg.topN, 8), 3, 20));
     const product = productivityDescription(result.productivity);
     const body = `
-      <div class="pg-u-note"><b>Ranking inteligente:</b> usa histórico real normalizado cuando existe una muestra comparable; en las demás hunts utiliza PIWTools y, si está disponible, una calibración personal de velocidad. Pulsa un Pokémon para iniciar esa hunt.</div>
+      <div class="pg-u-note"><b>Ranking inteligente:</b> usa histórico real normalizado cuando existe una muestra comparable; en las demás hunts utiliza PIWTools y, si está disponible, una calibración personal de velocidad. <b>EXP/h:</b> “Tu histórico” son datos obtenidos de tus propias muestras de caza; “Ajuste personal” es una estimación calibrada con tu rendimiento; “PIWTools” es la estimación teórica de referencia. Pulsa un Pokémon para iniciar esa hunt.</div>
       <div class="pg-u-sourcebox ${product.tone}">
         <div><b>Fuente de productividad:</b> ${esc(product.text)}<br>${dailyDescription(result.dailyBonus)} · <b>MT:</b> ${cfg.useTM ? 'incluidas' : 'excluidas'} · <b>VIP:</b> ${cfg.vipActive ? 'activo' : 'inactivo'}</div>
         <div class="pg-u-daily">${dailyControlHtml(cfg.dailyType || 'auto', result.dailyBonus)}${tmControlHtml(cfg.useTM)}${vipControlHtml(cfg.vipActive)}</div>
@@ -3188,7 +3188,13 @@
         <div class="pg-u-row ${index === 0 ? 'best' : ''}">
           <div class="pg-u-rank">${index === 0 ? '★' : index + 1}</div>
           <div><button class="pg-u-target" data-hunt-index="${index}" data-source="hunt" title="Ir directamente a cazar ${esc(row.hunt.name)}">${esc(row.hunt.name)} ${row.diff.level ? `<span style="color:#8491a3;font-weight:500">Nv. ${fmt(row.diff.level)}</span>` : ''}${row.dailyBoosted ? '<span class="pg-u-badge">+20% diario</span>' : ''}</button><div class="pg-u-sub">${esc(row.source)} · ${esc(row.diff.offense.move)}${row.diff.offense.isTM ? ' (MT)' : ''} ×${fmt(row.diff.offense.eff, 2)} · ${row.lootDataKnown}/${row.lootDataTotal} drops con rate visible${row.personal ? ` · histórico real ${esc(row.personal.confidence)}` : row.calibration ? ` · ajuste velocidad ×${fmt(row.calibration.factor, 2)} (${esc(row.calibration.confidence)})` : ''}</div></div>
-          <div class="pg-u-metric xp"><b>${fmt(row.xph)}</b><br><small>${row.personalXph ? `personal · PIW ${fmt(row.theoreticalXph)}` : 'PIWTools'}</small></div>
+          <div class="pg-u-metric xp"><b>${fmt(row.xph)}</b><br><small>${
+            row.personal
+              ? `Tu histórico · PIWTools: ${fmt(row.theoreticalXph)}`
+              : row.calibration
+                ? `Ajuste personal · PIWTools: ${fmt(row.theoreticalXph)}`
+                : 'PIWTools · EXP/h teórica'
+          }</small></div>
           <div class="pg-u-metric loot"><b>${fmt(row.lootPh, 2)}</b><br><small>items/h</small></div>
           <div class="pg-u-metric gold hide-mobile"><b>${fmt(row.netGoldPh)}</b><br><small>oro NPC/h</small></div>
           <div class="pg-u-metric score hide-mobile"><b>${cfg.mode === 'general' ? fmt(row.generalScore, 1) : fmt(row.kph)}</b><br><small>${cfg.mode === 'general' ? 'score' : 'kills/h'}</small></div>
@@ -3216,80 +3222,18 @@
     return refreshed.accessToken;
   }
 
-  function normalizePokedexEntry(entry) {
-    if (entry === null || entry === undefined) return null;
-    if (typeof entry === 'string') return { name: entry };
-    if (typeof entry === 'number') return { id: entry };
-    if (typeof entry !== 'object') return null;
-
-    const nested = entry.species || entry.pokemon || entry.creature || entry.poke;
-    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
-      return { ...nested, ...entry };
-    }
-    return entry;
-  }
-
-  function normalizePokedexCollection(value) {
-    if (!Array.isArray(value)) return [];
-    return value.map(normalizePokedexEntry).filter(Boolean);
-  }
-
-  function dexKeyName(value) {
-    return norm(value).replace(/\s+/g, '');
-  }
-
-  function collectionInside(value) {
-    if (Array.isArray(value)) return { found: true, items: normalizePokedexCollection(value) };
-    if (!value || typeof value !== 'object') return { found: false, items: [] };
-    for (const key of ['species','pokemon','pokemons','pokes','entries','items','list','results','data']) {
-      if (Array.isArray(value[key])) {
-        return { found: true, items: normalizePokedexCollection(value[key]) };
-      }
-    }
-    return { found: false, items: [] };
-  }
-
-  function findNamedDexCollection(root, aliases) {
-    const wanted = new Set(aliases.map(dexKeyName));
-    const seen = new WeakSet();
-
-    function walk(value, depth = 0) {
-      if (!value || typeof value !== 'object' || depth > 7) return { found: false, items: [] };
-      if (seen.has(value)) return { found: false, items: [] };
-      seen.add(value);
-
-      for (const [key, child] of Object.entries(value)) {
-        if (wanted.has(dexKeyName(key))) {
-          const direct = collectionInside(child);
-          if (direct.found) return direct;
-        }
-      }
-
-      const marker = [
-        value.id, value.key, value.type, value.status, value.mode,
-        value.label, value.name, value.title, value.tab
-      ].map(dexKeyName).find(candidate => wanted.has(candidate));
-      if (marker) {
-        const direct = collectionInside(value);
-        if (direct.found) return direct;
-      }
-
-      for (const child of Object.values(value)) {
-        if (child && typeof child === 'object') {
-          const nested = walk(child, depth + 1);
-          if (nested.found) return nested;
-        }
-      }
-      return { found: false, items: [] };
-    }
-
-    return walk(root, 0);
+  function pokedexCaughtState(value) {
+    const caught = value?.caught;
+    if (caught === true || caught === 1 || String(caught).toLowerCase() === 'true') return true;
+    if (caught === false || caught === 0 || String(caught).toLowerCase() === 'false') return false;
+    return null;
   }
 
   function dedupePokedexEntries(entries) {
     const seen = new Set();
     const output = [];
-    for (const entry of entries) {
+
+    for (const entry of entries || []) {
       const id = pokedexSpeciesId(entry);
       const name = pokedexSpeciesName(entry);
       const key = id ? `id:${id}` : name ? `name:${name}` : '';
@@ -3297,713 +3241,136 @@
       seen.add(key);
       output.push(entry);
     }
+
     return output;
   }
 
-  function normalizePokedexPayload(payload) {
-    // La Pokédex nueva puede devolver dos listados separados. Se buscan por
-    // nombre aunque estén anidados dentro de data, tabs, sections o results.
-    const notCaughtResult = findNamedDexCollection(payload, [
-      'notCaught','not_caught','not-caught','uncaught','notCaptured',
-      'missing','unowned','pending','notRegistered'
-    ]);
-    const caughtResult = findNamedDexCollection(payload, [
-      'caught','captured','owned','registered','completed','complete'
-    ]);
-    const speciesResult = findNamedDexCollection(payload, [
-      'species','pokemon','pokemons','pokes','entries','pokedexEntries'
-    ]);
+  function normalizePokedexPayload(payload, sourceMode = 'api-directa') {
+    const species = Array.isArray(payload?.species)
+      ? payload.species
+      : Array.isArray(payload?.data?.species)
+        ? payload.data.species
+        : null;
 
-    let species = speciesResult.items;
-    let caughtSpecies = caughtResult.items;
-    let notCaughtSpecies = notCaughtResult.items;
-    const hasExplicitLists = caughtResult.found || notCaughtResult.found;
-
-    if (!species.length && hasExplicitLists) {
-      species = dedupePokedexEntries([...caughtSpecies, ...notCaughtSpecies]);
+    if (!species) {
+      throw new Error('La API /api/game/pokedex devolvió un formato no reconocido: falta species[].');
     }
 
-    if (!hasExplicitLists && species.length) {
-      caughtSpecies = species.filter(isPokedexSpeciesCaught);
-      notCaughtSpecies = species.filter(entry => !isPokedexSpeciesCaught(entry));
+    const normalizedSpecies = species
+      .filter(entry => entry && typeof entry === 'object')
+      .map(entry => ({ ...entry }));
+
+    if (!normalizedSpecies.length) {
+      throw new Error('La API /api/game/pokedex no devolvió especies.');
     }
 
-    species = dedupePokedexEntries([...species, ...caughtSpecies, ...notCaughtSpecies]);
-    caughtSpecies = dedupePokedexEntries(caughtSpecies);
-    notCaughtSpecies = dedupePokedexEntries(notCaughtSpecies);
+    const withoutId = normalizedSpecies.filter(entry => !pokedexSpeciesId(entry));
+    if (withoutId.length) {
+      throw new Error(`La API /api/game/pokedex devolvió ${withoutId.length} especies sin ID.`);
+    }
 
-    if (!species.length && !hasExplicitLists) {
-      throw new Error('La Pokédex devolvió un formato no reconocido. Abre la Pokédex del juego una vez y vuelve a actualizar.');
+    const withoutCaughtState = normalizedSpecies.filter(entry => pokedexCaughtState(entry) === null);
+    if (withoutCaughtState.length) {
+      throw new Error(
+        `La API /api/game/pokedex devolvió ${withoutCaughtState.length} especies sin un estado caught válido.`
+      );
+    }
+
+    const caughtSpecies = dedupePokedexEntries(
+      normalizedSpecies.filter(entry => pokedexCaughtState(entry) === true)
+    );
+    const notCaughtSpecies = dedupePokedexEntries(
+      normalizedSpecies.filter(entry => pokedexCaughtState(entry) === false)
+    );
+    const allSpecies = dedupePokedexEntries(normalizedSpecies);
+
+    return {
+      payload,
+      species: allSpecies,
+      caughtSpecies,
+      notCaughtSpecies,
+      caughtCount: caughtSpecies.length,
+      notCaughtCount: notCaughtSpecies.length,
+      hasExplicitLists: true,
+      sourceMode,
+      debug: {
+        endpoint: '/api/game/pokedex',
+        unlockKills: Number.isFinite(Number(payload?.unlockKills))
+          ? Number(payload.unlockKills)
+          : null,
+        totalSpecies: allSpecies.length,
+        caught: caughtSpecies.length,
+        notCaught: notCaughtSpecies.length
+      }
+    };
+  }
+
+  async function fetchPokedexPayload() {
+    const send = accessToken => fetch('/api/game/pokedex', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+    });
+
+    let response = await send(getGameTokens()?.accessToken);
+
+    if (response.status === 401) {
+      const refreshedToken = await refreshGameAccessToken();
+      if (refreshedToken) response = await send(refreshedToken);
+    }
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        payload?.message || `No se pudo consultar /api/game/pokedex (HTTP ${response.status}).`
+      );
     }
 
     return {
       payload,
-      species,
-      caughtSpecies,
-      notCaughtSpecies,
-      hasExplicitLists,
-      sourceMode: hasExplicitLists ? 'listas-caught-notcaught' : 'estado-por-especie'
+      status: response.status
     };
-  }
-
-  function dexCellName(cell) {
-    const explicit = [
-      cell?.querySelector?.('.dex-cell-name')?.textContent,
-      cell?.dataset?.name,
-      cell?.dataset?.pokemonName,
-      cell?.dataset?.speciesName,
-      cell?.getAttribute?.('aria-label'),
-      cell?.getAttribute?.('title'),
-      cell?.querySelector?.('img')?.alt
-    ].map(value => String(value || '').trim()).find(Boolean);
-    if (explicit) return explicit;
-
-    const lines = String(cell?.textContent || '')
-      .split(/\n+/)
-      .map(line => line.trim())
-      .filter(Boolean)
-      .filter(line => !/^(caught|not caught|captured|uncaught|capturado|capturados|no capturado|no capturados)$/i.test(line));
-    return lines[0] || '';
-  }
-
-  function dexCellId(cell) {
-    const direct = [
-      cell?.dataset?.id,
-      cell?.dataset?.pokeId,
-      cell?.dataset?.pokemonId,
-      cell?.dataset?.speciesId,
-      cell?.getAttribute?.('data-id'),
-      cell?.getAttribute?.('data-poke-id'),
-      cell?.getAttribute?.('data-species-id')
-    ].find(value => value !== undefined && value !== null && value !== '');
-    if (direct !== undefined) return String(direct);
-
-    const guide = String(cell?.dataset?.guide || cell?.getAttribute?.('data-guide') || '');
-    const guideMatch = guide.match(/(?:pokedex|dex|poke|species)[^0-9]*(\d+)/i);
-    return guideMatch?.[1] || '';
-  }
-
-  function dexCellCaught(cell) {
-    const classText = norm(cell?.className || '');
-    if (/(^| )(not caught|notcaught|uncaught|not captured|notcaptured)( |$)/.test(classText)) return false;
-    if (/(^| )(caught|captured|owned|registered)( |$)/.test(classText)) return true;
-
-    const raw = cell?.dataset?.caught
-      ?? cell?.dataset?.captured
-      ?? cell?.dataset?.owned
-      ?? cell?.getAttribute?.('data-caught')
-      ?? cell?.getAttribute?.('aria-checked');
-    if (raw !== undefined && raw !== null) {
-      return raw === true || raw === 1 || /^(true|1|yes)$/i.test(String(raw));
-    }
-
-    const status = norm([
-      cell?.dataset?.status,
-      cell?.dataset?.state,
-      cell?.getAttribute?.('data-status'),
-      cell?.getAttribute?.('aria-label'),
-      cell?.getAttribute?.('title')
-    ].filter(Boolean).join(' '));
-    if (/\b(not caught|uncaught|not captured|no capturado|no capturados|nao capturado|nao capturados)\b/.test(status)) return false;
-    return /\b(caught|captured|capturado|capturados|owned|registered)\b/.test(status);
-  }
-
-  function dexEntryFromCell(cell, forcedCaught = null) {
-    const name = dexCellName(cell);
-    if (!name) return null;
-    const id = dexCellId(cell);
-    return {
-      ...(id ? { id } : {}),
-      name,
-      caught: forcedCaught === null ? dexCellCaught(cell) : Boolean(forcedCaught)
-    };
-  }
-
-  function isDexCellRendered(cell, dexWindow) {
-    if (!cell || !cell.isConnected || cell.hidden) return false;
-    if (cell.classList.contains('dex-hidden')) return false;
-    if (cell.getAttribute('aria-hidden') === 'true') return false;
-
-    let current = cell;
-    while (current && current !== dexWindow) {
-      const style = getComputedStyle(current);
-      if (style.display === 'none') return false;
-      current = current.parentElement;
-    }
-    return true;
-  }
-
-  function findDexWindow() {
-    return Array.from(document.querySelectorAll('.dex-window'))
-      .find(windowElement => isVisible(windowElement)) || null;
-  }
-
-  function findPokedexLauncher() {
-    const selectors = [
-      '[data-guide*="pokedex" i]',
-      '[data-guide*="pokédex" i]',
-      '[data-guide*="dex" i]',
-      '#dock-btn-pokedex',
-      '#dock-btn-dex',
-      '[id*="pokedex" i]',
-      '[id*="pokédex" i]',
-      '[id*="dex" i][role="button"]',
-      'button[class*="pokedex" i]',
-      'button[class*="dex" i]'
-    ];
-
-    for (const selector of selectors) {
-      const candidate = Array.from(document.querySelectorAll(selector)).find(element =>
-        isVisible(element)
-        && !element.closest(`#${PANEL_ID}`)
-        && !element.closest('.dex-window')
-      );
-      if (candidate) return candidate;
-    }
-
-    return Array.from(document.querySelectorAll('button,a,[role="button"],.dock-btn,[tabindex]'))
-      .filter(element =>
-        isVisible(element)
-        && !element.closest(`#${PANEL_ID}`)
-        && !element.closest('.dex-window')
-      )
-      .find(element => {
-        const image = element.querySelector?.('img');
-        const value = norm([
-          element.textContent,
-          element.title,
-          element.getAttribute?.('aria-label'),
-          element.id,
-          element.className,
-          image?.alt,
-          image?.src
-        ].filter(Boolean).join(' '));
-        return /\b(pokedex|pokédex|poke dex|dex)\b/.test(value);
-      }) || null;
-  }
-
-  async function openPokedexWindowForReading() {
-    const alreadyOpen = findDexWindow();
-    if (alreadyOpen) return { dexWindow: alreadyOpen, openedByScript: false };
-
-    let launcher = findPokedexLauncher();
-    if (!launcher) throw new Error('No se ha encontrado el acceso de la Pokédex en la interfaz del juego.');
-
-    launcher.click();
-    let dexWindow = await waitFor(findDexWindow, 1800, 60);
-
-    if (!dexWindow) {
-      launcher = findPokedexLauncher();
-      if (launcher) launcher.click();
-      dexWindow = await waitFor(findDexWindow, 2500, 60);
-    }
-
-    if (!dexWindow) {
-      throw new Error('La Pokédex no se abrió. Ábrela manualmente una vez y vuelve a actualizar No capturados.');
-    }
-
-    return { dexWindow, openedByScript: true };
-  }
-
-  function nativeDexButtons(dexWindow) {
-    return Array.from(dexWindow.querySelectorAll('button,a,[role="button"],[role="tab"]'))
-      .filter(button => {
-        if (!button?.isConnected || button.hidden || button.disabled) return false;
-        if (button.closest('.dex-script-controls') || button.closest(`#${PANEL_ID}`)) return false;
-        const style = getComputedStyle(button);
-        const rect = button.getBoundingClientRect();
-        return rect.width > 1
-          && rect.height > 1
-          && style.display !== 'none'
-          && style.visibility !== 'hidden';
-      });
-  }
-
-  function dexButtonLabel(button) {
-    return norm([
-      button?.textContent,
-      button?.title,
-      button?.getAttribute?.('aria-label'),
-      button?.dataset?.filter,
-      button?.dataset?.status,
-      button?.dataset?.tab,
-      button?.dataset?.value
-    ].filter(Boolean).join(' '));
-  }
-
-  function findNativeDexFilter(dexWindow, type) {
-    const buttons = nativeDexButtons(dexWindow);
-    const isNotCaught = label =>
-      /(?:^|\b)(not caught|uncaught|not captured|no capturados?|nao capturados?)(?:\b|$)/.test(label);
-    const isCaught = label =>
-      !isNotCaught(label)
-      && /(?:^|\b)(caught|captured|capturados?|capturado|owned|registered)(?:\b|$)/.test(label);
-
-    return buttons.find(button => {
-      const label = dexButtonLabel(button);
-      return type === 'notcaught' ? isNotCaught(label) : isCaught(label);
-    }) || null;
-  }
-
-  function findNativeDexAllFilter(dexWindow) {
-    return nativeDexButtons(dexWindow).find(button => {
-      const label = dexButtonLabel(button);
-      return /(?:^|\b)(all|todos?|todas?)(?:\b|$)/.test(label)
-        && !/(?:not caught|uncaught|not captured|no capturados?|nao capturados?)/.test(label);
-    }) || null;
-  }
-
-  function isActiveDexButton(button) {
-    return Boolean(
-      button?.classList?.contains('on')
-      || button?.classList?.contains('active')
-      || button?.getAttribute?.('aria-selected') === 'true'
-      || button?.getAttribute?.('aria-pressed') === 'true'
-      || button?.dataset?.active === 'true'
-    );
-  }
-
-  function dexButtonCount(button) {
-    if (!button) return null;
-    const raw = [
-      button.textContent,
-      button.title,
-      button.getAttribute?.('aria-label')
-    ].filter(Boolean).join(' ');
-    const matches = raw.match(/\d[\d.,\s]*/g) || [];
-    for (let index = matches.length - 1; index >= 0; index -= 1) {
-      const value = Number(matches[index].replace(/[^\d]/g, ''));
-      if (Number.isFinite(value)) return value;
-    }
-    return null;
-  }
-
-  function findDexScrollHost(dexWindow) {
-    const grid = dexWindow.querySelector('.dex-grid');
-    const candidates = [grid, grid?.parentElement, grid?.parentElement?.parentElement, dexWindow]
-      .filter(Boolean);
-    return candidates.find(element => element.scrollHeight > element.clientHeight + 8) || grid || dexWindow;
-  }
-
-  function dexGridSignature(dexWindow) {
-    const scrollHost = findDexScrollHost(dexWindow);
-    const cells = Array.from(dexWindow.querySelectorAll('.dex-cell'))
-      .filter(cell => isDexCellRendered(cell, dexWindow));
-    const sample = cells.length <= 64
-      ? cells
-      : [...cells.slice(0, 32), ...cells.slice(-32)];
-
-    return [
-      `cells:${cells.length}`,
-      `top:${Math.round(Number(scrollHost?.scrollTop || 0))}`,
-      `height:${Math.round(Number(scrollHost?.scrollHeight || 0))}`,
-      sample.map(cell => `${dexCellId(cell)}:${dexCellName(cell)}:${norm(cell.className || '')}`).join('|')
-    ].join('||');
-  }
-
-  function dexRenderedCaughtCount(dexWindow) {
-    return Array.from(dexWindow.querySelectorAll('.dex-cell'))
-      .filter(cell => isDexCellRendered(cell, dexWindow))
-      .filter(cell => dexCellCaught(cell))
-      .length;
-  }
-
-  async function waitForDexGridStable(
-    dexWindow,
-    {
-      beforeSignature = '',
-      requireChange = false,
-      timeoutMs = 5000,
-      intervalMs = 80,
-      stableChecks = 5,
-      minElapsedMs = 0
-    } = {}
-  ) {
-    const startedAt = Date.now();
-    let lastSignature = '';
-    let consecutiveStable = 0;
-    let changed = !requireChange;
-
-    while (Date.now() - startedAt < timeoutMs) {
-      const signature = dexGridSignature(dexWindow);
-      if (beforeSignature && signature !== beforeSignature) changed = true;
-
-      if (signature && signature === lastSignature) consecutiveStable += 1;
-      else consecutiveStable = 0;
-
-      lastSignature = signature;
-      const elapsedMs = Date.now() - startedAt;
-
-      if (
-        changed
-        && signature
-        && elapsedMs >= minElapsedMs
-        && consecutiveStable >= stableChecks
-      ) {
-        return {
-          ok: true,
-          changed,
-          elapsedMs,
-          stableChecks: consecutiveStable,
-          signature
-        };
-      }
-
-      await sleep(intervalMs);
-    }
-
-    return {
-      ok: false,
-      changed,
-      elapsedMs: Date.now() - startedAt,
-      stableChecks: consecutiveStable,
-      signature: lastSignature
-    };
-  }
-
-  async function activateNativeDexFilter(dexWindow, type) {
-    const button = findNativeDexFilter(dexWindow, type);
-    if (!button) {
-      throw new Error(`No se encontró la pestaña nativa ${type === 'notcaught' ? 'Not Caught' : 'Caught'} en la Pokédex.`);
-    }
-
-    const wasActive = isActiveDexButton(button);
-    const beforeSignature = dexGridSignature(dexWindow);
-
-    if (!wasActive) button.click();
-
-    const activeReady = await waitFor(() => {
-      const currentButton = findNativeDexFilter(dexWindow, type);
-      return Boolean(currentButton && isActiveDexButton(currentButton));
-    }, 3500, 60);
-
-    if (!activeReady) {
-      throw new Error(`La pestaña ${type === 'notcaught' ? 'Not Caught' : 'Caught'} no llegó a quedar activa.`);
-    }
-
-    /*
-     * No basta con que React marque el botón como activo: la cuadrícula puede
-     * seguir mostrando durante unos instantes la vista anterior. Cuando el
-     * filtro acaba de cambiar exigimos una transición real de la cuadrícula y,
-     * en todos los casos, varias lecturas consecutivas idénticas.
-     */
-    const stability = await waitForDexGridStable(dexWindow, {
-      beforeSignature,
-      requireChange: !wasActive,
-      timeoutMs: 5200,
-      intervalMs: 80,
-      stableChecks: 5,
-      minElapsedMs: wasActive ? 480 : 0
-    });
-
-    if (!stability.ok) {
-      throw new Error(
-        type === 'notcaught'
-          ? 'Not Caught se activó, pero la cuadrícula no terminó de cambiar y estabilizarse.'
-          : 'Caught se activó, pero la cuadrícula no terminó de cambiar y estabilizarse.'
-      );
-    }
-
-    /*
-     * Protección adicional: una vista Not Caught nunca debe contener una
-     * celda que el propio DOM nativo marque explícitamente como capturada.
-     */
-    if (type === 'notcaught') {
-      const cleared = await waitFor(
-        () => dexRenderedCaughtCount(dexWindow) === 0,
-        2200,
-        80
-      );
-      if (!cleared) {
-        throw new Error('Not Caught sigue mostrando celdas marcadas como capturadas.');
-      }
-
-      const finalStability = await waitForDexGridStable(dexWindow, {
-        timeoutMs: 2200,
-        intervalMs: 80,
-        stableChecks: 4,
-        minElapsedMs: 240
-      });
-      if (!finalStability.ok) {
-        throw new Error('La cuadrícula Not Caught volvió a cambiar antes de poder leerse con seguridad.');
-      }
-    }
-
-    return {
-      button: findNativeDexFilter(dexWindow, type) || button,
-      wasActive,
-      beforeSignature,
-      stability
-    };
-  }
-
-  async function waitForDexScrollRender(dexWindow, beforeSignature) {
-    const result = await waitForDexGridStable(dexWindow, {
-      beforeSignature,
-      requireChange: false,
-      timeoutMs: 1800,
-      intervalMs: 70,
-      stableChecks: 4,
-      minElapsedMs: 280
-    });
-    return result;
-  }
-
-  async function collectCurrentDexView(dexWindow, forcedCaught = null) {
-    const output = new Map();
-    const scrollHost = findDexScrollHost(dexWindow);
-    const initialScroll = Number(scrollHost?.scrollTop || 0);
-    let scrollSteps = 0;
-    let renderedCaughtSeen = 0;
-
-    const collect = () => {
-      for (const cell of dexWindow.querySelectorAll('.dex-cell')) {
-        if (!isDexCellRendered(cell, dexWindow)) continue;
-
-        if (forcedCaught === false && dexCellCaught(cell)) {
-          renderedCaughtSeen += 1;
-          throw new Error(
-            'La lectura de Not Caught encontró una celda que la Pokédex marca como capturada. Se ha cancelado para no mezclar la pestaña All.'
-          );
-        }
-
-        const entry = dexEntryFromCell(cell, forcedCaught);
-        if (!entry) continue;
-        const key = pokedexSpeciesId(entry)
-          ? `id:${pokedexSpeciesId(entry)}`
-          : `name:${pokedexSpeciesName(entry)}`;
-        if (key && !output.has(key)) output.set(key, entry);
-      }
-    };
-
-    try {
-      /*
-       * La cuadrícula puede ser virtualizada y conservar un scroll anterior.
-       * Siempre empezamos desde arriba para no saltarnos las primeras especies.
-       */
-      if (scrollHost && Math.abs(initialScroll) > 1) {
-        const beforeTopReset = dexGridSignature(dexWindow);
-        scrollHost.scrollTop = 0;
-        scrollHost.dispatchEvent(new Event('scroll', { bubbles: true }));
-        await waitForDexScrollRender(dexWindow, beforeTopReset);
-      }
-
-      collect();
-
-      if (scrollHost && scrollHost.scrollHeight > scrollHost.clientHeight + 8) {
-        let previousTop = -1;
-
-        for (let step = 0; step < 120; step += 1) {
-          collect();
-
-          const maxTop = Math.max(0, scrollHost.scrollHeight - scrollHost.clientHeight);
-          const currentTop = Number(scrollHost.scrollTop || 0);
-
-          if (currentTop >= maxTop - 2 || currentTop === previousTop) break;
-
-          previousTop = currentTop;
-          const beforeScroll = dexGridSignature(dexWindow);
-          scrollHost.scrollTop = Math.min(
-            maxTop,
-            currentTop + Math.max(120, scrollHost.clientHeight * 0.78)
-          );
-          scrollHost.dispatchEvent(new Event('scroll', { bubbles: true }));
-          scrollSteps += 1;
-
-          await waitForDexScrollRender(dexWindow, beforeScroll);
-        }
-
-        collect();
-      }
-
-      return {
-        entries: [...output.values()],
-        debug: {
-          scrollSteps,
-          startedAtTop: Math.abs(initialScroll) <= 1,
-          initialScroll,
-          finalScroll: Number(scrollHost?.scrollTop || 0),
-          renderedCaughtSeen
-        }
-      };
-    } finally {
-      if (scrollHost) {
-        const beforeRestore = dexGridSignature(dexWindow);
-        scrollHost.scrollTop = initialScroll;
-        scrollHost.dispatchEvent(new Event('scroll', { bubbles: true }));
-        await waitForDexGridStable(dexWindow, {
-          beforeSignature: beforeRestore,
-          requireChange: false,
-          timeoutMs: 900,
-          intervalMs: 60,
-          stableChecks: 2,
-          minElapsedMs: 100
-        });
-      }
-    }
-  }
-
-  async function readPokedexFromGameInterface() {
-    const { dexWindow, openedByScript } = await openPokedexWindowForReading();
-    const originalStyle = dexWindow.getAttribute('style');
-    const originalActiveLabel = dexButtonLabel(
-      nativeDexButtons(dexWindow).find(isActiveDexButton) || null
-    );
-    const originalScrollHost = findDexScrollHost(dexWindow);
-    const originalScrollTop = Number(originalScrollHost?.scrollTop || 0);
-
-    if (openedByScript) {
-      dexWindow.style.setProperty('position', 'fixed', 'important');
-      dexWindow.style.setProperty('left', '-200vw', 'important');
-      dexWindow.style.setProperty('top', '-200vh', 'important');
-      dexWindow.style.setProperty('pointer-events', 'none', 'important');
-      dexWindow.style.setProperty('z-index', '-2147483648', 'important');
-    }
-
-    try {
-      const cellsReady = await waitFor(() => dexWindow.querySelector('.dex-cell'), 4000, 60);
-      if (!cellsReady) {
-        throw new Error('La Pokédex se abrió, pero su cuadrícula no terminó de cargar.');
-      }
-
-      /*
-       * Los contadores son únicamente una validación de seguridad. La fuente
-       * autoritativa sigue siendo la vista nativa Not Caught.
-       */
-      const caughtButton = findNativeDexFilter(dexWindow, 'caught');
-      const allButton = findNativeDexAllFilter(dexWindow);
-      const caughtCount = dexButtonCount(caughtButton);
-      const allCount = dexButtonCount(allButton);
-
-      let lastError = null;
-
-      for (let attempt = 1; attempt <= 2; attempt += 1) {
-        try {
-          const activation = await activateNativeDexFilter(dexWindow, 'notcaught');
-          const notCaughtButton = activation.button;
-          const notCaughtCount = dexButtonCount(notCaughtButton);
-
-          const collected = await collectCurrentDexView(dexWindow, false);
-          const notCaughtSpecies = dedupePokedexEntries(collected.entries);
-
-          const derivedNotCaughtCount = Number.isFinite(notCaughtCount)
-            ? notCaughtCount
-            : (
-              Number.isFinite(allCount) && Number.isFinite(caughtCount)
-                ? Math.max(0, allCount - caughtCount)
-                : null
-            );
-
-          /*
-           * Cuando la interfaz publica un contador, exigimos coincidencia
-           * exacta. Así una lectura accidental de All nunca entra en caché.
-           */
-          if (
-            Number.isFinite(derivedNotCaughtCount)
-            && notCaughtSpecies.length !== derivedNotCaughtCount
-          ) {
-            throw new Error(
-              `La Pokédex indica ${derivedNotCaughtCount} especies en Not Caught, pero la lectura obtuvo ${notCaughtSpecies.length}.`
-            );
-          }
-
-          if (
-            Number.isFinite(allCount)
-            && Number.isFinite(caughtCount)
-            && caughtCount > 0
-            && notCaughtSpecies.length >= allCount
-          ) {
-            throw new Error(
-              'La lectura de Not Caught coincide con el total de la Pokédex; se ha descartado para evitar devolver la pestaña All.'
-            );
-          }
-
-          if (!notCaughtSpecies.length && derivedNotCaughtCount !== 0) {
-            throw new Error('La pestaña Not Caught se abrió, pero no devolvió ninguna especie.');
-          }
-
-          return {
-            payload: null,
-            species: notCaughtSpecies,
-            caughtSpecies: [],
-            notCaughtSpecies,
-            caughtCount,
-            hasExplicitLists: true,
-            sourceMode: 'interfaz-nativa-notcaught-estable',
-            debug: {
-              cellsRendered: dexWindow.querySelectorAll('.dex-cell').length,
-              all: allCount,
-              caught: caughtCount,
-              expectedNotCaught: derivedNotCaughtCount,
-              notCaught: notCaughtSpecies.length,
-              usedNotCaughtTab: Boolean(notCaughtButton),
-              usedCaughtTab: false,
-              notCaughtLabel: dexButtonLabel(notCaughtButton),
-              caughtLabel: dexButtonLabel(caughtButton),
-              allLabel: dexButtonLabel(allButton),
-              originalActiveLabel,
-              readAttempt: attempt,
-              filterWasAlreadyActive: activation.wasActive,
-              filterStabilizedMs: activation.stability?.elapsedMs || 0,
-              scrollSteps: collected.debug?.scrollSteps || 0,
-              startedAtTop: Boolean(collected.debug?.startedAtTop),
-              initialScroll: collected.debug?.initialScroll || 0,
-              renderedCaughtSeen: collected.debug?.renderedCaughtSeen || 0
-            }
-          };
-        } catch (error) {
-          lastError = error;
-          if (attempt < 2) {
-            await sleep(420);
-            continue;
-          }
-        }
-      }
-
-      throw lastError || new Error('No se pudo leer Not Caught de forma estable.');
-    } finally {
-      if (originalActiveLabel) {
-        const originalButton = nativeDexButtons(dexWindow)
-          .find(button => dexButtonLabel(button) === originalActiveLabel);
-        if (originalButton) {
-          originalButton.click();
-          await sleep(100);
-        }
-      }
-
-      const restoredScrollHost = findDexScrollHost(dexWindow);
-      if (restoredScrollHost) {
-        restoredScrollHost.scrollTop = originalScrollTop;
-        restoredScrollHost.dispatchEvent(new Event('scroll', { bubbles: true }));
-      }
-
-      if (openedByScript) {
-        if (originalStyle === null) dexWindow.removeAttribute('style');
-        else dexWindow.setAttribute('style', originalStyle);
-
-        const closeButton = dexWindow.querySelector(
-          '.cfg-x,.dex-x,[data-action="close"],button[aria-label*="close" i],button[title*="close" i]'
-        );
-        if (closeButton) closeButton.click();
-        else dexWindow.remove();
-      } else if (originalStyle === null) {
-        dexWindow.removeAttribute('style');
-      } else {
-        dexWindow.setAttribute('style', originalStyle);
-      }
-    }
   }
 
   async function loadPokedex(force = false) {
-    if (!force && pokedexCache && Date.now() - pokedexCacheAt < 15_000) return pokedexCache;
+    if (!force && pokedexCache && Date.now() - pokedexCacheAt < 15_000) {
+      return pokedexCache;
+    }
 
-    // Fuente autoritativa: la misma ventana y las mismas pestañas que ve el jugador.
-    // Nunca sustituimos la caché por una lectura hasta que ha superado todas
-    // las validaciones de transición, estabilidad y contador.
-    const nextPokedex = await readPokedexFromGameInterface();
-    pokedexCache = nextPokedex;
-    pokedexCacheAt = Date.now();
-    return pokedexCache;
+    try {
+      const { payload, status } = await fetchPokedexPayload();
+      const nextPokedex = normalizePokedexPayload(payload, 'api-directa-/api/game/pokedex');
+      nextPokedex.debug.httpStatus = status;
+      nextPokedex.debug.usedWindowCache = false;
+
+      pokedexCache = nextPokedex;
+      pokedexCacheAt = Date.now();
+      return pokedexCache;
+    } catch (error) {
+      /*
+       * Fallback únicamente a la caché de la MISMA API que mantiene PokeGrid.
+       * No se vuelve al DOM ni se deduce el estado por otros campos.
+       */
+      const gameCache = window.__poke?.api?.['/api/game/pokedex'];
+      if (gameCache) {
+        try {
+          const nextPokedex = normalizePokedexPayload(
+            gameCache,
+            'cache-window.__poke.api-/api/game/pokedex'
+          );
+          nextPokedex.debug.httpStatus = null;
+          nextPokedex.debug.usedWindowCache = true;
+          nextPokedex.debug.directRequestError = String(error?.message || error);
+
+          pokedexCache = nextPokedex;
+          pokedexCacheAt = Date.now();
+          return pokedexCache;
+        } catch {}
+      }
+
+      throw error;
+    }
   }
 
   function pokedexSpeciesId(value) {
@@ -4016,10 +3383,7 @@
   }
 
   function isPokedexSpeciesCaught(value) {
-    const caught = value?.caught ?? value?.captured ?? value?.isCaught ?? value?.owned ?? value?.registered;
-    if (caught === true || caught === 1 || String(caught).toLowerCase() === 'true') return true;
-    const status = norm(value?.status ?? value?.state ?? value?.category ?? value?.group ?? '');
-    return ['caught','captured','owned','registered','complete','completed'].includes(status);
+    return pokedexCaughtState(value) === true;
   }
 
   function huntSpeciesId(value) {
@@ -4144,16 +3508,21 @@
      * calculadas solo aportan XP/h y kills/h; ya no deciden si una especie
      * disponible debe aparecer o no.
      */
+    const enrichDexEntry = entry => {
+      const id = pokedexSpeciesId(entry);
+      const creature = id
+        ? huntResult?.data?.creaturesById?.get?.(String(id))
+        : null;
+      if (!creature?.name || pokedexSpeciesName(entry)) return entry;
+      return { ...entry, name: creature.name };
+    };
+
     const officialPending = dedupePokedexEntries(
-      pokedex.hasExplicitLists
-        ? (pokedex.notCaughtSpecies || [])
-        : (pokedex.species || []).filter(entry => !isPokedexSpeciesCaught(entry))
+      (pokedex.notCaughtSpecies || []).map(enrichDexEntry)
     );
 
     const officialCaught = dedupePokedexEntries(
-      pokedex.hasExplicitLists
-        ? (pokedex.caughtSpecies || [])
-        : (pokedex.species || []).filter(isPokedexSpeciesCaught)
+      (pokedex.caughtSpecies || []).map(enrichDexEntry)
     );
 
     const pendingById = new Map();
@@ -4281,7 +3650,7 @@
     if (busy) return;
     busy = true;
     activeTab = 'notcaught';
-    renderLoading('Abriendo y leyendo la pestaña Not Caught de la Pokédex…');
+    renderLoading('Consultando /api/game/pokedex y calculando las hunts pendientes…');
     try {
       const [huntResult, pokedex] = await Promise.all([
         H().calculateRecommendations(force),
@@ -4306,7 +3675,7 @@
       ? `${fmt(result.totalCaught)} capturadas`
       : `${fmt(result.totalUncaught)} pendientes en Not Caught`;
     const body = `
-      <div class="pg-u-note"><b>No capturados:</b> lee exclusivamente las celdas de la pestaña nativa <b>Not Caught</b>. La pestaña Caught ya no se abre ni puede cancelar el resultado.</div>
+      <div class="pg-u-note"><b>No capturados:</b> consulta directamente <b>/api/game/pokedex</b> y usa únicamente las especies con <b>caught: false</b>. Ya no abre, pulsa ni recorre la Pokédex visual.</div>
       <div class="pg-u-caught-summary"><span><b>${fmt(result.rows.length)}</b> especies pendientes con hunt accesible${withoutCalculation ? ` · ${fmt(withoutCalculation)} sin cálculo` : ''}</span><span>${pokedexSummary}${unavailable ? ` · ${fmt(unavailable)} pendientes sin hunt accesible` : ''}</span></div>
       <div data-notcaught-list>${result.rows.map((row, index) => {
         const officialName = String(
@@ -4943,7 +4312,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.12',
+    version: '1.1.13',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -4964,7 +4333,9 @@
     getPokedexDebug: () => ({
       source: pokedexCache?.sourceMode || 'sin-cargar',
       ...(pokedexCache?.debug || {}),
-      sampleNotCaught: (pokedexCache?.notCaughtSpecies || []).slice(0, 12).map(entry => entry.name || entry.pokemonName || entry.speciesName || '')
+      sampleNotCaught: (pokedexCache?.notCaughtSpecies || []).slice(0, 12).map(entry =>
+        entry.name || entry.pokemonName || entry.speciesName || `#${pokedexSpeciesId(entry)}`
+      )
     }),
     clearPiwToolsCache: () => {
       localStorage.removeItem('pg-piwtools-engine-v3:productivity-cache');
@@ -4988,7 +4359,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.12',
+      version: '1.1.13',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -5022,7 +4393,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.12',
+    version: '1.1.13',
     openHunt: () => { activeTab='hunt'; return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; return loadNotCaught(false); },
     openItem: query => { activeTab='item'; return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -5049,5 +4420,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.12 cargado: Hunts, No capturados, Item Finder, supervisor e histórico unificados.');
+  console.info('[Hunt Intelligence] v1.1.13 cargado: Hunts con etiquetas EXP/h claras y No capturados por /api/game/pokedex.');
 })();

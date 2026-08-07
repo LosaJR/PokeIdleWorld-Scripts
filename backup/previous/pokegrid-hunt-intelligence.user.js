@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.11
+// @version      1.1.12
 // @description  Recomendador, No capturados, Item Finder, supervisor e histórico unificados con VIP y bonus diario normalizados.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1111) return;
-  window.__pgHuntIntelligenceCoreV1111 = true;
+  if (window.__pgHuntIntelligenceCoreV1112) return;
+  window.__pgHuntIntelligenceCoreV1112 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -679,8 +679,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1111) return;
-  window.__pgHuntIntelligenceItemCoreV1111 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1112) return;
+  window.__pgHuntIntelligenceItemCoreV1112 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1164,8 +1164,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1111) return;
-  window.__pgHuntIntelligenceEngineV1111 = true;
+  if (window.__pgHuntIntelligenceEngineV1112) return;
+  window.__pgHuntIntelligenceEngineV1112 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2222,14 +2222,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.11 cargado: VIP manual, bonus diario, ranking personal y Pokédex unificados.');
+  console.info('[Hunt Intelligence] Motor v1.1.12 cargado: VIP manual, bonus diario, ranking personal y Pokédex unificados.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1111) return;
-  window.__pgHuntIntelligenceSupervisorV1111 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1112) return;
+  window.__pgHuntIntelligenceSupervisorV1112 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -2693,26 +2693,26 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.11',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getPersonalEstimate,getCalibration,
+    version:'1.1.12',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.11',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.12',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.11',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.12',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   migrateLegacy();
   migrateToFixedWindows();
   restartTimer();
   setTimeout(()=>refresh(false),1200);
-  console.info('[Hunt Intelligence] Supervisor unificado v1.1.11 cargado: VIP y bonus diario normalizados.');
+  console.info('[Hunt Intelligence] Supervisor unificado v1.1.12 cargado: VIP y bonus diario normalizados.');
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1111) return;
-  window.__pgHuntIntelligenceUiV1111 = true;
+  if (window.__pgHuntIntelligenceUiV1112) return;
+  window.__pgHuntIntelligenceUiV1112 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -3545,6 +3545,14 @@
     }) || null;
   }
 
+  function findNativeDexAllFilter(dexWindow) {
+    return nativeDexButtons(dexWindow).find(button => {
+      const label = dexButtonLabel(button);
+      return /(?:^|\b)(all|todos?|todas?)(?:\b|$)/.test(label)
+        && !/(?:not caught|uncaught|not captured|no capturados?|nao capturados?)/.test(label);
+    }) || null;
+  }
+
   function isActiveDexButton(button) {
     return Boolean(
       button?.classList?.contains('on')
@@ -3578,10 +3586,79 @@
   }
 
   function dexGridSignature(dexWindow) {
+    const scrollHost = findDexScrollHost(dexWindow);
+    const cells = Array.from(dexWindow.querySelectorAll('.dex-cell'))
+      .filter(cell => isDexCellRendered(cell, dexWindow));
+    const sample = cells.length <= 64
+      ? cells
+      : [...cells.slice(0, 32), ...cells.slice(-32)];
+
+    return [
+      `cells:${cells.length}`,
+      `top:${Math.round(Number(scrollHost?.scrollTop || 0))}`,
+      `height:${Math.round(Number(scrollHost?.scrollHeight || 0))}`,
+      sample.map(cell => `${dexCellId(cell)}:${dexCellName(cell)}:${norm(cell.className || '')}`).join('|')
+    ].join('||');
+  }
+
+  function dexRenderedCaughtCount(dexWindow) {
     return Array.from(dexWindow.querySelectorAll('.dex-cell'))
-      .slice(0, 12)
-      .map(cell => `${dexCellId(cell)}:${dexCellName(cell)}:${cell.className}`)
-      .join('|');
+      .filter(cell => isDexCellRendered(cell, dexWindow))
+      .filter(cell => dexCellCaught(cell))
+      .length;
+  }
+
+  async function waitForDexGridStable(
+    dexWindow,
+    {
+      beforeSignature = '',
+      requireChange = false,
+      timeoutMs = 5000,
+      intervalMs = 80,
+      stableChecks = 5,
+      minElapsedMs = 0
+    } = {}
+  ) {
+    const startedAt = Date.now();
+    let lastSignature = '';
+    let consecutiveStable = 0;
+    let changed = !requireChange;
+
+    while (Date.now() - startedAt < timeoutMs) {
+      const signature = dexGridSignature(dexWindow);
+      if (beforeSignature && signature !== beforeSignature) changed = true;
+
+      if (signature && signature === lastSignature) consecutiveStable += 1;
+      else consecutiveStable = 0;
+
+      lastSignature = signature;
+      const elapsedMs = Date.now() - startedAt;
+
+      if (
+        changed
+        && signature
+        && elapsedMs >= minElapsedMs
+        && consecutiveStable >= stableChecks
+      ) {
+        return {
+          ok: true,
+          changed,
+          elapsedMs,
+          stableChecks: consecutiveStable,
+          signature
+        };
+      }
+
+      await sleep(intervalMs);
+    }
+
+    return {
+      ok: false,
+      changed,
+      elapsedMs: Date.now() - startedAt,
+      stableChecks: consecutiveStable,
+      signature: lastSignature
+    };
   }
 
   async function activateNativeDexFilter(dexWindow, type) {
@@ -3590,34 +3667,106 @@
       throw new Error(`No se encontró la pestaña nativa ${type === 'notcaught' ? 'Not Caught' : 'Caught'} en la Pokédex.`);
     }
 
-    const before = dexGridSignature(dexWindow);
-    button.click();
+    const wasActive = isActiveDexButton(button);
+    const beforeSignature = dexGridSignature(dexWindow);
 
-    await waitFor(() => {
+    if (!wasActive) button.click();
+
+    const activeReady = await waitFor(() => {
       const currentButton = findNativeDexFilter(dexWindow, type);
-      const after = dexGridSignature(dexWindow);
-      return Boolean(
-        currentButton
-        && (
-          isActiveDexButton(currentButton)
-          || (after && after !== before)
-        )
-      );
-    }, 3000, 60);
+      return Boolean(currentButton && isActiveDexButton(currentButton));
+    }, 3500, 60);
 
-    // React puede marcar la pestaña antes de terminar de pintar la cuadrícula.
-    await sleep(180);
-    return findNativeDexFilter(dexWindow, type) || button;
+    if (!activeReady) {
+      throw new Error(`La pestaña ${type === 'notcaught' ? 'Not Caught' : 'Caught'} no llegó a quedar activa.`);
+    }
+
+    /*
+     * No basta con que React marque el botón como activo: la cuadrícula puede
+     * seguir mostrando durante unos instantes la vista anterior. Cuando el
+     * filtro acaba de cambiar exigimos una transición real de la cuadrícula y,
+     * en todos los casos, varias lecturas consecutivas idénticas.
+     */
+    const stability = await waitForDexGridStable(dexWindow, {
+      beforeSignature,
+      requireChange: !wasActive,
+      timeoutMs: 5200,
+      intervalMs: 80,
+      stableChecks: 5,
+      minElapsedMs: wasActive ? 480 : 0
+    });
+
+    if (!stability.ok) {
+      throw new Error(
+        type === 'notcaught'
+          ? 'Not Caught se activó, pero la cuadrícula no terminó de cambiar y estabilizarse.'
+          : 'Caught se activó, pero la cuadrícula no terminó de cambiar y estabilizarse.'
+      );
+    }
+
+    /*
+     * Protección adicional: una vista Not Caught nunca debe contener una
+     * celda que el propio DOM nativo marque explícitamente como capturada.
+     */
+    if (type === 'notcaught') {
+      const cleared = await waitFor(
+        () => dexRenderedCaughtCount(dexWindow) === 0,
+        2200,
+        80
+      );
+      if (!cleared) {
+        throw new Error('Not Caught sigue mostrando celdas marcadas como capturadas.');
+      }
+
+      const finalStability = await waitForDexGridStable(dexWindow, {
+        timeoutMs: 2200,
+        intervalMs: 80,
+        stableChecks: 4,
+        minElapsedMs: 240
+      });
+      if (!finalStability.ok) {
+        throw new Error('La cuadrícula Not Caught volvió a cambiar antes de poder leerse con seguridad.');
+      }
+    }
+
+    return {
+      button: findNativeDexFilter(dexWindow, type) || button,
+      wasActive,
+      beforeSignature,
+      stability
+    };
+  }
+
+  async function waitForDexScrollRender(dexWindow, beforeSignature) {
+    const result = await waitForDexGridStable(dexWindow, {
+      beforeSignature,
+      requireChange: false,
+      timeoutMs: 1800,
+      intervalMs: 70,
+      stableChecks: 4,
+      minElapsedMs: 280
+    });
+    return result;
   }
 
   async function collectCurrentDexView(dexWindow, forcedCaught = null) {
     const output = new Map();
     const scrollHost = findDexScrollHost(dexWindow);
     const initialScroll = Number(scrollHost?.scrollTop || 0);
+    let scrollSteps = 0;
+    let renderedCaughtSeen = 0;
 
     const collect = () => {
       for (const cell of dexWindow.querySelectorAll('.dex-cell')) {
         if (!isDexCellRendered(cell, dexWindow)) continue;
+
+        if (forcedCaught === false && dexCellCaught(cell)) {
+          renderedCaughtSeen += 1;
+          throw new Error(
+            'La lectura de Not Caught encontró una celda que la Pokédex marca como capturada. Se ha cancelado para no mezclar la pestaña All.'
+          );
+        }
+
         const entry = dexEntryFromCell(cell, forcedCaught);
         if (!entry) continue;
         const key = pokedexSpeciesId(entry)
@@ -3627,25 +3776,71 @@
       }
     };
 
-    collect();
-
-    if (scrollHost && scrollHost.scrollHeight > scrollHost.clientHeight + 8) {
-      let previousTop = -1;
-      for (let step = 0; step < 80; step += 1) {
-        collect();
-        const maxTop = Math.max(0, scrollHost.scrollHeight - scrollHost.clientHeight);
-        if (scrollHost.scrollTop >= maxTop - 2 || scrollHost.scrollTop === previousTop) break;
-        previousTop = scrollHost.scrollTop;
-        scrollHost.scrollTop = Math.min(maxTop, scrollHost.scrollTop + Math.max(120, scrollHost.clientHeight * 0.8));
+    try {
+      /*
+       * La cuadrícula puede ser virtualizada y conservar un scroll anterior.
+       * Siempre empezamos desde arriba para no saltarnos las primeras especies.
+       */
+      if (scrollHost && Math.abs(initialScroll) > 1) {
+        const beforeTopReset = dexGridSignature(dexWindow);
+        scrollHost.scrollTop = 0;
         scrollHost.dispatchEvent(new Event('scroll', { bubbles: true }));
-        await sleep(45);
+        await waitForDexScrollRender(dexWindow, beforeTopReset);
       }
-      collect();
-      scrollHost.scrollTop = initialScroll;
-      scrollHost.dispatchEvent(new Event('scroll', { bubbles: true }));
-    }
 
-    return [...output.values()];
+      collect();
+
+      if (scrollHost && scrollHost.scrollHeight > scrollHost.clientHeight + 8) {
+        let previousTop = -1;
+
+        for (let step = 0; step < 120; step += 1) {
+          collect();
+
+          const maxTop = Math.max(0, scrollHost.scrollHeight - scrollHost.clientHeight);
+          const currentTop = Number(scrollHost.scrollTop || 0);
+
+          if (currentTop >= maxTop - 2 || currentTop === previousTop) break;
+
+          previousTop = currentTop;
+          const beforeScroll = dexGridSignature(dexWindow);
+          scrollHost.scrollTop = Math.min(
+            maxTop,
+            currentTop + Math.max(120, scrollHost.clientHeight * 0.78)
+          );
+          scrollHost.dispatchEvent(new Event('scroll', { bubbles: true }));
+          scrollSteps += 1;
+
+          await waitForDexScrollRender(dexWindow, beforeScroll);
+        }
+
+        collect();
+      }
+
+      return {
+        entries: [...output.values()],
+        debug: {
+          scrollSteps,
+          startedAtTop: Math.abs(initialScroll) <= 1,
+          initialScroll,
+          finalScroll: Number(scrollHost?.scrollTop || 0),
+          renderedCaughtSeen
+        }
+      };
+    } finally {
+      if (scrollHost) {
+        const beforeRestore = dexGridSignature(dexWindow);
+        scrollHost.scrollTop = initialScroll;
+        scrollHost.dispatchEvent(new Event('scroll', { bubbles: true }));
+        await waitForDexGridStable(dexWindow, {
+          beforeSignature: beforeRestore,
+          requireChange: false,
+          timeoutMs: 900,
+          intervalMs: 60,
+          stableChecks: 2,
+          minElapsedMs: 100
+        });
+      }
+    }
   }
 
   async function readPokedexFromGameInterface() {
@@ -3657,11 +3852,6 @@
     const originalScrollHost = findDexScrollHost(dexWindow);
     const originalScrollTop = Number(originalScrollHost?.scrollTop || 0);
 
-    /*
-     * No capturados solo necesita la pestaña nativa Not Caught.
-     * La versión anterior la leía, pero después abría Caught y descartaba
-     * todo el resultado cuando esa vista no devolvía celdas.
-     */
     if (openedByScript) {
       dexWindow.style.setProperty('position', 'fixed', 'important');
       dexWindow.style.setProperty('left', '-200vw', 'important');
@@ -3676,39 +3866,101 @@
         throw new Error('La Pokédex se abrió, pero su cuadrícula no terminó de cargar.');
       }
 
-      // Solo se usa la etiqueta de Caught para leer un contador opcional.
-      // La pestaña no se abre y nunca puede cancelar el listado.
+      /*
+       * Los contadores son únicamente una validación de seguridad. La fuente
+       * autoritativa sigue siendo la vista nativa Not Caught.
+       */
       const caughtButton = findNativeDexFilter(dexWindow, 'caught');
+      const allButton = findNativeDexAllFilter(dexWindow);
       const caughtCount = dexButtonCount(caughtButton);
+      const allCount = dexButtonCount(allButton);
 
-      const notCaughtButton = await activateNativeDexFilter(dexWindow, 'notcaught');
-      const notCaughtSpecies = dedupePokedexEntries(
-        await collectCurrentDexView(dexWindow, false)
-      );
+      let lastError = null;
 
-      if (!notCaughtSpecies.length) {
-        throw new Error('La pestaña Not Caught se abrió, pero no devolvió ninguna especie.');
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        try {
+          const activation = await activateNativeDexFilter(dexWindow, 'notcaught');
+          const notCaughtButton = activation.button;
+          const notCaughtCount = dexButtonCount(notCaughtButton);
+
+          const collected = await collectCurrentDexView(dexWindow, false);
+          const notCaughtSpecies = dedupePokedexEntries(collected.entries);
+
+          const derivedNotCaughtCount = Number.isFinite(notCaughtCount)
+            ? notCaughtCount
+            : (
+              Number.isFinite(allCount) && Number.isFinite(caughtCount)
+                ? Math.max(0, allCount - caughtCount)
+                : null
+            );
+
+          /*
+           * Cuando la interfaz publica un contador, exigimos coincidencia
+           * exacta. Así una lectura accidental de All nunca entra en caché.
+           */
+          if (
+            Number.isFinite(derivedNotCaughtCount)
+            && notCaughtSpecies.length !== derivedNotCaughtCount
+          ) {
+            throw new Error(
+              `La Pokédex indica ${derivedNotCaughtCount} especies en Not Caught, pero la lectura obtuvo ${notCaughtSpecies.length}.`
+            );
+          }
+
+          if (
+            Number.isFinite(allCount)
+            && Number.isFinite(caughtCount)
+            && caughtCount > 0
+            && notCaughtSpecies.length >= allCount
+          ) {
+            throw new Error(
+              'La lectura de Not Caught coincide con el total de la Pokédex; se ha descartado para evitar devolver la pestaña All.'
+            );
+          }
+
+          if (!notCaughtSpecies.length && derivedNotCaughtCount !== 0) {
+            throw new Error('La pestaña Not Caught se abrió, pero no devolvió ninguna especie.');
+          }
+
+          return {
+            payload: null,
+            species: notCaughtSpecies,
+            caughtSpecies: [],
+            notCaughtSpecies,
+            caughtCount,
+            hasExplicitLists: true,
+            sourceMode: 'interfaz-nativa-notcaught-estable',
+            debug: {
+              cellsRendered: dexWindow.querySelectorAll('.dex-cell').length,
+              all: allCount,
+              caught: caughtCount,
+              expectedNotCaught: derivedNotCaughtCount,
+              notCaught: notCaughtSpecies.length,
+              usedNotCaughtTab: Boolean(notCaughtButton),
+              usedCaughtTab: false,
+              notCaughtLabel: dexButtonLabel(notCaughtButton),
+              caughtLabel: dexButtonLabel(caughtButton),
+              allLabel: dexButtonLabel(allButton),
+              originalActiveLabel,
+              readAttempt: attempt,
+              filterWasAlreadyActive: activation.wasActive,
+              filterStabilizedMs: activation.stability?.elapsedMs || 0,
+              scrollSteps: collected.debug?.scrollSteps || 0,
+              startedAtTop: Boolean(collected.debug?.startedAtTop),
+              initialScroll: collected.debug?.initialScroll || 0,
+              renderedCaughtSeen: collected.debug?.renderedCaughtSeen || 0
+            }
+          };
+        } catch (error) {
+          lastError = error;
+          if (attempt < 2) {
+            await sleep(420);
+            continue;
+          }
+        }
       }
 
-      return {
-        payload: null,
-        species: notCaughtSpecies,
-        caughtSpecies: [],
-        notCaughtSpecies,
-        caughtCount,
-        hasExplicitLists: true,
-        sourceMode: 'interfaz-nativa-notcaught',
-        debug: {
-          cellsRendered: dexWindow.querySelectorAll('.dex-cell').length,
-          caught: caughtCount,
-          notCaught: notCaughtSpecies.length,
-          usedNotCaughtTab: Boolean(notCaughtButton),
-          usedCaughtTab: false,
-          notCaughtLabel: dexButtonLabel(notCaughtButton),
-          caughtLabel: dexButtonLabel(caughtButton),
-          originalActiveLabel
-        }
-      };
+      throw lastError || new Error('No se pudo leer Not Caught de forma estable.');
     } finally {
       if (originalActiveLabel) {
         const originalButton = nativeDexButtons(dexWindow)
@@ -3746,7 +3998,10 @@
     if (!force && pokedexCache && Date.now() - pokedexCacheAt < 15_000) return pokedexCache;
 
     // Fuente autoritativa: la misma ventana y las mismas pestañas que ve el jugador.
-    pokedexCache = await readPokedexFromGameInterface();
+    // Nunca sustituimos la caché por una lectura hasta que ha superado todas
+    // las validaciones de transición, estabilidad y contador.
+    const nextPokedex = await readPokedexFromGameInterface();
+    pokedexCache = nextPokedex;
     pokedexCacheAt = Date.now();
     return pokedexCache;
   }
@@ -4688,7 +4943,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.11',
+    version: '1.1.12',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -4733,7 +4988,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.11',
+      version: '1.1.12',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -4767,7 +5022,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.11',
+    version: '1.1.12',
     openHunt: () => { activeTab='hunt'; return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; return loadNotCaught(false); },
     openItem: query => { activeTab='item'; return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -4794,5 +5049,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.11 cargado: Hunts, No capturados, Item Finder, supervisor e histórico unificados.');
+  console.info('[Hunt Intelligence] v1.1.12 cargado: Hunts, No capturados, Item Finder, supervisor e histórico unificados.');
 })();
