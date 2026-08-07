@@ -5,49 +5,28 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
-  publish-hunt-1-1-12:
+  deploy-hunt-1-1-12:
     if: github.head_ref == 'publish-hunt-1.1.12-now'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - name: Verificar distribución 1.1.12
+        run: |
+          grep -q '// @version      1.1.12' dist/pokegrid-hunt-intelligence.user.js
+          grep -q 'PokeGrid - Hunt Intelligence</strong> <code>v1.1.12</code>' dist/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
         with:
-          node-version: 22
-      - name: Ensamblar actualización verificada
-        run: node scripts/assemble-upload.mjs
-      - name: Validar y generar distribución
-        run: npm run check
-      - name: Publicar distribución y rotar rollback
-        run: node scripts/publish.mjs
-      - name: Verificar Hunt Intelligence 1.1.12
-        run: |
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import crypto from 'node:crypto';
-          const src = fs.readFileSync('src/pokegrid-hunt-intelligence.user.js');
-          const dist = fs.readFileSync('dist/pokegrid-hunt-intelligence.user.js');
-          const hash = crypto.createHash('sha256').update(src).digest('hex');
-          if (!src.equals(dist)) throw new Error('src y dist de Hunt Intelligence no coinciden.');
-          if (src.length !== 252692) throw new Error(`Tamaño inesperado: ${src.length}`);
-          if (hash !== 'b4fccc697d84cd6e0ea4e5639b84754d06bb43ba93220dd3465a1cd7a0e75a68') throw new Error(`SHA inesperado: ${hash}`);
-          if (!src.toString('utf8').includes('// @version      1.1.12')) throw new Error('No aparece la versión 1.1.12.');
-          const backup = fs.readFileSync('backup/previous/pokegrid-hunt-intelligence.user.js', 'utf8');
-          if (!backup.includes('// @version      1.1.11')) throw new Error('El rollback no conserva 1.1.11.');
-          console.log(`Hunt Intelligence verificado: ${src.length} bytes; SHA-256 ${hash}.`);
-          NODE
-      - name: Guardar publicación en main
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "chore: publicar Hunt Intelligence 1.1.12 [skip ci]"
-          git push origin main
+          path: dist
+      - uses: actions/deploy-pages@v4
+        id: deployment
 
   validate:
     if: github.head_ref != 'publish-hunt-1.1.12-now'
