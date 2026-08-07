@@ -5,10 +5,63 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
+  pages: write
+  id-token: write
 
 jobs:
+  publish-hunt-1-1-13:
+    if: github.head_ref == 'agent/publish-hunt-1.1.13-now'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Ensamblar actualización verificada
+        run: node scripts/assemble-upload.mjs
+      - name: Validar y generar distribución
+        run: npm run check
+      - name: Reparar respaldo inicial si falta
+        run: node scripts/seed-initial-backup.mjs
+      - name: Publicar distribución y rotar rollback
+        run: npm run publish:local
+      - name: Limpiar reemplazos heredados
+        run: node scripts/cleanup-replacements.mjs
+      - name: Verificar Hunt Intelligence 1.1.13
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          const src = fs.readFileSync('src/pokegrid-hunt-intelligence.user.js');
+          const dist = fs.readFileSync('dist/pokegrid-hunt-intelligence.user.js');
+          const hash = crypto.createHash('sha256').update(src).digest('hex');
+          if (!src.equals(dist)) throw new Error('src y dist no coinciden.');
+          if (src.length !== 230104) throw new Error(`Tamaño inesperado: ${src.length}`);
+          if (hash !== '75eeccaec0dfd523e6294ae4208909635ccad0e1752d3b01081e56fdb3da1be5') throw new Error(`SHA inesperado: ${hash}`);
+          if (!src.toString('utf8').includes('// @version      1.1.13')) throw new Error('No aparece la versión 1.1.13.');
+          const backup = fs.readFileSync('backup/previous/pokegrid-hunt-intelligence.user.js', 'utf8');
+          if (!backup.includes('// @version      1.1.12')) throw new Error('El rollback no conserva 1.1.12.');
+          console.log(`Hunt Intelligence verificado: ${src.length} bytes; SHA-256 ${hash}.`);
+          NODE
+      - name: Guardar publicación en main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: publicar Hunt Intelligence 1.1.13 [skip ci]"
+          git push origin main
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+      - uses: actions/deploy-pages@v4
+
   validate:
+    if: github.head_ref != 'agent/publish-hunt-1.1.13-now'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
