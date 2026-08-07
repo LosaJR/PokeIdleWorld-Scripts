@@ -1,7 +1,7 @@
 name: Publicar scripts
 
 # Runner explícito para evitar fallos de inicialización observados en ubuntu-latest.
-# Los PR fusionados contra main disparan esta publicación automáticamente.
+# Los PR fusionados contra main disparan esta publicación automáticamente desde main.
 on:
   push:
     branches: [main]
@@ -12,7 +12,7 @@ on:
       - 'config/repository.json'
       - 'package.json'
       - '.github/workflows/publish.yml'
-  pull_request:
+  pull_request_target:
     branches: [main]
     types: [closed]
   workflow_dispatch:
@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   publish:
-    if: github.actor != 'github-actions[bot]' && (github.event_name != 'pull_request' || github.event.pull_request.merged == true)
+    if: github.actor != 'github-actions[bot]' && (github.event_name != 'pull_request_target' || github.event.pull_request.merged == true)
     runs-on: ubuntu-22.04
     environment:
       name: github-pages
@@ -51,9 +51,6 @@ jobs:
 
       - name: Generar distribución
         run: npm run build
-
-      - name: Reparar el respaldo inicial si falta
-        run: node scripts/seed-initial-backup.mjs
 
       - name: Rotar respaldo y publicar
         run: npm run publish:local
