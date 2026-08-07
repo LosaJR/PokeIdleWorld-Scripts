@@ -7,6 +7,8 @@ const root = process.cwd();
 const stagingDir = path.join(root, 'staging-upload');
 const manifestPath = path.join(stagingDir, 'manifest.json');
 const replacementMarkerPath = path.join(root, '.publish-replacements.json');
+const allowedSourceRoot = path.resolve(root, 'src');
+const allowedBackupRoot = path.resolve(root, 'backup', 'previous');
 
 let manifest;
 try {
@@ -19,12 +21,49 @@ try {
   throw error;
 }
 
+if (manifest.mode === 'patch') {
+  if (!Array.isArray(manifest.patches) || !manifest.patches.length) {
+    throw new Error('El manifiesto de parche no contiene cambios.');
+  }
+
+  for (const item of manifest.patches) {
+    if (!item?.target || !Array.isArray(item.replacements) || !item.replacements.length || !item.sha256) {
+      throw new Error('Entrada de parche inválida en staging-upload/manifest.json.');
+    }
+    const target = path.resolve(root, item.target);
+    if (!target.startsWith(`${allowedSourceRoot}${path.sep}`)) {
+      throw new Error(`Destino de parche no permitido: ${item.target}`);
+    }
+
+    let source = await fs.readFile(target, 'utf8');
+    for (const replacement of item.replacements) {
+      const from = String(replacement?.from ?? '');
+      const to = String(replacement?.to ?? '');
+      const expected = Number(replacement?.expected ?? 1);
+      if (!from || !Number.isInteger(expected) || expected < 1) {
+        throw new Error(`${item.target}: reemplazo de parche inválido.`);
+      }
+      const occurrences = source.split(from).length - 1;
+      if (occurrences !== expected) {
+        throw new Error(`${item.target}: se esperaban ${expected} coincidencias y se encontraron ${occurrences}.`);
+      }
+      source = source.split(from).join(to);
+    }
+
+    const buffer = Buffer.from(source, 'utf8');
+    await verifyBuffer(item.target, buffer, item.sha256, item.bytes);
+    await fs.writeFile(target, buffer);
+    console.log(`Parche aplicado y verificado: ${item.target} (${buffer.length} bytes).`);
+  }
+
+  await fs.rm(stagingDir, { recursive: true, force: true });
+  console.log('Parche aplicado y staging-upload eliminado; publish.mjs conservará automáticamente el dist anterior como respaldo.');
+  process.exit(0);
+}
+
 if (!Array.isArray(manifest.files) || !manifest.files.length) {
   throw new Error('El manifiesto de carga no contiene archivos.');
 }
-
-const allowedSourceRoot = path.resolve(root, 'src');
-const allowedBackupRoot = path.resolve(root, 'backup', 'previous');
 
 for (const item of manifest.files) {
   if (!item?.target || !Array.isArray(item.payloads) || !item.payloads.length || item.encoding !== 'gzip-base64' || !item.sha256) {
