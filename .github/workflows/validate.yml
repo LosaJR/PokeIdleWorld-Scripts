@@ -25,8 +25,6 @@ jobs:
         run: node scripts/assemble-upload.mjs
       - name: Validar y generar distribución
         run: npm run check
-      - name: Reparar respaldo inicial si falta
-        run: node scripts/seed-initial-backup.mjs
       - name: Publicar distribución y rotar rollback
         run: npm run publish:local
       - name: Limpiar reemplazos heredados
@@ -47,6 +45,15 @@ jobs:
           if (!backup.includes('// @version      1.1.12')) throw new Error('El rollback no conserva 1.1.12.');
           console.log(`Hunt Intelligence verificado: ${src.length} bytes; SHA-256 ${hash}.`);
           NODE
+      - name: Retirar sembrado de backup obsoleto
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/publish.yml')
+          s = p.read_text()
+          s = s.replace("\n      - name: Reparar el respaldo inicial si falta\n        run: node scripts/seed-initial-backup.mjs\n", "")
+          p.write_text(s)
+          PY
       - name: Guardar publicación en main
         run: |
           git config user.name "github-actions[bot]"
