@@ -1,0 +1,45 @@
+name: Desplegar Pages una vez
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Verificar distribución publicada
+        run: |
+          grep -q '// @version      1.1.12' dist/pokegrid-hunt-intelligence.user.js
+          grep -q 'PokeGrid - Hunt Intelligence</strong> <code>v1.1.12</code>' dist/index.html
+      - name: Retirar este workflow puntual
+        run: |
+          rm -f .github/workflows/deploy-pages-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: retirar despliegue puntual Pages [skip ci]"
+          git push origin main
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+      - uses: actions/deploy-pages@v4
+        id: deployment
