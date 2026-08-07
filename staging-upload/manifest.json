@@ -14,5 +14,16 @@
       "sha256": "75eeccaec0dfd523e6294ae4208909635ccad0e1752d3b01081e56fdb3da1be5",
       "bytes": 230104
     }
+  ],
+  "backups": [
+    {
+      "source": "src/pokegrid-hunt-intelligence.user.js",
+      "target": "backup/previous/pokegrid-hunt-intelligence.user.js",
+      "replacements": [
+        ["// @version      1.1.13", "// @version      1.1.12"]
+      ],
+      "sha256": "11e092d4e65b476b27ea314328fd2f5c211997ea0e33426b5f0d0a3e9052bd1e",
+      "bytes": 230104
+    }
   ]
 }
