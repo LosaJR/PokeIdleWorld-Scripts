@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Boss Damage Meter
 // @namespace    ivan-pokegrid-tools
-// @version      1.0.1
+// @version      1.0.2
 // @description  Medidor automático de daño por Pokémon para cada run de Boss. Top 6 en tiempo real, daño efectivo por pérdida real de HP y reset por run.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,12 +12,11 @@
 
 (() => {
   'use strict';
-  if (window.__pgBossDamageMeterV101) return;
-  window.__pgBossDamageMeterV101 = true;
+  if (window.__pgBossDamageMeterV102) return;
+  window.__pgBossDamageMeterV102 = true;
 
-  const VERSION = '1.0.1';
+  const VERSION = '1.0.2';
   const PANEL_ID = 'pg-boss-damage-meter-panel';
-  const LAUNCHER_ID = 'pg-boss-damage-meter-launcher';
   const STYLE_ID = 'pg-boss-damage-meter-style';
   const LAYOUT_KEY = 'pg-boss-damage-meter-v1:layout';
 
@@ -290,7 +289,6 @@
     lastFieldSeq = null;
     panelClosedForRun = false;
     ensureUi();
-    showLauncher(true);
     openPanel(true);
     render();
     heartbeat();
@@ -506,17 +504,11 @@
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
-      #${LAUNCHER_ID}{
-        position:fixed;right:16px;bottom:152px;z-index:100280;width:44px;height:44px;
-        display:none;place-items:center;border:1px solid #4e6078;border-radius:999px;
-        background:#111b29;color:#fff;box-shadow:0 8px 24px #0009;
-        font:900 20px/1 system-ui;cursor:pointer
-      }
-      #${LAUNCHER_ID}:hover{background:#1b2a3e}
       #${PANEL_ID}{
         position:fixed;z-index:100290;left:calc(100vw - 490px);top:80px;
         width:460px;height:auto;min-width:380px;min-height:210px;max-width:96vw;max-height:92vh;
-        resize:both;overflow:auto;background:#0c131d;color:#eaf0f8;
+        resize:both;overflow:auto;background:rgba(12,19,29,.86);color:#f2f6fb;
+        backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
         border:1px solid #40516a;border-radius:14px;box-shadow:0 18px 56px #000d;
         font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif
       }
@@ -529,21 +521,21 @@
       }
       #${PANEL_ID} .pg-bdm-head{
         position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;
-        padding:10px 11px;background:#111b29;border-bottom:1px solid #2c3c51;
+        padding:10px 11px;background:rgba(17,27,41,.90);border-bottom:1px solid #40516a;
         cursor:grab;user-select:none;touch-action:none
       }
       #${PANEL_ID} .pg-bdm-head:active{cursor:grabbing}
       #${PANEL_ID} .pg-bdm-title{font-weight:900;font-size:14px;white-space:nowrap}
       #${PANEL_ID} .pg-bdm-boss{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#aebbd0;font-size:11px;margin-right:auto}
       #${PANEL_ID} button{
-        border:1px solid #40516a;background:#182438;color:#eef5ff;border-radius:7px;
+        border:1px solid #52657f;background:rgba(24,36,56,.88);color:#f4f8ff;border-radius:7px;
         min-width:30px;height:28px;padding:0 7px;font:800 12px system-ui;cursor:pointer
       }
       #${PANEL_ID} button:hover{background:#263750}
       #${PANEL_ID} .pg-bdm-body{padding:11px}
       #${PANEL_ID} .pg-bdm-status{
         display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;
-        font-size:10px;color:#94a3b8
+        font-size:10px;color:#b7c3d3
       }
       #${PANEL_ID} .pg-bdm-state{
         display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border-radius:999px;
@@ -566,7 +558,7 @@
         display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:10px
       }
       #${PANEL_ID} .pg-bdm-summary>div{
-        padding:8px;border:1px solid #28384b;border-radius:9px;background:#101923;text-align:center
+        padding:8px;border:1px solid #34465d;border-radius:9px;background:rgba(16,25,35,.78);text-align:center
       }
       #${PANEL_ID} .pg-bdm-summary b{display:block;font-size:13px;color:#f3f7fc}
       #${PANEL_ID} .pg-bdm-summary small{display:block;margin-top:2px;color:#8190a5;font-size:9px}
@@ -576,12 +568,12 @@
         gap:7px;align-items:center
       }
       #${PANEL_ID} .pg-bdm-table-head{
-        padding:5px 7px;color:#7f8da1;font-size:8.5px;font-weight:900;text-transform:uppercase
+        padding:5px 7px;color:#a9b5c5;font-size:8.5px;font-weight:900;text-transform:uppercase
       }
       #${PANEL_ID} .pg-bdm-table-head>span:not(:nth-child(2)){text-align:right}
       #${PANEL_ID} .pg-bdm-row{
         position:relative;overflow:hidden;padding:8px 7px;margin-bottom:5px;
-        border:1px solid #26364a;border-radius:9px;background:#101923;font-size:10px
+        border:1px solid #34465d;border-radius:9px;background:rgba(16,25,35,.80);font-size:10px
       }
       #${PANEL_ID} .pg-bdm-row.active{border-color:#4f83b9;box-shadow:inset 0 0 0 1px #315b83}
       #${PANEL_ID} .pg-bdm-row.ko{opacity:.72}
@@ -593,7 +585,7 @@
       #${PANEL_ID} .pg-bdm-rank{text-align:center;font-weight:950;font-size:13px;color:#f0c968}
       #${PANEL_ID} .pg-bdm-name{min-width:0}
       #${PANEL_ID} .pg-bdm-name b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
-      #${PANEL_ID} .pg-bdm-name small{display:block;margin-top:2px;color:#8090a5;font-size:8.5px}
+      #${PANEL_ID} .pg-bdm-name small{display:block;margin-top:2px;color:#a5b2c4;font-size:8.5px}
       #${PANEL_ID} .pg-bdm-num{text-align:right;font-variant-numeric:tabular-nums}
       #${PANEL_ID} .pg-bdm-damage{font-weight:900;color:#75baff}
       #${PANEL_ID} .pg-bdm-empty{padding:26px;text-align:center;color:#8e9cb0;font-size:11px}
@@ -612,21 +604,6 @@
   function ensureUi() {
     ensureStyles();
 
-    let launcher = document.getElementById(LAUNCHER_ID);
-    if (!launcher) {
-      launcher = document.createElement('button');
-      launcher.id = LAUNCHER_ID;
-      launcher.type = 'button';
-      launcher.textContent = '⚔️';
-      launcher.title = 'Boss Damage Meter · esperando Boss';
-      launcher.setAttribute('aria-label', 'Abrir Boss Damage Meter');
-      launcher.addEventListener('click', () => {
-        panelClosedForRun = false;
-        openPanel(false);
-      });
-      document.body.appendChild(launcher);
-    }
-
     if (document.getElementById(PANEL_ID)) return;
 
     const panel = document.createElement('section');
@@ -638,7 +615,6 @@
         <span class="pg-bdm-boss" data-boss-title>Esperando Boss</span>
         <button type="button" data-minimize title="Minimizar">—</button>
         <button type="button" data-maximize title="Maximizar">□</button>
-        <button type="button" data-close title="Cerrar">×</button>
       </div>
       <div class="pg-bdm-body" data-body></div>
     `;
@@ -646,12 +622,6 @@
 
     restoreLayout(panel);
     installPanelInteractions(panel);
-
-    panel.querySelector('[data-close]')?.addEventListener('click', event => {
-      event.preventDefault();
-      panelClosedForRun = true;
-      panel.hidden = true;
-    });
 
     panel.querySelector('[data-minimize]')?.addEventListener('click', event => {
       event.preventDefault();
@@ -664,16 +634,6 @@
       event.preventDefault();
       toggleMaximize(panel);
     });
-  }
-
-  function showLauncher(show = true) {
-    ensureUi();
-    const launcher = document.getElementById(LAUNCHER_ID);
-    if (!launcher) return;
-    launcher.style.display = show ? 'grid' : 'none';
-    launcher.title = run
-      ? `${run.bossName} · ${run.outcome ? 'run terminada' : 'run en curso'} · abrir Damage Meter`
-      : 'Boss Damage Meter cargado · esperando Boss';
   }
 
   function openPanel(force = false) {
@@ -808,7 +768,6 @@
 
   function render() {
     ensureUi();
-    showLauncher(true);
     const panel = document.getElementById(PANEL_ID);
     const body = panel?.querySelector('[data-body]');
     const title = panel?.querySelector('[data-boss-title]');
@@ -987,7 +946,6 @@
   };
 
   ensureUi();
-  showLauncher(true);
   attachSocket();
   refreshBossDefinitions().catch(() => {});
   inspectCurrentGameState();
@@ -1014,5 +972,5 @@
   setInterval(() => refreshBossDefinitions().catch(() => {}), BOSS_REFRESH_MS);
   setInterval(heartbeat, 10000);
 
-  console.info('[Boss Damage Meter] v1.0.1 cargado · detección directa por bossTeam/bossActiveIdx + respaldo por arena activa.');
+  console.info('[Boss Damage Meter] v1.0.2 cargado · interfaz automática solo durante Boss; sin icono permanente.');
 })();
