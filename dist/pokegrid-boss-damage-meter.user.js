@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Boss Damage Meter
 // @namespace    ivan-pokegrid-tools
-// @version      1.0.0
+// @version      1.0.1
 // @description  Medidor automático de daño por Pokémon para cada run de Boss. Top 6 en tiempo real, daño efectivo por pérdida real de HP y reset por run.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,10 +12,10 @@
 
 (() => {
   'use strict';
-  if (window.__pgBossDamageMeterV100) return;
-  window.__pgBossDamageMeterV100 = true;
+  if (window.__pgBossDamageMeterV101) return;
+  window.__pgBossDamageMeterV101 = true;
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.0.1';
   const PANEL_ID = 'pg-boss-damage-meter-panel';
   const LAUNCHER_ID = 'pg-boss-damage-meter-launcher';
   const STYLE_ID = 'pg-boss-damage-meter-style';
@@ -24,6 +24,8 @@
   const POLL_MS = 80;
   const SOCKET_REATTACH_MS = 1000;
   const BOSS_REFRESH_MS = 5 * 60 * 1000;
+  const BOSS_BOOT_REFRESH_MS = 1500;
+  const BOSS_BOOT_REFRESH_COUNT = 12;
 
   let bossConfig = null;
   let bossCatalog = new Map();
@@ -137,6 +139,7 @@
     }
 
     rebuildArenaMap();
+    updateCurrentRunBossIdentity();
     inspectCurrentGameState();
     return {
       activeBosses: bossConfig?.bosses?.length || 0,
@@ -170,6 +173,51 @@
 
   function currentField() {
     return window.__poke?.ws?.field || null;
+  }
+
+  function currentSlug() {
+    return String(
+      currentFieldInit()?.slug
+      || window.__poke?.lastSlug
+      || window.__poke?.sess?.slug
+      || ''
+    ).trim();
+  }
+
+  function isBossField(field) {
+    const team = field?.bossTeam;
+    const idx = Number(field?.bossActiveIdx);
+    return Array.isArray(team)
+      && team.length > 0
+      && Number.isInteger(idx)
+      && idx >= 0
+      && idx < team.length
+      && Number.isFinite(Number(field?.bossLooktype));
+  }
+
+  function bossDescriptorFromContext(field = null) {
+    const slug = currentSlug();
+    const known = resolveBossForArena(slug);
+    if (known) return known;
+
+    return {
+      key: '',
+      name: slug ? `Boss · ${slug}` : 'Boss',
+      image: '',
+      arena: slug ? { map: slug } : null,
+      looktype: finite(field?.bossLooktype)
+    };
+  }
+
+  function updateCurrentRunBossIdentity() {
+    if (!run) return false;
+    const known = resolveBossForArena(run.arenaSlug || currentSlug());
+    if (!known) return false;
+    run.bossKey = known.key || run.bossKey;
+    run.bossName = known.name || run.bossName;
+    run.bossImage = known.image || run.bossImage;
+    render();
+    return true;
   }
 
   function getTeamSnapshot() {
@@ -212,16 +260,20 @@
     return String(init?.huntKey || `${init?.slug || 'boss'}:${nowMs()}`);
   }
 
-  function startRun(init, boss) {
-    const key = makeRunKey(init);
-    if (run?.key === key) return run;
+  function startRun(init, boss, firstField = null) {
+    const fallbackKey = `boss:${String(init?.slug || currentSlug() || 'unknown')}:${finite(firstField?.serverNow, nowMs())}`;
+    const key = String(init?.huntKey || fallbackKey);
+    if (run?.key === key && !run?.outcome) return run;
 
+    const slug = String(init?.slug || currentSlug() || boss?.arena?.map || '');
     run = {
       key,
-      arenaSlug: String(init?.slug || ''),
+      huntKey: String(init?.huntKey || ''),
+      arenaSlug: slug,
       bossKey: boss?.key || '',
-      bossName: boss?.name || String(init?.slug || 'Boss'),
+      bossName: boss?.name || (slug ? `Boss · ${slug}` : 'Boss'),
       bossImage: boss?.image || '',
+      bossLooktype: finite(firstField?.bossLooktype),
       startedAt: nowMs(),
       finishedAt: 0,
       outcome: '',
@@ -262,13 +314,11 @@
     const key = String(init.huntKey || slug);
     if (!slug || !key) return;
 
-    if (lastFieldInitKey === key && run?.key === key) return;
+    if (lastFieldInitKey === key && run?.huntKey === String(init.huntKey || '')) return;
     lastFieldInitKey = key;
 
     const boss = resolveBossForArena(slug);
-    if (boss) {
-      startRun(init, boss);
-    }
+    if (boss) startRun(init, boss);
   }
 
   function updateTeamFromBossState(field) {
@@ -314,13 +364,34 @@
     const seq = Number(field.seq);
     if (Number.isFinite(seq) && seq === lastFieldSeq) return;
 
-    const init = currentFieldInit();
-    const slug = String(init?.slug || '');
-    const boss = resolveBossForArena(slug);
+    const bossField = isBossField(field);
+    if (!bossField) {
+      if (Number.isFinite(seq)) lastFieldSeq = seq;
+      return;
+    }
 
-    if (!run || run.key !== String(init?.huntKey || '')) {
-      if (!boss) return;
-      startRun(init, boss);
+    const init = currentFieldInit();
+    const descriptor = bossDescriptorFromContext(field);
+    const incomingHuntKey = String(init?.huntKey || '');
+
+    const sameLiveRun = Boolean(
+      run
+      && !run.outcome
+      && (
+        (incomingHuntKey && run.huntKey === incomingHuntKey)
+        || (!incomingHuntKey && run.bossLooktype === finite(field?.bossLooktype))
+      )
+    );
+
+    if (!sameLiveRun) {
+      const finalCachedFrame = Boolean(field?.bossOutcome) || finite(getBossMob(field)?.hp) <= 0;
+      if (run?.outcome && finalCachedFrame) {
+        if (Number.isFinite(seq)) lastFieldSeq = seq;
+        return;
+      }
+      startRun(init, descriptor, field);
+    } else if (!run.bossKey) {
+      updateCurrentRunBossIdentity();
     }
 
     if (run.outcome) {
@@ -436,14 +507,14 @@
     style.id = STYLE_ID;
     style.textContent = `
       #${LAUNCHER_ID}{
-        position:fixed;right:16px;bottom:152px;z-index:99978;width:44px;height:44px;
+        position:fixed;right:16px;bottom:152px;z-index:100280;width:44px;height:44px;
         display:none;place-items:center;border:1px solid #4e6078;border-radius:999px;
         background:#111b29;color:#fff;box-shadow:0 8px 24px #0009;
         font:900 20px/1 system-ui;cursor:pointer
       }
       #${LAUNCHER_ID}:hover{background:#1b2a3e}
       #${PANEL_ID}{
-        position:fixed;z-index:99988;left:calc(100vw - 490px);top:80px;
+        position:fixed;z-index:100290;left:calc(100vw - 490px);top:80px;
         width:460px;height:auto;min-width:380px;min-height:210px;max-width:96vw;max-height:92vh;
         resize:both;overflow:auto;background:#0c131d;color:#eaf0f8;
         border:1px solid #40516a;border-radius:14px;box-shadow:0 18px 56px #000d;
@@ -547,7 +618,7 @@
       launcher.id = LAUNCHER_ID;
       launcher.type = 'button';
       launcher.textContent = '⚔️';
-      launcher.title = 'Abrir Boss Damage Meter';
+      launcher.title = 'Boss Damage Meter · esperando Boss';
       launcher.setAttribute('aria-label', 'Abrir Boss Damage Meter');
       launcher.addEventListener('click', () => {
         panelClosedForRun = false;
@@ -595,10 +666,14 @@
     });
   }
 
-  function showLauncher(show) {
+  function showLauncher(show = true) {
     ensureUi();
     const launcher = document.getElementById(LAUNCHER_ID);
-    if (launcher) launcher.style.display = show ? 'grid' : 'none';
+    if (!launcher) return;
+    launcher.style.display = show ? 'grid' : 'none';
+    launcher.title = run
+      ? `${run.bossName} · ${run.outcome ? 'run terminada' : 'run en curso'} · abrir Damage Meter`
+      : 'Boss Damage Meter cargado · esperando Boss';
   }
 
   function openPanel(force = false) {
@@ -733,6 +808,7 @@
 
   function render() {
     ensureUi();
+    showLauncher(true);
     const panel = document.getElementById(PANEL_ID);
     const body = panel?.querySelector('[data-body]');
     const title = panel?.querySelector('[data-boss-title]');
@@ -758,7 +834,7 @@
     body.innerHTML = `
       <div class="pg-bdm-status">
         <span class="pg-bdm-state ${run.outcome ? 'won' : ''}">${run.outcome ? '🏆 VICTORIA' : '⚔️ EN COMBATE'}</span>
-        <span>Run actual · sin acumulación histórica</span>
+        <span>Top 6 en tiempo real · daño de esta run · sin acumulación histórica</span>
       </div>
 
       <div class="pg-bdm-hp">
@@ -805,6 +881,12 @@
   function state() {
     return {
       version: VERSION,
+      detection: {
+        directBossField: true,
+        bossDefinitionsReady: arenaToBoss.size > 0,
+        currentSlug: currentSlug(),
+        currentFieldIsBoss: isBossField(currentField())
+      },
       activeBossArenas: [...arenaToBoss.entries()].map(([map, boss]) => ({
         map,
         key: boss.key,
@@ -905,10 +987,18 @@
   };
 
   ensureUi();
+  showLauncher(true);
   attachSocket();
   refreshBossDefinitions().catch(() => {});
   inspectCurrentGameState();
   connectHealth();
+
+  let bootBossRefreshes = 0;
+  const bootBossTimer = setInterval(() => {
+    bootBossRefreshes += 1;
+    refreshBossDefinitions().catch(() => {});
+    if (arenaToBoss.size > 0 || bootBossRefreshes >= BOSS_BOOT_REFRESH_COUNT) clearInterval(bootBossTimer);
+  }, BOSS_BOOT_REFRESH_MS);
 
   setInterval(() => {
     attachSocket();
@@ -924,5 +1014,5 @@
   setInterval(() => refreshBossDefinitions().catch(() => {}), BOSS_REFRESH_MS);
   setInterval(heartbeat, 10000);
 
-  console.info('[Boss Damage Meter] v1.0.0 cargado · espera automáticamente una arena de Boss activa.');
+  console.info('[Boss Damage Meter] v1.0.1 cargado · detección directa por bossTeam/bossActiveIdx + respaldo por arena activa.');
 })();
