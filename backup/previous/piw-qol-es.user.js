@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Poke Idle World - Quality of Life (PIW-QOL ES)
 // @namespace    http://tampermonkey.net/
-// @version      9.10.24
+// @version      9.10.25
 // @description  Mejoras de calidad de vida en español, sin modificar el mapa y con candados de venta configurables.
 // @author       Desjunior (JulianoCLI)
 // @match        https://poke.idleworld.online/play
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_BUILD = '9.10.24';
+    const SCRIPT_BUILD = '9.10.25';
 
     const NativeWebSocket = window.WebSocket;
     const nativeWebSocketSend = NativeWebSocket.prototype.send;
@@ -157,6 +157,7 @@
     const STORAGE_CHAT_ACTIVE = 'script_chat_ativo_v1';
     const STORAGE_SELL_CONFIRM = 'script_sell_confirm_items_v1';
     const STORAGE_SELL_LOCKS = 'script_sell_locks_v1';
+    const STORAGE_POKEMON_SELL_LOCKS = 'script_pokemon_sell_locks_v1';
     const STORAGE_GUARD_LEGENDARY = 'script_guard_legendary_v1';
     const STORAGE_HA_COMPACT = 'script_ha_compact_v1';
     const STORAGE_HA_DROPS = 'script_ha_drops_v1';
@@ -864,6 +865,35 @@
         const normalized = normalizeSellLockName(itemName);
         localStorage.setItem(STORAGE_SELL_LOCKS, JSON.stringify(
             getSellLocks().filter(name => normalizeSellLockName(name) !== normalized)
+        ));
+    }
+
+    function normalizePokemonSellLockId(pokeId) {
+        return String(pokeId ?? '').trim();
+    }
+    function getPokemonSellLocks() {
+        return readStoredJSON(STORAGE_POKEMON_SELL_LOCKS, [])
+            .map(normalizePokemonSellLockId)
+            .filter(Boolean);
+    }
+    function isPokemonSellLocked(pokeId) {
+        const normalized = normalizePokemonSellLockId(pokeId);
+        return Boolean(normalized) && getPokemonSellLocks().includes(normalized);
+    }
+    function addPokemonSellLock(pokeId) {
+        const normalized = normalizePokemonSellLockId(pokeId);
+        if (!normalized) return;
+        const locks = getPokemonSellLocks();
+        if (!locks.includes(normalized)) {
+            locks.push(normalized);
+            localStorage.setItem(STORAGE_POKEMON_SELL_LOCKS, JSON.stringify(locks));
+        }
+    }
+    function removePokemonSellLock(pokeId) {
+        const normalized = normalizePokemonSellLockId(pokeId);
+        if (!normalized) return;
+        localStorage.setItem(STORAGE_POKEMON_SELL_LOCKS, JSON.stringify(
+            getPokemonSellLocks().filter(id => id !== normalized)
         ));
     }
 
@@ -2614,14 +2644,19 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
 
             footer.style.display = 'flex';
             sellable.forEach(poke => {
-                const protectedPoke = Boolean(poke.locked || poke.shiny || poke.market || poke.listed);
+                const nativeProtected = Boolean(poke.locked || poke.shiny || poke.market || poke.listed);
+                const scriptLocked = isPokemonSellLocked(poke.id);
+                const protectedPoke = nativeProtected || scriptLocked;
                 const row = document.createElement('label');
                 row.className = `hunt-sell-row${protectedPoke ? ' protected' : ''}`;
-                row.style.gridTemplateColumns = 'auto 1fr auto';
+                row.style.gridTemplateColumns = 'auto 1fr auto auto';
                 row.dataset.searchName = String(poke.name || '').toLocaleLowerCase();
                 row.dataset.shiny = poke.shiny ? 'true' : 'false';
                 row.dataset.iv = String(Number(poke.ivTotal) || 0);
                 row.dataset.quality = String(Number(poke.quality) || 0);
+                row.dataset.pokeId = String(poke.id);
+                row.dataset.nativeProtected = nativeProtected ? 'true' : 'false';
+                row.dataset.scriptLocked = scriptLocked ? 'true' : 'false';
 
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
@@ -2630,17 +2665,58 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
                 checkbox.dataset.value = String(poke.sellValue || 0);
 
                 const name = document.createElement('span');
-                const flags = [
-                    poke.shiny ? '✨' : '',
-                    poke.locked ? '🔒' : '',
-                    (poke.market || poke.listed) ? '🏷️' : ''
-                ].filter(Boolean).join(' ');
                 const quality = formatPokemonQualityWithPotential(poke.quality, poke.ivTotal, poke.shiny);
-                name.textContent = `${poke.name || `Pokémon ${poke.speciesId}`} · IV ${poke.ivTotal ?? '—'} · ${quality} ${flags}`;
+                const renderPokemonName = lockedByScript => {
+                    const flags = [
+                        poke.shiny ? '✨' : '',
+                        (poke.locked || lockedByScript) ? '🔒' : '',
+                        (poke.market || poke.listed) ? '🏷️' : ''
+                    ].filter(Boolean).join(' ');
+                    name.textContent = `${poke.name || `Pokémon ${poke.speciesId}`} · IV ${poke.ivTotal ?? '—'} · ${quality}${flags ? ` ${flags}` : ''}`;
+                };
 
                 const value = document.createElement('strong');
                 value.textContent = `💲${Number(poke.sellValue).toLocaleString('es-ES')}`;
-                row.append(checkbox, name, value);
+
+                const lockButton = document.createElement('button');
+                lockButton.type = 'button';
+                lockButton.className = `hunt-item-lock${scriptLocked || nativeProtected ? ' on' : ''}`;
+
+                const applyPokemonLockState = lockedByScript => {
+                    const locked = nativeProtected || lockedByScript;
+                    row.dataset.scriptLocked = lockedByScript ? 'true' : 'false';
+                    row.classList.toggle('protected', locked);
+                    checkbox.disabled = locked;
+                    if (locked) checkbox.checked = false;
+                    lockButton.classList.toggle('on', lockedByScript || nativeProtected);
+                    lockButton.textContent = locked ? '🔒' : '🔓';
+                    lockButton.disabled = nativeProtected;
+                    lockButton.style.opacity = nativeProtected ? '0.6' : '';
+                    lockButton.style.cursor = nativeProtected ? 'not-allowed' : '';
+                    lockButton.title = nativeProtected
+                        ? 'Protegido por el juego: no puede venderse desde aquí'
+                        : lockedByScript
+                            ? 'Desbloquear Pokémon — permitir seleccionarlo para venta'
+                            : 'Bloquear Pokémon — excluirlo de Seleccionar todo y de la venta';
+                    lockButton.setAttribute('aria-label', nativeProtected
+                        ? 'Pokémon protegido por el juego'
+                        : lockedByScript ? 'Desbloquear Pokémon' : 'Bloquear Pokémon');
+                    renderPokemonName(lockedByScript);
+                };
+
+                lockButton.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (nativeProtected) return;
+                    const locked = !isPokemonSellLocked(poke.id);
+                    if (locked) addPokemonSellLock(poke.id);
+                    else removePokemonSellLock(poke.id);
+                    applyPokemonLockState(locked);
+                    updateSummary();
+                });
+
+                applyPokemonLockState(scriptLocked);
+                row.append(checkbox, name, value, lockButton);
                 list.appendChild(row);
             });
 
@@ -4493,5 +4569,5 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
     } else {
         initializeDOMEnhancements();
     }
-    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · venta de piedras con importe previo y contrato real de Flint.`);
+    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · candados persistentes para objetos y Pokémon en la venta masiva.`);
 })();
