@@ -1,11 +1,12 @@
 name: Publicar scripts
 
 # Runner explícito para evitar fallos de inicialización observados en ubuntu-latest.
-# Los PR fusionados contra main disparan esta publicación automáticamente desde main.
+# Los PR fusionados contra main y las cargas directas en incoming/ publican automáticamente desde main.
 on:
   push:
     branches: [main]
     paths:
+      - 'incoming/**'
       - 'src/**'
       - 'staging-upload/**'
       - 'scripts/**'
@@ -42,6 +43,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Procesar bandeja incoming
+        run: node scripts/process-incoming.mjs
 
       - name: Ensamblar una carga preparada
         run: node scripts/assemble-upload.mjs
