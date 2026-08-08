@@ -2,7 +2,7 @@
   "scripts": [
     {
       "name": "Poke Idle World - Quality of Life (PIW-QOL ES)",
-      "version": "9.10.24",
+      "version": "9.10.25",
       "file": "piw-qol-es.user.js",
       "metaFile": "piw-qol-es.meta.js",
       "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/piw-qol-es.user.js",
