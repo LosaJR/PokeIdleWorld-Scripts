@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.15
+// @version      1.1.16
 // @description  Recomendador, No capturados, Item Finder, supervisor e histórico unificados con VIP y bonus diario normalizados.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1115) return;
-  window.__pgHuntIntelligenceCoreV1115 = true;
+  if (window.__pgHuntIntelligenceCoreV1116) return;
+  window.__pgHuntIntelligenceCoreV1116 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -679,8 +679,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1115) return;
-  window.__pgHuntIntelligenceItemCoreV1115 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1116) return;
+  window.__pgHuntIntelligenceItemCoreV1116 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1164,8 +1164,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1115) return;
-  window.__pgHuntIntelligenceEngineV1115 = true;
+  if (window.__pgHuntIntelligenceEngineV1116) return;
+  window.__pgHuntIntelligenceEngineV1116 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2222,14 +2222,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.15 cargado: ranking personal y Pokédex por API directa.');
+  console.info('[Hunt Intelligence] Motor v1.1.16 cargado: ranking personal y Pokédex por API directa.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1115) return;
-  window.__pgHuntIntelligenceSupervisorV1115 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1116) return;
+  window.__pgHuntIntelligenceSupervisorV1116 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -2266,8 +2266,10 @@
   let activeSample = null;
   let lastReport = null;
   let lastResetReason = '';
+  let lastHistoryPokemonKey = '';
   let busy = false;
   let timer = null;
+  let historyPokemonTimer = null;
 
   function accountId() {
     const character = window.__poke?.api?.['/api/characters/me']?.character || {};
@@ -2389,6 +2391,48 @@
     rebuildCalibrationRegistry();
     persist();
     try { localStorage.setItem(WINDOW_MIGRATION_KEY, '1'); } catch {}
+  }
+
+  function currentHistoryPokemon() {
+    const list = window.__poke?.ws?.pokes?.list;
+    if (!Array.isArray(list)) return null;
+
+    const lead = list.filter(pokemon => pokemon?.team)
+      .sort((a, b) => finite(a.slot, 99) - finite(b.slot, 99))[0] || null;
+    if (!lead) return null;
+
+    const key = compact(
+      lead.speciesId
+      || lead.pokeId
+      || lead.species?.id
+      || lead.name
+      || ''
+    );
+
+    if (!key) return null;
+    return {
+      key,
+      name: String(lead.name || 'Pokémon'),
+      level: finite(lead.level)
+    };
+  }
+
+  function rowMatchesHistoryPokemon(row, pokemon = currentHistoryPokemon()) {
+    if (!row || !pokemon?.key) return false;
+    const rowKey = compact(row.leadId || row.leadName || '');
+    if (rowKey && rowKey === pokemon.key) return true;
+    return norm(row.leadName || '') === norm(pokemon.name || '');
+  }
+
+  function currentPokemonHistoryRows() {
+    const acct = accountId();
+    const pokemon = currentHistoryPokemon();
+    if (!pokemon) return [];
+    return segments.filter(row =>
+      row.accountId === acct
+      && finite(row.elapsedSeconds) === SAMPLE_WINDOW_SECONDS
+      && rowMatchesHistoryPokemon(row, pokemon)
+    );
   }
 
   function currentSlug() { return norm(window.__poke?.ws?.['field-init']?.slug || window.__poke?.lastSlug || window.__poke?.sess?.slug || ''); }
@@ -2593,8 +2637,8 @@
   }
 
   function aggregateHistory() {
-    const acct=accountId(), map=new Map();
-    for (const row of segments.filter(row=>row.accountId===acct&&finite(row.elapsedSeconds)===SAMPLE_WINDOW_SECONDS)) {
+    const map=new Map();
+    for (const row of currentPokemonHistoryRows()) {
       const key=historyGroupKey(row);
       const agg=map.get(key)||{key,huntName:row.huntName,leadName:row.leadName,move:row.move,tm:row.tm,samples:0,seconds:0,kills:0,cleanXp:0,legacy:0,vipYes:0,vipNo:0};
       agg.samples++; agg.seconds+=SAMPLE_WINDOW_SECONDS; agg.kills+=finite(row.kills);
@@ -2615,10 +2659,14 @@
   }
 
   function legacyCount(){ return segments.filter(row=>row.accountId===accountId()&&row.vipKnown!==true).length; }
+  function currentPokemonLegacyCount(){ return currentPokemonHistoryRows().filter(row=>row.vipKnown!==true).length; }
+
   function adoptLegacyVip() {
-    const vip=Boolean(window.__PGPiwToolsEngine?.getVip?.()); let changed=0;
+    const vip=Boolean(window.__PGPiwToolsEngine?.getVip?.()),pokemon=currentHistoryPokemon();
+    let changed=0;
+    if(!pokemon)return{changed,vip};
     segments=segments.map(row=>{
-      if(row.accountId!==accountId()||row.vipKnown===true)return row;
+      if(row.accountId!==accountId()||row.vipKnown===true||!rowMatchesHistoryPokemon(row,pokemon))return row;
       const baseWithVip=Math.max(0,finite(row.legacyBaseXph,row.baseXph,row.rawXph/(row.dailyBoosted?DAILY_MULT:1)));
       changed++; return {...row,vipKnown:true,vipActive:vip,cleanBaseXph:baseWithVip/(vip?VIP_MULT:1),importedLegacy:true};
     });
@@ -2643,6 +2691,30 @@
     try{window.dispatchEvent(new CustomEvent('pokegrid-intelligence-updated'));}catch{}
     return{cleared:true,removedSegments:removed.length,removedCalibrations};
   }
+  function clearCurrentPokemonHistory(){
+    const acct=accountId(),pokemon=currentHistoryPokemon();
+    if(!pokemon)return{cleared:false,removedSegments:0,removedCalibrations:0};
+
+    const removed=segments.filter(row=>row.accountId===acct&&rowMatchesHistoryPokemon(row,pokemon));
+    if(!removed.length)return{cleared:false,removedSegments:0,removedCalibrations:0};
+
+    const calibrationKeys=new Set(removed.map(row=>calibrationKey(row)));
+    segments=segments.filter(row=>row.accountId!==acct||!rowMatchesHistoryPokemon(row,pokemon));
+
+    let removedCalibrations=0;
+    for(const key of calibrationKeys){
+      if(Object.prototype.hasOwnProperty.call(calibrationRegistry,key)){
+        delete calibrationRegistry[key];
+        removedCalibrations++;
+      }
+    }
+
+    if(activeSample?.meta?.accountId===acct&&rowMatchesHistoryPokemon(activeSample.meta,pokemon))activeSample=null;
+    persist();
+    try{window.dispatchEvent(new CustomEvent('pokegrid-intelligence-updated'));}catch{}
+    return{cleared:true,removedSegments:removed.length,removedCalibrations};
+  }
+
   function clearHistory(){ segments=[];calibrationRegistry={};activeSample=null;persist();try{window.dispatchEvent(new CustomEvent('pokegrid-intelligence-updated'));}catch{}return{cleared:true}; }
   function adjustConfig(key,delta){
     config.minMinutes=FIXED_MIN_MINUTES;
@@ -2674,11 +2746,14 @@
   }
 
   function renderHistoryHtml() {
-    const rows=aggregateHistory(),legacy=legacyCount(),vip=Boolean(window.__PGPiwToolsEngine?.getVip?.());
-    return `<div class="pg-u-note">Cada muestra representa exactamente 30 minutos útiles. «Base limpia» es la media de todas las muestras de esa hunt y elimina VIP ×1,50 y bonus diario ×1,20.</div>${legacy?`<div class="pg-hi-banner warn">Hay ${fmt(legacy)} muestras antiguas sin estado VIP. Sus kills/h siguen siendo útiles, pero su EXP no se usa hasta clasificarlas. <button data-adopt-legacy-vip>Asignarles VIP actual: ${vip?'Sí':'No'}</button></div>`:''}
+    const pokemon=currentHistoryPokemon();
+    if(!pokemon)return'<div class="pg-u-empty">No detecto ningún Pokémon activo en el primer slot. Equipa uno para ver su histórico.</div>';
+
+    const rows=aggregateHistory(),legacy=currentPokemonLegacyCount(),vip=Boolean(window.__PGPiwToolsEngine?.getVip?.());
+    return `<div class="pg-u-note"><b>Histórico de ${esc(pokemon.name)}</b>${pokemon.level?` Nv. ${fmt(pokemon.level)}`:''}. Solo se muestran las muestras guardadas de este Pokémon. Al cambiar el Pokémon activo, esta pestaña cambia automáticamente a su histórico.<br>Cada muestra representa exactamente 30 minutos útiles. «Base limpia» es la media de las muestras de esa hunt y elimina VIP ×1,50 y bonus diario ×1,20.</div>${legacy?`<div class="pg-hi-banner warn">Hay ${fmt(legacy)} muestras antiguas de ${esc(pokemon.name)} sin estado VIP. Sus kills/h siguen siendo útiles, pero su EXP no se usa hasta clasificarlas. <button data-adopt-legacy-vip>Asignarles VIP actual: ${vip?'Sí':'No'}</button></div>`:''}
       <div class="pg-hi-history-head"><span>Hunt · Pokémon</span><span>Muestras</span><span>Horas</span><span>Kills/h</span><span>Base limpia media</span><span>VIP + diario</span><span></span></div>
-      <div class="pg-hi-history">${rows.map(row=>`<div class="pg-hi-history-row"><span class="pg-hi-history-name"><b>${esc(row.huntName||'Hunt')}</b><small>${esc(row.leadName||'Pokémon')} · ${esc(row.move||'Ataque')}${row.tm?' (MT)':''}${row.legacy?` · ${row.legacy} legado`:''}</small></span><span>${fmt(row.samples)}</span><span>${fmt(row.hours,1)}</span><span>${fmt(row.kph)}</span><span>${row.baseXph?fmt(row.baseXph):'—'}</span><span>${row.baseXph?fmt(row.vipDailyXph):'—'}</span><button class="pg-hi-delete" data-delete-intelligence-history="${esc(row.key)}" data-history-label="${esc(`${row.huntName||'Hunt'} · ${row.leadName||'Pokémon'}`)}" title="Borrar todas las muestras de esta línea" aria-label="Borrar histórico de ${esc(row.huntName||'esta hunt')}">🗑️</button></div>`).join('')||'<div class="pg-u-empty">Todavía no hay muestras completas. La primera aparecerá al completar 30 minutos útiles en la misma hunt y condiciones.</div>'}</div>
-      <div class="pg-hi-actions"><button data-clear-intelligence-history>🗑️ Borrar histórico</button></div>`;
+      <div class="pg-hi-history">${rows.map(row=>`<div class="pg-hi-history-row"><span class="pg-hi-history-name"><b>${esc(row.huntName||'Hunt')}</b><small>${esc(row.leadName||pokemon.name||'Pokémon')} · ${esc(row.move||'Ataque')}${row.tm?' (MT)':''}${row.legacy?` · ${row.legacy} legado`:''}</small></span><span>${fmt(row.samples)}</span><span>${fmt(row.hours,1)}</span><span>${fmt(row.kph)}</span><span>${row.baseXph?fmt(row.baseXph):'—'}</span><span>${row.baseXph?fmt(row.vipDailyXph):'—'}</span><button class="pg-hi-delete" data-delete-intelligence-history="${esc(row.key)}" data-history-label="${esc(`${row.huntName||'Hunt'} · ${row.leadName||pokemon.name||'Pokémon'}`)}" title="Borrar todas las muestras de esta línea" aria-label="Borrar histórico de ${esc(row.huntName||'esta hunt')}">🗑️</button></div>`).join('')||`<div class="pg-u-empty">${esc(pokemon.name)} todavía no tiene muestras completas. La primera aparecerá al completar 30 minutos útiles en la misma hunt y condiciones.</div>`}</div>
+      <div class="pg-hi-actions"><button data-clear-intelligence-history>🗑️ Borrar histórico de ${esc(pokemon.name)}</button></div>`;
   }
 
   function state() {
@@ -2688,31 +2763,49 @@
   }
 
   function restartTimer(){clearInterval(timer);timer=setInterval(()=>refresh(false),Math.max(8,finite(config.refreshSeconds,15))*1000);}
+
+  function checkHistoryPokemonChange(){
+    const nextKey=currentHistoryPokemon()?.key||'';
+    if(!nextKey)return false;
+    if(!lastHistoryPokemonKey){lastHistoryPokemonKey=nextKey;return false;}
+    if(nextKey===lastHistoryPokemonKey)return false;
+    lastHistoryPokemonKey=nextKey;
+    try{window.dispatchEvent(new CustomEvent('pokegrid-intelligence-updated',{detail:{reason:'pokemon-changed',pokemonKey:nextKey}}));}catch{}
+    return true;
+  }
+
+  function startHistoryPokemonWatcher(){
+    clearInterval(historyPokemonTimer);
+    lastHistoryPokemonKey=currentHistoryPokemon()?.key||'';
+    historyPokemonTimer=setInterval(checkHistoryPokemonChange,1000);
+  }
+
   const finalizeOnExit=()=>{try{finalizeActiveSample('cierre o recarga',activeSample?.lastProgressAt||Date.now());}catch{}};
   window.addEventListener('pagehide',finalizeOnExit);window.addEventListener('beforeunload',finalizeOnExit);
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.15',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getPersonalEstimate,getCalibration,
-    renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearHistory,finalizeActiveSample
+    version:'1.1.16',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.15',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.16',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.15',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.16',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   migrateLegacy();
   migrateToFixedWindows();
   restartTimer();
+  startHistoryPokemonWatcher();
   setTimeout(()=>refresh(false),1200);
-  console.info('[Hunt Intelligence] Supervisor unificado v1.1.15 cargado: VIP y bonus diario normalizados.');
+  console.info('[Hunt Intelligence] Supervisor unificado v1.1.16 cargado: histórico filtrado por Pokémon activo.');
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1115) return;
-  window.__pgHuntIntelligenceUiV1115 = true;
+  if (window.__pgHuntIntelligenceUiV1116) return;
+  window.__pgHuntIntelligenceUiV1116 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -3001,7 +3094,17 @@
       }
       if (event.target.closest('[data-clear-intelligence-history]')) {
         event.preventDefault(); event.stopPropagation();
-        if (confirm('¿Borrar todo el histórico y las calibraciones de esta cuenta?')) S()?.clearHistory?.();
+        const pokemon=S()?.getCurrentHistoryPokemon?.();
+        const label=pokemon?.name||'el Pokémon activo';
+        if(confirm(`¿Borrar todo el histórico de ${label}? El histórico de los demás Pokémon se conservará.`)){
+          const result=S()?.clearCurrentPokemonHistory?.();
+          toast(
+            result?.cleared
+              ? `Histórico de ${label} eliminado: ${fmt(result.removedSegments)} muestras.`
+              : `No se encontró histórico de ${label}.`,
+            result?.cleared?'ok':'bad'
+          );
+        }
         renderHistory(false); return;
       }
 
@@ -4320,7 +4423,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.15',
+    version: '1.1.16',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -4367,7 +4470,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.15',
+      version: '1.1.16',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -4401,7 +4504,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.15',
+    version: '1.1.16',
     openHunt: () => { activeTab='hunt'; return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; return loadNotCaught(false); },
     openItem: query => { activeTab='item'; return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -4428,5 +4531,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.15 cargado: Hunts con PIWTools XP/h y Tu XP/h separados, y No capturados por /api/game/pokedex.');
+  console.info('[Hunt Intelligence] v1.1.16 cargado: Histórico separado por Pokémon activo; PIWTools y Pokédex API conservados.');
 })();
