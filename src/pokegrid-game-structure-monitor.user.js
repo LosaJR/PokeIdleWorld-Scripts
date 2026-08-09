@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Game Structure Monitor
 // @namespace    ivan-pokegrid-tools
-// @version      1.2.1
+// @version      1.2.2
 // @description  Detecta cambios estructurales en los datos del juego y los publica en Script Bridge para facilitar reparaciones.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,10 +12,10 @@
 
 (() => {
   'use strict';
-  if (window.__pgGameStructureMonitorV121) return;
-  window.__pgGameStructureMonitorV121 = true;
+  if (window.__pgGameStructureMonitorV122) return;
+  window.__pgGameStructureMonitorV122 = true;
 
-  const VERSION = '1.2.1';
+  const VERSION = '1.2.2';
   const SCRIPT_ID = 'game-structure-monitor';
   const BASELINE_KEY = 'pg-game-structure-monitor-v3:baseline';
   const HISTORY_KEY = 'pg-game-structure-monitor-v3:history';
@@ -152,7 +152,7 @@
       } else roots[descriptor.id] = structuralShape(value, 0, descriptor.id);
     }
     return {
-      schemaVersion: '1.2.1',
+      schemaVersion: '1.2.2',
       generatedAt: now(),
       roots,
       missing,
@@ -167,7 +167,7 @@
     const roots = {};
     for (const descriptor of ROOTS) roots[descriptor.id] = mergeShapes(valid.map(snapshot => snapshot.roots?.[descriptor.id]).filter(Boolean));
     return {
-      schemaVersion: '1.2.1',
+      schemaVersion: '1.2.2',
       generatedAt: now(),
       roots,
       missing: [...new Set(valid.flatMap(snapshot => snapshot.missing || []))],
@@ -205,6 +205,31 @@
   function pushChange(changes, path, change, severity, before, after) {
     if (changes.length >= MAX_CHANGES) return;
     changes.push({ path, change, severity, before: before?.type || before || null, after: after?.type || after || null });
+  }
+
+  const OPTIONAL_POKEMON_METADATA = new Set([
+    'ws.pokes.list[].evolveNeedLevel',
+    'ws.pokes.list[].evolvesToName',
+    'ws.pokes.list[].hasEvolution'
+  ]);
+
+  function classifyKnownVariability(item) {
+    if (!item) return item;
+
+    // Estos campos solo aparecen en determinados Pokémon/estados de evolución.
+    // Que una cuenta deje de tenerlos en la muestra actual no implica que la API haya roto su esquema.
+    if (OPTIONAL_POKEMON_METADATA.has(item.path) && ['added', 'removed'].includes(item.change)) {
+      return { ...item, severity: 'info', knownVariable: 'optional-pokemon-evolution-metadata' };
+    }
+
+    // slot sí lo consumimos, pero los scripts actuales lo leen con fallback numérico.
+    // Una variación de la unión (p.ej. number/null/string numérico) no es una rotura.
+    // Un type-changed real sigue manteniendo severidad alta y se avisará.
+    if (item.path === 'ws.pokes.list[].slot' && item.change === 'union-changed') {
+      return { ...item, severity: 'info', knownVariable: 'pokemon-slot-union' };
+    }
+
+    return item;
   }
 
   function compareShape(before, after, path, changes) {
@@ -246,7 +271,7 @@
     // Que un evento no aparezca en una sesión no implica que el juego lo haya eliminado.
     // Solo registramos eventos nuevos; los ausentes se ignoran para evitar falsos positivos.
     for (const event of newEvents) if (!oldEvents.has(event)) pushChange(changes, `ws.event:${event}`, 'event-added', 'info', null, 'present');
-    return applyDynamicLearning(changes);
+    return applyDynamicLearning(changes.map(classifyKnownVariability));
   }
 
   const AFFECTED_RULES = [
@@ -386,9 +411,18 @@
         affectedScripts: result.affectedScripts || [],
         eventTypes: currentSnapshot?.eventTypes?.length || 0,
         apiEndpoints: currentSnapshot?.apiEndpoints?.length || 0,
-        ignoredDynamicPaths: ['session.hp.*', 'session.shinySeen.*', 'ws.event:* no observado'],
+        ignoredDynamicPaths: [
+          'session.hp.*',
+          'session.shinySeen.*',
+          'ws.event:* no observado',
+          'ws.pokes.list[].evolveNeedLevel (opcional)',
+          'ws.pokes.list[].evolvesToName (opcional)',
+          'ws.pokes.list[].hasEvolution (opcional)',
+          'ws.pokes.list[].slot union-changed (tolerado)'
+        ],
         baselineSamples: loadJson(BASELINE_KEY, null)?.sampleCount || pendingBaselineSamples.length,
         learnedDynamicPatterns: Object.keys(loadJson(LEARN_KEY, {})).length,
+        knownVariableChanges: (result.changes || []).filter(item => item.knownVariable).length,
         functionalTest: structureSelfTest()
       },
       details: {
@@ -412,7 +446,7 @@
       status: 'waiting',
       statusText: 'Preparando la primera lectura.',
       staleAfterMs: 150000,
-      capabilities: ['structure-snapshot', 'diff', 'baseline', 'stable-baseline', 'dynamic-learning', 'export']
+      capabilities: ['structure-snapshot', 'diff', 'baseline', 'stable-baseline', 'dynamic-learning', 'known-variability', 'export']
     });
     client.registerCommand('scan-now', () => scanNow(true), { label: 'Analizar ahora' });
     client.registerCommand('accept-baseline', () => acceptBaseline('manual-command'), { label: 'Aceptar estructura actual', dangerous: true });

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Detector de Decisiones y Suministros
 // @namespace    ivan-pokegrid-tools
-// @version      1.2.4
+// @version      1.2.5
 // @description  Avisa si quedan menos de 4 h de Ultra Balls/Ultimate Potions o si una hunt con bonus diario supera a la actual.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgDecisionDetectorV124) return;
-  window.__pgDecisionDetectorV124 = true;
+  if (window.__pgDecisionDetectorV125) return;
+  window.__pgDecisionDetectorV125 = true;
 
   const NS='pg-decision-detector-v1';
   const BUTTON_ID=`${NS}-button`, PANEL_ID=`${NS}-panel`, STYLE_ID=`${NS}-style`, TOAST_ID=`${NS}-toast`;
@@ -303,7 +303,6 @@
   function decisionSelfTest(){
     const inv=window.__poke?.ws?.inventory?.items;
     const balls=window.__poke?.ws?.balls;
-    const state=decisionHealthState();
     return{
       ok:Boolean(Array.isArray(inv)&&balls?.counts&&balls?.catalog&&window.__PGUnifiedHuntCore?.calculateRecommendations),
       inventory:Array.isArray(inv),
@@ -311,12 +310,12 @@
       huntAdvisor:Boolean(window.__PGUnifiedHuntCore?.calculateRecommendations),
       activeHunt:Boolean(sessionInfo()?.slug),
       supplyTracking:Boolean(window.__pgddLastSupplies),
-      alertRule:state.metrics?.daily?.rule||''
+      alertRule:'alert-only-if-alternative-is-better'
     };
   }
 
   window.__PGDecisionDetector=Object.freeze({
-    version:'1.2.4',
+    version:'1.2.5',
     getState:decisionHealthState,
     selfTest:decisionSelfTest,
     open:openPanel,
@@ -332,7 +331,7 @@
 
   function connectDecisionHealthBridge(){
     const bridge=window.__pokeGridScripts;if(!bridge?.register)return false;if(healthClient)return true;
-    healthClient=bridge.register({id:HEALTH_SCRIPT_ID,name:'Detector de decisiones y suministros',version:'1.2.4',description:'Avisa por Ultra Balls, Ultimate Potions y solo si una hunt con bonus diario supera a la actual.',icon:'⚠️',category:'alerts',status:'waiting',statusText:'Esperando datos de suministros.',staleAfterMs:50000,capabilities:['ultra-ball-hours','ultimate-potion-hours','daily-bonus-warning','functional-test']});
+    healthClient=bridge.register({id:HEALTH_SCRIPT_ID,name:'Detector de decisiones y suministros',version:'1.2.5',description:'Avisa por Ultra Balls, Ultimate Potions y solo si una hunt con bonus diario supera a la actual.',icon:'⚠️',category:'alerts',status:'waiting',statusText:'Esperando datos de suministros.',staleAfterMs:50000,capabilities:['ultra-ball-hours','ultimate-potion-hours','daily-bonus-warning','functional-test']});
     healthClient.registerCommand('open',()=>{openPanel();return{opened:true};},{label:'Abrir detector'});
     healthClient.registerCommand('check-now',()=>check(true),{label:'Comprobar ahora'});
     healthClient.registerCommand('reset-tracking',()=>window.__PGDecisionDetector.resetTracking(),{label:'Reiniciar medición',dangerous:true});
@@ -345,6 +344,6 @@
   connectDecisionHealthBridge();
 
 
-  function start(){if(!document.body)return setTimeout(start,200);ensureStyles();ensureButton();createPanel();check(true);setInterval(()=>check(false),SAMPLE_MS);console.info('[Detector de decisiones] v1.2.4 cargado: pruebas funcionales integradas; reglas de avisos sin cambios.');}
+  function start(){if(!document.body)return setTimeout(start,200);ensureStyles();ensureButton();createPanel();check(true);setInterval(()=>check(false),SAMPLE_MS);console.info('[Detector de decisiones] v1.2.5 cargado: corregida recursión entre health state y self-test; reglas de avisos sin cambios.');}
   start();
 })();

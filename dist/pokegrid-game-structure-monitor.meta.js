@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Game Structure Monitor
 // @namespace    ivan-pokegrid-tools
-// @version      1.2.1
+// @version      1.2.2
 // @description  Detecta cambios estructurales en los datos del juego y los publica en Script Bridge para facilitar reparaciones.
 // @match        https://poke.idleworld.online/*
 // @grant        none

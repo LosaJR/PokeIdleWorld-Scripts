@@ -26,7 +26,7 @@
     },
     {
       "name": "PokeGrid - Game Structure Monitor",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "file": "pokegrid-game-structure-monitor.user.js",
       "metaFile": "pokegrid-game-structure-monitor.meta.js",
       "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-game-structure-monitor.user.js",
@@ -42,7 +42,7 @@
     },
     {
       "name": "PokeGrid - Script Bridge & Health Agent",
-      "version": "1.1.5",
+      "version": "1.1.6",
       "file": "pokegrid-script-bridge-health-agent.user.js",
       "metaFile": "pokegrid-script-bridge-health-agent.meta.js",
       "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-script-bridge-health-agent.user.js",
