@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Script Bridge & Health Agent
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.1
+// @version      1.1.2
 // @description  Puente local para que los scripts publiquen estado, métricas, errores y comandos a la interfaz principal de PokeGrid.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,10 +12,10 @@
 
 (() => {
   'use strict';
-  if (window.__pgScriptBridgeV111) return;
-  window.__pgScriptBridgeV111 = true;
+  if (window.__pgScriptBridgeV112) return;
+  window.__pgScriptBridgeV112 = true;
 
-  const BRIDGE_VERSION = '1.1.1';
+  const BRIDGE_VERSION = '1.1.2';
   const API_VERSION = '1.0.0'; // Contrato base compatible; las pruebas son campos aditivos.
   const EVENT_NAME = 'pokegrid-script-health-update';
   const READY_EVENT = 'pokegrid-health-bridge-ready';
@@ -31,6 +31,9 @@
   let revision = 0;
   let lastEmitAt = 0;
   let emitTimer = null;
+  const DIAG_CONTAINER_ID = 'pg-bridge-auto-diagnostic-container';
+  const alertedFailures = new Map();
+  let lastAutoDiagnostic = null;
 
   const now = () => Date.now();
   const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
@@ -128,6 +131,155 @@
     else if (!emitTimer) emitTimer = setTimeout(dispatch, 260);
   }
 
+  function failedDependencies(entry) {
+    if (!entry?.dependencies || typeof entry.dependencies !== 'object') return [];
+    return Object.entries(entry.dependencies)
+      .filter(([, value]) => value && typeof value === 'object' && value.ok === false)
+      .map(([key, value]) => ({
+        key,
+        detail: truncate(value.detail || value.statusText || value.message || '', 300),
+        checkedAt: Number(value.checkedAt) || 0
+      }));
+  }
+
+  function buildAutoDiagnostic(entry) {
+    const script = publicEntry(entry);
+    return sanitize({
+      bridgeVersion: BRIDGE_VERSION,
+      generatedAt: now(),
+      account: accountInfo(),
+      environment: environmentInfo(),
+      script,
+      failedDependencies: failedDependencies(entry)
+    });
+  }
+
+  async function copyDiagnosticText(value) {
+    const text = JSON.stringify(value, null, 2);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {}
+    try {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.cssText = 'position:fixed;left:-10000px;top:-10000px;opacity:0;';
+      document.body.appendChild(area);
+      area.focus();
+      area.select();
+      const ok = document.execCommand('copy');
+      area.remove();
+      return Boolean(ok);
+    } catch {
+      return false;
+    }
+  }
+
+  function ensureDiagnosticContainer() {
+    if (!document.body) return null;
+    let container = document.getElementById(DIAG_CONTAINER_ID);
+    if (container) return container;
+    container = document.createElement('div');
+    container.id = DIAG_CONTAINER_ID;
+    container.style.cssText = [
+      'position:fixed',
+      'right:14px',
+      'top:14px',
+      'z-index:100500',
+      'width:min(430px,calc(100vw - 28px))',
+      'display:flex',
+      'flex-direction:column',
+      'gap:8px',
+      'pointer-events:none',
+      'font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'
+    ].join(';');
+    document.body.appendChild(container);
+    return container;
+  }
+
+  function showAutoDiagnostic(entry) {
+    if (!entry || entry.status !== 'error') return;
+    if (!document.body) {
+      setTimeout(() => {
+        const current = scripts.get(entry.id);
+        if (current?.status === 'error') showAutoDiagnostic(current);
+      }, 250);
+      return;
+    }
+
+    const diagnostic = buildAutoDiagnostic(entry);
+    lastAutoDiagnostic = diagnostic;
+    const failed = diagnostic.failedDependencies || [];
+    const error = entry.lastError;
+    const container = ensureDiagnosticContainer();
+    if (!container) return;
+
+    const card = document.createElement('section');
+    card.style.cssText = [
+      'pointer-events:auto',
+      'background:rgba(30,14,18,.94)',
+      'color:#f5edf0',
+      'border:1px solid rgba(255,116,126,.55)',
+      'border-radius:11px',
+      'box-shadow:0 12px 36px rgba(0,0,0,.55)',
+      'padding:10px 11px',
+      'backdrop-filter:blur(3px)'
+    ].join(';');
+
+    const dependencyText = failed.length
+      ? failed.map(row => row.key).join(', ')
+      : 'ninguna dependencia marcada como fallida';
+
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <strong style="font-size:13px;flex:1;">⚠️ ${truncate(entry.name || entry.id, 120)} · error</strong>
+        <button type="button" data-copy style="border:1px solid #70434a;background:#321b20;color:#ffd7dc;border-radius:7px;padding:5px 8px;cursor:pointer;font:700 11px system-ui;">Copiar diagnóstico</button>
+        <button type="button" data-close style="border:0;background:transparent;color:#d9aeb4;font-size:18px;cursor:pointer;line-height:1;">×</button>
+      </div>
+      <div style="font-size:11px;line-height:1.45;color:#f0d8dc;">
+        <div><b>Versión:</b> ${truncate(entry.version || '—', 80)}</div>
+        <div><b>Estado:</b> ${truncate(entry.statusText || 'Error sin descripción', 360)}</div>
+        <div><b>Dependencias:</b> ${truncate(dependencyText, 360)}</div>
+        <div><b>Último heartbeat:</b> ${Math.max(0, Math.round((now() - entry.lastHeartbeat) / 1000))} s</div>
+        ${error ? `<div><b>Último error:</b> ${truncate(error.context ? `${error.context}: ${error.message}` : error.message, 420)}</div>` : ''}
+      </div>
+    `;
+
+    card.querySelector('[data-close]')?.addEventListener('click', () => card.remove());
+    card.querySelector('[data-copy]')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      const copied = await copyDiagnosticText(diagnostic);
+      button.textContent = copied ? 'Copiado ✓' : 'No se pudo copiar';
+      setTimeout(() => {
+        if (button.isConnected) button.textContent = 'Copiar diagnóstico';
+      }, 1800);
+    });
+
+    container.prepend(card);
+    while (container.children.length > 3) container.lastElementChild?.remove();
+  }
+
+  function evaluateAutoDiagnostic(entry) {
+    if (!entry) return;
+    if (entry.status !== 'error') {
+      alertedFailures.delete(entry.id);
+      return;
+    }
+    const failed = failedDependencies(entry).map(row => row.key).sort().join(',');
+    const fingerprint = [
+      entry.status,
+      entry.statusText,
+      entry.lastError?.message || '',
+      entry.lastError?.context || '',
+      failed
+    ].join('|');
+    if (alertedFailures.get(entry.id) === fingerprint) return;
+    alertedFailures.set(entry.id, fingerprint);
+    showAutoDiagnostic(entry);
+  }
+
   function makeClient(id) {
     return Object.freeze({
       id,
@@ -183,6 +335,7 @@
     entry.updatedAt = time;
     if (entry.status === 'ok') entry.lastSuccessAt = time;
     emitUpdate(`update:${id}`);
+    evaluateAutoDiagnostic(entry);
     return makeClient(entry.id);
   }
 
@@ -224,6 +377,7 @@
       entry.statusText = truncate(options.statusText || item.message, 500);
     }
     emitUpdate(`error:${id}`, true);
+    evaluateAutoDiagnostic(entry);
     return sanitize(item);
   }
 
@@ -232,6 +386,7 @@
     if (!entry) return false;
     entry.lastError = null;
     entry.updatedAt = now();
+    alertedFailures.delete(entry.id);
     emitUpdate(`clear-error:${id}`);
     return true;
   }
@@ -449,7 +604,7 @@
     status: 'ok',
     statusText: 'Puente local disponible.',
     staleAfterMs: 60000,
-    capabilities: ['health', 'metrics', 'errors', 'commands', 'snapshot', 'functional-tests']
+    capabilities: ['health', 'metrics', 'errors', 'commands', 'snapshot', 'functional-tests', 'auto-error-diagnostics']
   });
 
   const gameClient = register({
@@ -507,6 +662,11 @@
     label: 'Obtener diagnóstico',
     description: 'Devuelve el snapshot completo de esta cuenta.'
   });
+  registerCommand('script-bridge', 'get-last-auto-diagnostic', () => lastAutoDiagnostic || null, {
+    label: 'Último diagnóstico automático',
+    description: 'Devuelve el último diagnóstico mostrado al detectar un script en error.'
+  });
+
   registerCommand('script-bridge', 'clear-global-errors', () => {
     globalErrors.length = 0;
     emitUpdate('clear-global-errors', true);
@@ -553,5 +713,5 @@
   } catch {}
 
   try { window.dispatchEvent(new CustomEvent(READY_EVENT, { detail: { apiVersion: API_VERSION, bridgeVersion: BRIDGE_VERSION } })); } catch {}
-  console.info('[PokeGrid Script Bridge] v1.1.1 cargado: pruebas funcionales automáticas activas.');
+  console.info('[PokeGrid Script Bridge] v1.1.2 cargado: diagnóstico visual automático al entrar un script en error.');
 })();
