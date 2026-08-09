@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Boss Damage Meter
 // @namespace    ivan-pokegrid-tools
-// @version      1.0.4
+// @version      1.0.5
 // @description  Medidor automático de daño por Pokémon para cada run de Boss. Top 6 en tiempo real, daño efectivo por pérdida real de HP y reset por run.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,10 +12,10 @@
 
 (() => {
   'use strict';
-  if (window.__pgBossDamageMeterV104) return;
-  window.__pgBossDamageMeterV104 = true;
+  if (window.__pgBossDamageMeterV105) return;
+  window.__pgBossDamageMeterV105 = true;
 
-  const VERSION = '1.0.4';
+  const VERSION = '1.0.5';
   const PANEL_ID = 'pg-boss-damage-meter-panel';
   const STYLE_ID = 'pg-boss-damage-meter-style';
   const LAYOUT_KEY = 'pg-boss-damage-meter-v1:layout';
@@ -603,42 +603,88 @@
     document.head.appendChild(style);
   }
 
-  function ensureUi() {
-    ensureStyles();
+  function createBridgeUiWindow(layout = null, shouldOpen = false) {
+    const bridgeUi = window.__pokeGridScripts?.ui;
+    if (!bridgeUi?.createWindow) return false;
+    if (usingBridgeUi && uiWindow?.panel?.isConnected) return true;
 
     const existing = document.getElementById(PANEL_ID);
-    if (existing) return;
+    const fallback = existing && !existing.classList.contains('pg-ui-managed') ? existing : null;
+    const originalId = fallback?.id || '';
 
-    const bridgeUi = window.__pokeGridScripts?.ui;
-    if (bridgeUi?.createWindow) {
-      try {
-        uiWindow = bridgeUi.createWindow({
-          id: 'boss-damage-meter',
-          domId: PANEL_ID,
-          title: '⚔️ Boss Damage Meter',
-          subtitle: 'Esperando Boss',
-          width: 460,
-          minWidth: 380,
-          minHeight: 210,
-          resizable: true,
-          movable: true,
-          minimizable: true,
-          maximizable: true,
-          closable: false,
-          rememberLayout: true,
-          defaultOpacity: 86,
-          bodyClass: 'pg-bdm-body'
-        });
-        uiWindow.body.setAttribute('data-body', '');
-        uiWindow.subtitleElement.setAttribute('data-boss-title', '');
-        usingBridgeUi = true;
-        return;
-      } catch (error) {
-        console.warn('[Boss Damage Meter] UI Core no disponible; usando interfaz propia.', error);
-        uiWindow = null;
-        usingBridgeUi = false;
-      }
+    if (fallback) fallback.id = `${PANEL_ID}-fallback-upgrading`;
+
+    try {
+      uiWindow = bridgeUi.createWindow({
+        id: 'boss-damage-meter',
+        domId: PANEL_ID,
+        title: '⚔️ Boss Damage Meter',
+        subtitle: run?.bossName || 'Esperando Boss',
+        width: layout?.width || 460,
+        height: layout?.height || undefined,
+        left: layout?.left,
+        top: layout?.top,
+        minWidth: 380,
+        minHeight: 210,
+        resizable: true,
+        movable: true,
+        minimizable: true,
+        maximizable: true,
+        closable: false,
+        rememberLayout: true,
+        defaultOpacity: 86,
+        bodyClass: 'pg-bdm-body'
+      });
+      uiWindow.body.setAttribute('data-body', '');
+      uiWindow.subtitleElement.setAttribute('data-boss-title', '');
+      usingBridgeUi = true;
+
+      if (fallback) fallback.remove();
+      if (shouldOpen) uiWindow.open();
+
+      render();
+      console.info('[Boss Damage Meter] Interfaz actualizada dinámicamente a Bridge UI Core.');
+      return true;
+    } catch (error) {
+      if (fallback && fallback.isConnected) fallback.id = originalId;
+      uiWindow = null;
+      usingBridgeUi = false;
+      console.warn('[Boss Damage Meter] UI Core todavía no está disponible; se mantiene la interfaz propia.', error);
+      return false;
     }
+  }
+
+  function upgradeUiCoreIfAvailable() {
+    if (usingBridgeUi && uiWindow?.panel?.isConnected) return true;
+    const bridgeUi = window.__pokeGridScripts?.ui;
+    if (!bridgeUi?.createWindow) return false;
+
+    const existing = document.getElementById(PANEL_ID);
+    if (existing?.classList.contains('pg-ui-managed')) {
+      uiWindow = bridgeUi.getWindow?.('boss-damage-meter') || null;
+      usingBridgeUi = Boolean(uiWindow);
+      return usingBridgeUi;
+    }
+
+    let layout = null;
+    let shouldOpen = false;
+    if (existing) {
+      const rect = existing.getBoundingClientRect();
+      layout = {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height
+      };
+      shouldOpen = !existing.hidden;
+    }
+
+    return createBridgeUiWindow(layout, shouldOpen);
+  }
+
+  function ensureFallbackUi() {
+    const existing = document.getElementById(PANEL_ID);
+    if (existing) return existing;
 
     const panel = document.createElement('section');
     panel.id = PANEL_ID;
@@ -668,8 +714,15 @@
       event.preventDefault();
       toggleMaximize(panel);
     });
+    return panel;
   }
 
+  function ensureUi() {
+    ensureStyles();
+
+    if (upgradeUiCoreIfAvailable()) return;
+    ensureFallbackUi();
+  }
   function openPanel(force = false) {
     ensureUi();
     const panel = document.getElementById(PANEL_ID);
@@ -876,6 +929,11 @@
   function state() {
     return {
       version: VERSION,
+      ui: {
+        bridgeUiAvailable: Boolean(window.__pokeGridScripts?.ui?.createWindow),
+        usingBridgeUi,
+        opacity: usingBridgeUi && uiWindow ? uiWindow.getOpacity() : null
+      },
       detection: {
         directBossField: true,
         bossDefinitionsReady: arenaToBoss.size > 0,
@@ -999,6 +1057,7 @@
 
   setInterval(() => {
     attachSocket();
+    upgradeUiCoreIfAvailable();
     inspectCurrentGameState();
     connectHealth();
   }, SOCKET_REATTACH_MS);
@@ -1011,5 +1070,5 @@
   setInterval(() => refreshBossDefinitions().catch(() => {}), BOSS_REFRESH_MS);
   setInterval(heartbeat, 10000);
 
-  console.info('[Boss Damage Meter] v1.0.4 cargado · primera ventana migrada a Bridge UI Core con opacidad persistente.');
+  console.info('[Boss Damage Meter] v1.0.5 cargado · migración dinámica a Bridge UI Core aunque el Bridge cargue después.');
 })();
