@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.18
+// @version      1.1.19
 // @description  Recomendador, No capturados, Item Finder, supervisor e histórico unificados con VIP y bonus diario normalizados.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1118) return;
-  window.__pgHuntIntelligenceCoreV1118 = true;
+  if (window.__pgHuntIntelligenceCoreV1119) return;
+  window.__pgHuntIntelligenceCoreV1119 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -680,8 +680,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1118) return;
-  window.__pgHuntIntelligenceItemCoreV1118 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1119) return;
+  window.__pgHuntIntelligenceItemCoreV1119 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1165,8 +1165,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1118) return;
-  window.__pgHuntIntelligenceEngineV1118 = true;
+  if (window.__pgHuntIntelligenceEngineV1119) return;
+  window.__pgHuntIntelligenceEngineV1119 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2240,14 +2240,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.18 cargado: Hunts usan histórico real o PIWTools, con peso de drops raros.');
+  console.info('[Hunt Intelligence] Motor v1.1.19 cargado: Hunts usan histórico real o PIWTools, con peso de drops raros.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1118) return;
-  window.__pgHuntIntelligenceSupervisorV1118 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1119) return;
+  window.__pgHuntIntelligenceSupervisorV1119 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -2883,13 +2883,13 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.18',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    version:'1.1.19',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.18',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.19',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.18',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.19',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   migrateLegacy();
@@ -2898,13 +2898,13 @@
   restartSampleCheckpoint();
   startHistoryPokemonWatcher();
   setTimeout(()=>refresh(false),1200);
-  console.info('[Hunt Intelligence] Supervisor unificado v1.1.18 cargado: muestras de 30 min con checkpoint persistente cada 2 s.');
+  console.info('[Hunt Intelligence] Supervisor unificado v1.1.19 cargado: histórico robusto + UI Core con opacidad persistente.');
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1118) return;
-  window.__pgHuntIntelligenceUiV1118 = true;
+  if (window.__pgHuntIntelligenceUiV1119) return;
+  window.__pgHuntIntelligenceUiV1119 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -2923,6 +2923,10 @@
   let pokedexCacheAt = 0;
   let busy = false;
   let suppressMapAutoOpenUntil = 0;
+  const BRIDGE_UI_ID = 'hunt-intelligence';
+  let uiWindow = null;
+  let usingBridgeUi = false;
+  let uiUpgradeBusy = false;
 
   const H = () => window.__PGUnifiedHuntCore;
   const I = () => window.__PGUnifiedItemCore;
@@ -2945,7 +2949,7 @@
       #${BUTTON_ID}{position:fixed;right:14px;bottom:48px;z-index:99980;border:1px solid #3a4556;border-radius:999px;background:#111a27;color:#fff;width:44px;height:44px;display:grid;place-items:center;padding:0;font:900 20px/1 system-ui;box-shadow:0 7px 22px #0009;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
       #${BUTTON_ID}:hover{background:#1c293b}
       #${BUTTON_ID}[data-dragging="1"]{cursor:grabbing;background:#263a55;box-shadow:0 11px 30px #000c}
-      #${PANEL_ID}{position:fixed;inset:0;z-index:99990;background:transparent;pointer-events:none;font-family:system-ui;color:#e8edf5}
+      #${PANEL_ID}:not(.pg-ui-managed){position:fixed;inset:0;z-index:99990;background:transparent;pointer-events:none;font-family:system-ui;color:#e8edf5}
       #${PANEL_ID} .pg-u-card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(790px,96vw);height:min(720px,91vh);min-width:360px;min-height:220px;max-width:98vw;max-height:96vh;overflow:auto;resize:both;pointer-events:auto;background:#0d131c;border:1px solid #354052;border-radius:14px;box-shadow:0 18px 60px #000d}
       #${PANEL_ID} .pg-u-card.collapsed{width:min(390px,94vw)!important;height:auto!important;min-width:280px!important;min-height:0!important;resize:none!important;overflow:hidden!important}
       #${PANEL_ID} .pg-u-card.collapsed .pg-u-tabs,#${PANEL_ID} .pg-u-card.collapsed .pg-u-body,#${PANEL_ID} .pg-u-card.collapsed .pg-u-mode-group,#${PANEL_ID} .pg-u-card.collapsed [data-refresh]{display:none!important}
@@ -2953,8 +2957,8 @@
       #${PANEL_ID} .pg-u-head:active{cursor:grabbing}
       #${PANEL_ID} .pg-u-head button,#${PANEL_ID} .pg-u-head select{cursor:pointer;touch-action:manipulation}
       #${PANEL_ID} .pg-u-title{font-weight:850;font-size:15px;margin-right:auto;white-space:nowrap}
-      #${PANEL_ID} button,#${PANEL_ID} select,#${PANEL_ID} input{background:#182232;color:#edf3fb;border:1px solid #35445a;border-radius:7px;padding:7px 9px;font:650 11px system-ui}
-      #${PANEL_ID} button{cursor:pointer}
+      #${PANEL_ID} .pg-u-card button,#${PANEL_ID} .pg-u-card select,#${PANEL_ID} .pg-u-card input{background:#182232;color:#edf3fb;border:1px solid #35445a;border-radius:7px;padding:7px 9px;font:650 11px system-ui}
+      #${PANEL_ID} .pg-u-card button{cursor:pointer}
       #${PANEL_ID} .pg-u-tabs{position:sticky;top:48px;z-index:4;display:flex;background:#0f1722;border-bottom:1px solid #283548;padding:7px 10px 0;gap:5px}
       #${PANEL_ID} .pg-u-tab{border-radius:8px 8px 0 0;padding:8px 16px;background:#151f2d;color:#8d9bae;border-bottom-color:#283548}
       #${PANEL_ID} .pg-u-tab.on{background:#23324a;color:#fff;border-color:#48617f;border-bottom-color:#23324a}
@@ -3011,6 +3015,71 @@
       #${PANEL_ID} .pg-u-empty{padding:30px;text-align:center;color:#9ba8ba;line-height:1.6}
       #${TOAST_ID}{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:100050;max-width:min(620px,92vw);background:#101925;color:#eef5ff;border:1px solid #42536c;border-radius:10px;padding:10px 14px;font:650 12px system-ui;box-shadow:0 10px 35px #000c;opacity:0;pointer-events:none;transition:opacity .18s}
       #${TOAST_ID}.show{opacity:1}#${TOAST_ID}.ok{border-color:#368551}#${TOAST_ID}.bad{border-color:#a54343}
+
+      /* Bridge UI Core v1: Hunt Intelligence conserva su contenido, pero la ventana exterior
+         pasa a compartir mover/resize/minimizar/maximizar/layout/opacidad con el resto. */
+      #${PANEL_ID}.pg-ui-managed{font-family:system-ui;color:#e8edf5}
+      #${PANEL_ID}.pg-ui-managed>.pg-ui-body{min-height:100%;overflow:visible}
+      #${PANEL_ID}.pg-ui-managed .pg-u-card{
+        position:static;left:auto;top:auto;transform:none;width:auto;height:auto;
+        min-width:0;min-height:0;max-width:none;max-height:none;overflow:visible;resize:none;
+        pointer-events:auto;background:transparent;border:0;border-radius:0;box-shadow:none
+      }
+      #${PANEL_ID}.pg-ui-managed .pg-u-card.collapsed{
+        width:auto!important;height:auto!important;min-width:0!important;min-height:0!important;
+        resize:none!important;overflow:visible!important
+      }
+      #${PANEL_ID}.pg-ui-managed .pg-u-card.collapsed .pg-u-tabs,
+      #${PANEL_ID}.pg-ui-managed .pg-u-card.collapsed .pg-u-body,
+      #${PANEL_ID}.pg-ui-managed .pg-u-card.collapsed .pg-u-mode-group,
+      #${PANEL_ID}.pg-ui-managed .pg-u-card.collapsed [data-refresh]{display:initial!important}
+      #${PANEL_ID}.pg-ui-managed .pg-u-head{
+        position:sticky;top:45px;z-index:12;justify-content:flex-end;cursor:default;
+        background:rgba(17,25,37,var(--pg-ui-card-opacity,.82))
+      }
+      #${PANEL_ID}.pg-ui-managed .pg-u-head:active{cursor:default}
+      #${PANEL_ID}.pg-ui-managed .pg-u-title,
+      #${PANEL_ID}.pg-ui-managed [data-panel-collapse],
+      #${PANEL_ID}.pg-ui-managed [data-close]{display:none!important}
+      #${PANEL_ID}.pg-ui-managed .pg-u-tabs{
+        top:87px;background:rgba(15,23,34,var(--pg-ui-card-opacity,.82))
+      }
+      #${PANEL_ID}.pg-ui-managed .pg-u-sourcebox,
+      #${PANEL_ID}.pg-ui-managed .pg-u-mode-group,
+      #${PANEL_ID}.pg-ui-managed .pg-u-settings,
+      #${PANEL_ID}.pg-ui-managed .pg-u-caught-summary,
+      #${PANEL_ID}.pg-ui-managed .pg-hi-card,
+      #${PANEL_ID}.pg-ui-managed .pg-hi-settings>div,
+      #${PANEL_ID}.pg-ui-managed .pg-hi-history-row{
+        background-color:rgba(16,25,37,var(--pg-ui-card-opacity,.82))!important
+      }
+      #${PANEL_ID}.pg-ui-managed .pg-u-daily-menu{
+        background:rgba(12,19,29,var(--pg-ui-opacity,.90))
+      }
+      #${PANEL_ID}.pg-ui-managed .pg-hi-hero{
+        background:linear-gradient(90deg,
+          rgba(17,26,35,var(--pg-ui-card-opacity,.82)),
+          rgba(13,19,28,var(--pg-ui-soft-opacity,.68)))
+      }
+      #${PANEL_ID}.pg-ui-managed .pg-u-hero{
+        background:linear-gradient(90deg,
+          rgba(20,44,26,var(--pg-ui-card-opacity,.82)),
+          rgba(17,23,32,var(--pg-ui-soft-opacity,.68)))
+      }
+      #${PANEL_ID}.pg-ui-managed .pg-u-row.best{
+        background:linear-gradient(90deg,
+          rgba(23,50,31,var(--pg-ui-card-opacity,.82)),
+          rgba(13,19,28,var(--pg-ui-soft-opacity,.68)))
+      }
+      #${PANEL_ID}.pg-ui-managed>.pg-ui-header .pg-ui-opacity input[type="range"]{
+        width:76px;height:16px;margin:0;padding:0;border:0;background:transparent;
+        border-radius:0;cursor:pointer
+      }
+      #${PANEL_ID}.pg-ui-managed>.pg-ui-header .pg-ui-button{
+        border:1px solid #4b607a;background:rgba(24,36,56,.88);color:#f4f8ff;
+        border-radius:7px;min-width:29px;height:27px;padding:0 7px;font:800 12px system-ui
+      }
+
       @media(max-width:700px){#${PANEL_ID} .pg-u-sourcebox{grid-template-columns:1fr}.pg-u-daily{white-space:normal;flex-wrap:wrap}#${PANEL_ID} .pg-u-table-head,#${PANEL_ID} .pg-u-row{grid-template-columns:28px 1fr 78px 78px 78px}#${PANEL_ID} .hide-mobile{display:none}#${PANEL_ID} .pg-u-settings{grid-template-columns:1fr}#${PANEL_ID} .pg-u-tabs{top:47px}#${PANEL_ID} .pg-hi-grid{grid-template-columns:1fr}#${PANEL_ID} .pg-hi-hero{grid-template-columns:1fr 1fr}#${PANEL_ID} .pg-hi-history-head{display:none}#${PANEL_ID} .pg-hi-history-row{grid-template-columns:1fr 70px 44px}#${PANEL_ID} .pg-hi-history-name{grid-column:1/-1}}
     `;
     document.head.appendChild(style);
@@ -3057,6 +3126,7 @@
   }
 
   function installPanelInteractions(overlay) {
+    if (overlay?.classList?.contains('pg-ui-managed')) return;
     const card=overlay.querySelector('.pg-u-card'),head=overlay.querySelector('.pg-u-head');
     if(!card||!head)return;
     const saved=readPanelLayout();
@@ -3086,8 +3156,78 @@
     window.addEventListener('resize',()=>{clampPanel(card);savePanelLayout(card);},{once:true});
   }
 
+  function tabUiLabel() {
+    return ({
+      hunt: 'Hunts',
+      notcaught: 'No capturados',
+      item: 'Items',
+      performance: 'Rendimiento',
+      history: 'Histórico'
+    })[activeTab] || 'Hunts';
+  }
+
+  function destroyBridgeUiWindow() {
+    if (!uiWindow) return false;
+    try { uiWindow.destroy?.(); } catch {
+      try { uiWindow.panel?.remove?.(); } catch {}
+    }
+    uiWindow = null;
+    usingBridgeUi = false;
+    return true;
+  }
+
+  function createBridgeUiWindow() {
+    const bridgeUi = window.__pokeGridScripts?.ui;
+    if (!bridgeUi?.createWindow || !document.body) return null;
+
+    const existing = document.getElementById(PANEL_ID);
+    if (existing && !existing.classList.contains('pg-ui-managed')) {
+      const card = existing.querySelector('.pg-u-card');
+      if (card) {
+        savePanelLayout(card);
+        try { card.__pgResizeObserver?.disconnect?.(); } catch {}
+      }
+      existing.remove();
+    }
+
+    const legacy = readPanelLayout();
+    try {
+      uiWindow = bridgeUi.createWindow({
+        id: BRIDGE_UI_ID,
+        domId: PANEL_ID,
+        title: '🧠 Hunt Intelligence',
+        subtitle: tabUiLabel(),
+        width: legacy?.width || 790,
+        height: legacy?.height || 720,
+        left: legacy?.left,
+        top: legacy?.top,
+        minWidth: 360,
+        minHeight: 220,
+        movable: true,
+        resizable: true,
+        minimizable: true,
+        maximizable: true,
+        closable: true,
+        rememberLayout: true,
+        defaultOpacity: 94,
+        bodyClass: 'pg-hunt-intelligence-ui-body'
+      });
+      usingBridgeUi = Boolean(uiWindow);
+      return uiWindow;
+    } catch (error) {
+      console.warn('[Hunt Intelligence] Bridge UI Core no disponible; se mantiene la interfaz propia.', error);
+      uiWindow = null;
+      usingBridgeUi = false;
+      return null;
+    }
+  }
+
   function closePanel() {
     const panel=document.getElementById(PANEL_ID),card=panel?.querySelector('.pg-u-card');
+    if (panel?.classList?.contains('pg-ui-managed') || (usingBridgeUi && uiWindow)) {
+      destroyBridgeUiWindow();
+      return;
+    }
     if(card){savePanelLayout(card);try{card.__pgResizeObserver?.disconnect?.();}catch{}}
     panel?.remove();
   }
@@ -3095,20 +3235,39 @@
   function shell(bodyHtml, options = {}) {
     closePanel();
     ensureStyles();
-    const overlay = document.createElement('div');
-    overlay.id = PANEL_ID;
-    overlay.innerHTML = `
-      <div class="pg-u-card ${panelCollapsed?'collapsed':''}">
+
+    let overlay = null;
+    const managed = createBridgeUiWindow();
+
+    const cardHtml = `
+      <div class="pg-u-card ${managed ? '' : (panelCollapsed?'collapsed':'')}">
         <div class="pg-u-head">
           <span class="pg-u-title">🧠 Hunt Intelligence</span>
           ${activeTab === 'hunt' ? modeControlHtml(H()?.getConfig?.()?.mode || 'xp') : ''}
-          <button data-refresh title="Actualizar datos">↻</button><button data-panel-collapse title="${panelCollapsed?'Desplegar':'Plegar'} Hunt Intelligence">${panelCollapsed?'▾':'▴'}</button><button data-close>✕</button>
+          <button data-refresh title="Actualizar datos">↻</button>
+          <button data-panel-collapse title="${panelCollapsed?'Desplegar':'Plegar'} Hunt Intelligence">${panelCollapsed?'▾':'▴'}</button>
+          <button data-close>✕</button>
         </div>
         <div class="pg-u-tabs"><button class="pg-u-tab ${activeTab === 'hunt' ? 'on' : ''}" data-tab="hunt">Hunts</button><button class="pg-u-tab ${activeTab === 'notcaught' ? 'on' : ''}" data-tab="notcaught">No capturados</button><button class="pg-u-tab ${activeTab === 'item' ? 'on' : ''}" data-tab="item">Items</button><button class="pg-u-tab ${activeTab === 'performance' ? 'on' : ''}" data-tab="performance">Rendimiento</button><button class="pg-u-tab ${activeTab === 'history' ? 'on' : ''}" data-tab="history">Histórico</button></div>
         <div class="pg-u-body">${bodyHtml}</div>
       </div>`;
-    document.body.appendChild(overlay);
-    installPanelInteractions(overlay);
+
+    if (managed) {
+      overlay = managed.panel;
+      managed.setSubtitle(tabUiLabel());
+      managed.body.innerHTML = cardHtml;
+      managed.open();
+
+      const requestedCollapsed = panelCollapsed;
+      panelCollapsed = false;
+      managed.setMinimized(requestedCollapsed);
+    } else {
+      overlay = document.createElement('div');
+      overlay.id = PANEL_ID;
+      overlay.innerHTML = cardHtml;
+      document.body.appendChild(overlay);
+      installPanelInteractions(overlay);
+    }
 
     // El juego y PokeGrid pueden tener manejadores globales de puntero. Estos controles
     // se aíslan en fase de burbuja sin cancelar su acción predeterminada.
@@ -3120,7 +3279,12 @@
 
     overlay.addEventListener('click', event => {
       const collapseButton=event.target.closest('[data-panel-collapse]');
-      if(collapseButton){event.preventDefault();event.stopPropagation();setPanelCollapsed(overlay.querySelector('.pg-u-card'),!panelCollapsed);return;}
+      if(collapseButton){
+        event.preventDefault();event.stopPropagation();
+        if (usingBridgeUi && uiWindow) uiWindow.toggleMinimized();
+        else setPanelCollapsed(overlay.querySelector('.pg-u-card'),!panelCollapsed);
+        return;
+      }
       const modeButton = event.target.closest('[data-mode-value]');
       if (modeButton) {
         event.preventDefault();
@@ -4386,6 +4550,15 @@
       if (Date.now() < suppressMapAutoOpenUntil) return;
       if (looksLikeMapButton(event.target)) { setTimeout(openCollapsedFromMap, 250); }
     }, true);
+
+    setInterval(() => {
+      if (uiUpgradeBusy) return;
+      const panel = document.getElementById(PANEL_ID);
+      if (!panel || panel.classList.contains('pg-ui-managed')) return;
+      if (!window.__pokeGridScripts?.ui?.createWindow) return;
+      uiUpgradeBusy = true;
+      Promise.resolve(rerunActivePanel(false)).finally(() => { uiUpgradeBusy = false; });
+    }, 1000);
   }
 
 
@@ -4482,6 +4655,9 @@
         activeTab,
         busy,
         panelOpen: Boolean(panel?.isConnected),
+        uiCore: Boolean(panel?.classList?.contains('pg-ui-managed')),
+        uiCoreVersion: window.__pokeGridScripts?.ui?.version || '',
+        opacity: panel?.classList?.contains('pg-ui-managed') && uiWindow ? uiWindow.getOpacity() : null,
         currentHunt: window.__poke?.ws?.['field-init']?.slug || window.__poke?.lastSlug || '',
         useTM: Boolean(H()?.getConfig?.().useTM),
         vipActive: Boolean(H()?.getConfig?.().vipActive),
@@ -4525,7 +4701,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.18',
+    version: '1.1.19',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -4572,14 +4748,14 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.18',
+      version: '1.1.19',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
       status: 'waiting',
       statusText: 'Preparando motores de cálculo.',
       staleAfterMs: 45000,
-      capabilities: ['piwtools','hunt-ranking','pokedex-not-caught','item-finder','daily-bonus','daily-auto-reset','tm-toggle','vip-toggle','personal-history','personal-ranking']
+      capabilities: ['piwtools','hunt-ranking','pokedex-not-caught','item-finder','daily-bonus','daily-auto-reset','tm-toggle','vip-toggle','personal-history','personal-ranking','bridge-ui-core','persistent-opacity']
     });
     healthClient.registerCommand('open-hunt', () => { activeTab = 'hunt'; loadHunt(false); return { opened: 'hunt' }; }, { label: 'Abrir Hunt Advisor' });
     healthClient.registerCommand('open-not-caught', () => { activeTab = 'notcaught'; loadNotCaught(false); return { opened: 'notcaught' }; }, { label: 'Abrir No capturados' });
@@ -4606,7 +4782,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.18',
+    version: '1.1.19',
     openHunt: () => { activeTab='hunt'; return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; return loadNotCaught(false); },
     openItem: query => { activeTab='item'; return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -4633,5 +4809,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.18 cargado: Mejor general con XP, loot, rareza y oro; histórico o PIWTools sin calibración intermedia.');
+  console.info('[Hunt Intelligence] v1.1.19 cargado: Mejor general con XP, loot, rareza y oro; histórico o PIWTools sin calibración intermedia.');
 })();
