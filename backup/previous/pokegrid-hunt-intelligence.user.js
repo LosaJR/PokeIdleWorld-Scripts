@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.23
+// @version      1.1.24
 // @description  Recomendador, No capturados, Item Finder, supervisor e histórico unificados con VIP y bonus diario normalizados.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1123) return;
-  window.__pgHuntIntelligenceCoreV1123 = true;
+  if (window.__pgHuntIntelligenceCoreV1124) return;
+  window.__pgHuntIntelligenceCoreV1124 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -680,8 +680,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1123) return;
-  window.__pgHuntIntelligenceItemCoreV1123 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1124) return;
+  window.__pgHuntIntelligenceItemCoreV1124 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1165,8 +1165,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1123) return;
-  window.__pgHuntIntelligenceEngineV1123 = true;
+  if (window.__pgHuntIntelligenceEngineV1124) return;
+  window.__pgHuntIntelligenceEngineV1124 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2060,24 +2060,32 @@
     );
   }
 
-  function trainerAccessLevel(lead = null) {
+  function trainerLevelNow() {
     const character = window.__poke?.api?.['/api/characters/me']?.character || {};
-    const trainerLevel = finite(
+    const level = finite(
       character.level,
       character.lvl,
       character.trainerLevel,
       character.characterLevel,
       0
     );
-    if (trainerLevel > 0) return Math.max(1, trainerLevel);
+    return level > 0 ? Math.max(1, level) : 0;
+  }
 
-    // Si /api/characters/me todavía no está en caché, mantenemos un fallback
-    // conservador para no recomendar hunts potencialmente bloqueadas.
-    return Math.max(1, finite(lead?.level, 1));
+  function huntAccessLevel(lead = null) {
+    const pokemonLevel = Math.max(1, finite(lead?.level, 1));
+    const trainerLevel = trainerLevelNow();
+
+    // Regla del juego: el Pokémon no puede entrar en una hunt cuyo nivel sea
+    // superior al suyo. Si conocemos el nivel de la cuenta, se respeta también
+    // como segundo límite de seguridad.
+    return trainerLevel > 0
+      ? Math.min(pokemonLevel, trainerLevel)
+      : pokemonLevel;
   }
 
   function isUnlocked(hunt, lead) {
-    return huntRequiredLevel(hunt) <= trainerAccessLevel(lead);
+    return huntRequiredLevel(hunt) <= huntAccessLevel(lead);
   }
 
   function scoreRows(rows, cfg) {
@@ -2111,7 +2119,8 @@
     const vipActive = getVip();
     const vipMultiplier = vipActive ? VIP_MULT : 1;
     const catchInfo = autoCatchInfo(data);
-    const trainerLevel = trainerAccessLevel(lead);
+    const trainerLevel = trainerLevelNow();
+    const accessLevel = huntAccessLevel(lead);
     const accessibleHunts = data.hunts.filter(hunt => isUnlocked(hunt, lead));
 
     const rows = accessibleHunts.map(hunt => {
@@ -2175,6 +2184,7 @@
     return {
       rows, lead, leadSpecies, catchInfo, captureRate: 0, data, dailyBonus: daily, useTM,
       trainerLevel,
+      accessLevel,
       accessibleHuntsCount: accessibleHunts.length,
       vipActive, vipMultiplier,
       productivity: {
@@ -2257,7 +2267,8 @@
 
     return {
       item, lead, rows, data, dailyBonus: daily, useTM, vipActive,
-      trainerLevel: trainerAccessLevel(lead),
+      trainerLevel: trainerLevelNow(),
+      accessLevel: huntAccessLevel(lead),
       accessibleHuntsCount: data.hunts.filter(hunt => isUnlocked(hunt, lead)).length,
       productivity: {
         source: productivity.source, version: productivity.version,
@@ -2306,14 +2317,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.23 cargado: acceso por nivel del entrenador + simulación con stats actuales del Pokémon.');
+  console.info('[Hunt Intelligence] Motor v1.1.24 cargado: hunts limitadas al nivel actual del Pokémon; simulación por stats conservada.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1123) return;
-  window.__pgHuntIntelligenceSupervisorV1123 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1124) return;
+  window.__pgHuntIntelligenceSupervisorV1124 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -2866,7 +2877,7 @@
       } else {
         // Compatibilidad con una muestra activa creada por la versión anterior:
         // la primera ventana sigue siendo válida para XP/KPH, pero no inventamos
-        // los drops de los minutos anteriores a 1.1.23. Desde aquí empieza una
+        // los drops de los minutos anteriores a 1.1.24. Desde aquí empieza una
         // baseline real para la siguiente ventana completa.
         sample.baseDrops = clone(sample.lastDrops || {});
         sample.lootTrackingStartedAt = boundary;
@@ -3357,13 +3368,13 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.23',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    version:'1.1.24',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.23',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.24',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.23',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.24',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   const historyRecovery = recoverHistoryIfNeeded();
@@ -3374,13 +3385,13 @@
   restartSampleCheckpoint();
   startHistoryPokemonWatcher();
   setTimeout(()=>refresh(false),1200);
-  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.23 cargado: histórico protegido; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
+  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.24 cargado: histórico protegido; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1123) return;
-  window.__pgHuntIntelligenceUiV1123 = true;
+  if (window.__pgHuntIntelligenceUiV1124) return;
+  window.__pgHuntIntelligenceUiV1124 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -4043,12 +4054,12 @@
     const topRows = result.rows.slice(0, clamp(finite(cfg.topN, 8), 3, 20));
     const product = productivityDescription(result.productivity);
     const body = `
-      <div class="pg-u-note"><b>Ranking inteligente:</b> se evalúan todas las hunts desbloqueadas por el <b>nivel del entrenador</b>, aunque el Pokémon activo tenga menos nivel. Para cada hunt se recalculan sus stats actuales, mejor ataque disponible, físico/especial, tipo/efectividad, defensa rival, golpes y kills/h. Al subir nivel o cambiar Atk/Sp.Atk, el ranking se recalcula automáticamente. El histórico solo sustituye a PIWTools cuando corresponde al <b>mismo nivel exacto</b>. Items/h y Raros/h siguen usando loot real de 30 min cuando existe.</div>
+      <div class="pg-u-note"><b>Ranking inteligente:</b> solo se evalúan hunts cuyo nivel sea <b>igual o inferior al nivel actual del Pokémon</b> y que la cuenta pueda utilizar. Dentro de esas hunts, una de nivel inferior puede seguir ganando si ofrece mejor rendimiento. Para cada objetivo se recalculan stats actuales, mejor ataque disponible, físico/especial, tipo/efectividad, defensa rival, golpes y kills/h. Al subir de nivel o cambiar Atk/Sp.Atk, el ranking se recalcula automáticamente. El histórico solo sustituye a PIWTools cuando corresponde al <b>mismo nivel exacto</b>. Items/h y Raros/h siguen usando loot real de 30 min cuando existe.</div>
       <div class="pg-u-sourcebox ${product.tone}">
         <div><b>Fuente de productividad:</b> ${esc(product.text)}<br>${dailyDescription(result.dailyBonus)} · <b>MT:</b> ${cfg.useTM ? 'incluidas' : 'excluidas'} · <b>VIP:</b> ${cfg.vipActive ? 'activo' : 'inactivo'}</div>
         <div class="pg-u-daily">${dailyControlHtml(cfg.dailyType || 'auto', result.dailyBonus)}${tmControlHtml(cfg.useTM)}${vipControlHtml(cfg.vipActive)}</div>
       </div>
-      <div class="pg-u-note">Pokémon activo: <b>${esc(result.lead?.name || 'Primer slot')}</b> Nv. ${fmt(finite(result.lead?.level))} · Entrenador Nv. <b>${fmt(finite(result.trainerLevel))}</b> · Hunts evaluadas: <b>${fmt(finite(result.accessibleHuntsCount))}</b>. ${result.catchInfo.active ? `Auto Catch detectado; ball: ${fmt(result.catchInfo.ballPrice)} gold. La venta de capturas no interviene en este ranking.` : 'Auto Catch no interviene en este ranking.'}</div>
+      <div class="pg-u-note">Pokémon activo: <b>${esc(result.lead?.name || 'Primer slot')}</b> Nv. ${fmt(finite(result.lead?.level))} · Límite de hunt actual: <b>Nv. ${fmt(finite(result.accessLevel, result.lead?.level))}</b> · Hunts evaluadas: <b>${fmt(finite(result.accessibleHuntsCount))}</b>. ${result.catchInfo.active ? `Auto Catch detectado; ball: ${fmt(result.catchInfo.ballPrice)} gold. La venta de capturas no interviene en este ranking.` : 'Auto Catch no interviene en este ranking.'}</div>
       <div class="pg-u-settings" ${cfg.mode === 'general' ? '' : 'style="display:none"'}>
         ${weightControlHtml('xpWeight', 'Peso XP', cfg.xpWeight)}
         ${weightControlHtml('lootWeight', 'Peso loot', cfg.lootWeight)}
@@ -4379,7 +4390,7 @@
 
     const isAccessible = hunt => requiredLevel(hunt) <= Math.max(
       1,
-      finite(huntResult?.trainerLevel, trainerAccessLevel(huntResult?.lead), 1)
+      finite(huntResult?.accessLevel, huntAccessLevel(huntResult?.lead), 1)
     );
 
     /*
@@ -4646,7 +4657,7 @@
         <div><b>Fuente de productividad:</b> ${esc(product.text)}<br>${dailyDescription(result.dailyBonus)} · <b>MT:</b> ${cfg.useTM ? 'incluidas' : 'excluidas'} · <b>VIP:</b> ${cfg.vipActive ? 'activo' : 'inactivo'}</div>
         <div class="pg-u-daily">${dailyControlHtml(cfg.dailyType || 'auto', result.dailyBonus)}${tmControlHtml(cfg.useTM)}${vipControlHtml(cfg.vipActive)}</div>
       </div>
-      <div class="pg-u-note">Pokémon utilizado para calcular la velocidad: <b>${esc(result.lead.name || 'Primer slot')}</b> Nv. ${fmt(finite(result.lead.level))} · Entrenador Nv. <b>${fmt(finite(result.trainerLevel))}</b>. Se consideran todas las hunts desbloqueadas por la cuenta, aunque superen el nivel del Pokémon. ${rateWarning ? 'Algunos drops aparecen sin porcentaje; en esos casos se confirma el drop, pero no se inventa un valor de items/h.' : 'El drop rate del juego se combina con las kills/h calculadas.'}</div>
+      <div class="pg-u-note">Pokémon utilizado para calcular la velocidad: <b>${esc(result.lead.name || 'Primer slot')}</b> Nv. ${fmt(finite(result.lead.level))}. Solo se consideran hunts de nivel <b>≤ ${fmt(finite(result.accessLevel, result.lead.level))}</b>; una hunt inferior puede seguir ser la mejor si compensa por velocidad o drop. ${rateWarning ? 'Algunos drops aparecen sin porcentaje; en esos casos se confirma el drop, pero no se inventa un valor de items/h.' : 'El drop rate del juego se combina con las kills/h calculadas.'}</div>
       ${best ? `<div class="pg-u-hero"><div>Mejor objetivo para <b>${esc(result.item.name)}</b></div><button class="pg-u-target" data-hunt-index="0" data-source="item">${esc(best.hunt.name)}${best.dailyBoosted ? '<span class="pg-u-badge">+20% diario</span>' : ''}</button><div style="margin-top:4px;font-size:11px;color:#a9b7c8">${best.itemsPh !== null ? `${fmt(best.itemsPh, 2)} items/h` : 'Drop confirmado, porcentaje no expuesto'} · ${fmt(best.kph)} kills/h · ${esc(best.source)}</div></div>` : ''}
       <div>${result.rows.slice(0, 12).map((row, index) => `
         <div class="pg-u-row ${index === 0 ? 'best' : ''}">
@@ -5222,7 +5233,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.23',
+    version: '1.1.24',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -5269,14 +5280,14 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.23',
+      version: '1.1.24',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
       status: 'waiting',
       statusText: 'Preparando motores de cálculo.',
       staleAfterMs: 45000,
-      capabilities: ['piwtools','hunt-ranking','trainer-level-access','live-stat-reranking','pokedex-not-caught','item-finder','daily-bonus','daily-auto-reset','tm-toggle','vip-toggle','personal-history','history-backup','leveling-history','personal-ranking','bridge-ui-core','persistent-opacity']
+      capabilities: ['piwtools','hunt-ranking','pokemon-level-hunt-gate','live-stat-reranking','pokedex-not-caught','item-finder','daily-bonus','daily-auto-reset','tm-toggle','vip-toggle','personal-history','history-backup','leveling-history','personal-ranking','bridge-ui-core','persistent-opacity']
     });
     healthClient.registerCommand('open-hunt', () => { activeTab='hunt'; revealManagedPanel({full:true}); loadHunt(false); return {opened:'hunt'}; }, {label:'Abrir Hunt Advisor'});
     healthClient.registerCommand('open-not-caught', () => { activeTab='notcaught'; revealManagedPanel({full:true}); loadNotCaught(false); return {opened:'notcaught'}; }, {label:'Abrir No capturados'});
@@ -5303,7 +5314,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.23',
+    version: '1.1.24',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -5337,5 +5348,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.23 cargado: reapertura UI corregida + histórico protegido durante leveo.');
+  console.info('[Hunt Intelligence] v1.1.24 cargado: límite de hunt corregido; UI, histórico protegido y recálculo por stats conservados.');
 })();
