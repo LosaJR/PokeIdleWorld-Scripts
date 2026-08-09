@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Script Bridge & Health Agent
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.2
+// @version      1.1.3
 // @description  Puente local para que los scripts publiquen estado, métricas, errores y comandos a la interfaz principal de PokeGrid.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,10 +12,10 @@
 
 (() => {
   'use strict';
-  if (window.__pgScriptBridgeV112) return;
-  window.__pgScriptBridgeV112 = true;
+  if (window.__pgScriptBridgeV113) return;
+  window.__pgScriptBridgeV113 = true;
 
-  const BRIDGE_VERSION = '1.1.2';
+  const BRIDGE_VERSION = '1.1.3';
   const API_VERSION = '1.0.0'; // Contrato base compatible; las pruebas son campos aditivos.
   const EVENT_NAME = 'pokegrid-script-health-update';
   const READY_EVENT = 'pokegrid-health-bridge-ready';
@@ -32,6 +32,10 @@
   let lastEmitAt = 0;
   let emitTimer = null;
   const DIAG_CONTAINER_ID = 'pg-bridge-auto-diagnostic-container';
+  const UI_CORE_VERSION = '1.0.0';
+  const UI_STYLE_ID = 'pg-bridge-ui-core-style';
+  const UI_STORAGE_PREFIX = 'pokegrid-ui-core-v1';
+  const uiWindows = new Map();
   const alertedFailures = new Map();
   let lastAutoDiagnostic = null;
 
@@ -549,6 +553,405 @@
     });
   }
 
+  function uiClamp(value, min, max) {
+    return Math.max(min, Math.min(max, Number(value) || 0));
+  }
+
+  function uiStorageKey(id, kind) {
+    return `${UI_STORAGE_PREFIX}:${String(id)}:${kind}`;
+  }
+
+  function uiReadJson(key, fallback = null) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || 'null');
+      return value ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function uiWriteJson(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function uiReadOpacity(id, fallback = 90) {
+    try {
+      const stored = Number(localStorage.getItem(uiStorageKey(id, 'opacity')));
+      return Number.isFinite(stored) ? uiClamp(stored, 0, 100) : uiClamp(fallback, 0, 100);
+    } catch {
+      return uiClamp(fallback, 0, 100);
+    }
+  }
+
+  function uiWriteOpacity(id, value) {
+    try {
+      localStorage.setItem(uiStorageKey(id, 'opacity'), String(uiClamp(value, 0, 100)));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function ensureUiCoreStyles() {
+    if (document.getElementById(UI_STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = UI_STYLE_ID;
+    style.textContent = `
+      .pg-ui-window{
+        --pg-ui-opacity:.90;
+        --pg-ui-head-opacity:.94;
+        --pg-ui-card-opacity:.82;
+        --pg-ui-soft-opacity:.68;
+        position:fixed;z-index:100260;box-sizing:border-box;
+        background:rgba(12,19,29,var(--pg-ui-opacity));
+        color:#edf3fa;border:1px solid rgba(84,105,132,.78);border-radius:13px;
+        box-shadow:0 16px 48px rgba(0,0,0,.62);
+        backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+        font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+        overflow:auto
+      }
+      .pg-ui-window[hidden]{display:none!important}
+      .pg-ui-window.pg-ui-minimized{height:auto!important;min-height:0!important;resize:none!important;overflow:hidden!important}
+      .pg-ui-window.pg-ui-minimized>.pg-ui-body{display:none!important}
+      .pg-ui-window.pg-ui-maximized{
+        left:12px!important;top:12px!important;width:calc(100vw - 24px)!important;height:calc(100vh - 24px)!important;
+        max-width:none!important;max-height:none!important;resize:none!important
+      }
+      .pg-ui-header{
+        position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;
+        padding:9px 10px;background:rgba(17,27,41,var(--pg-ui-head-opacity));
+        border-bottom:1px solid rgba(69,88,113,.80);
+        cursor:grab;user-select:none;touch-action:none
+      }
+      .pg-ui-header:active{cursor:grabbing}
+      .pg-ui-title{font-weight:900;font-size:13px;white-space:nowrap}
+      .pg-ui-subtitle{
+        min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+        color:#b5c0cf;font-size:10px;margin-right:auto
+      }
+      .pg-ui-opacity{
+        display:flex;align-items:center;gap:5px;flex:none;min-width:126px;
+        color:#b9c5d4;font-size:9px;font-weight:800
+      }
+      .pg-ui-opacity input[type="range"]{
+        width:76px;height:16px;margin:0;cursor:pointer;accent-color:#78aee0
+      }
+      .pg-ui-opacity-value{width:30px;text-align:right;font-variant-numeric:tabular-nums}
+      .pg-ui-button{
+        border:1px solid #4b607a;background:rgba(24,36,56,.88);color:#f4f8ff;
+        border-radius:7px;min-width:29px;height:27px;padding:0 7px;
+        font:800 12px system-ui;cursor:pointer;flex:none
+      }
+      .pg-ui-button:hover{background:rgba(38,55,80,.94)}
+      .pg-ui-body{box-sizing:border-box}
+      @media(max-width:700px){
+        .pg-ui-opacity{min-width:104px}
+        .pg-ui-opacity input[type="range"]{width:55px}
+        .pg-ui-subtitle{display:none}
+      }
+    `;
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  function createUiWindow(options = {}) {
+    if (!document.body) throw new Error('UI Core todavía no dispone de document.body.');
+
+    const id = String(options.id || '').trim();
+    if (!/^[a-z0-9][a-z0-9._-]{1,80}$/i.test(id)) throw new Error('UI Core necesita un id estable válido.');
+    const existing = uiWindows.get(id);
+    if (existing && existing.panel?.isConnected) return existing;
+
+    ensureUiCoreStyles();
+
+    const domId = String(options.domId || `pg-ui-${id}`);
+    const layoutKey = uiStorageKey(id, 'layout');
+    const defaultOpacity = uiClamp(options.defaultOpacity ?? 90, 0, 100);
+    const minWidth = Math.max(220, Number(options.minWidth) || 320);
+    const minHeight = Math.max(80, Number(options.minHeight) || 150);
+    const width = Math.max(minWidth, Number(options.width) || 460);
+    const height = options.height == null ? null : Math.max(minHeight, Number(options.height) || minHeight);
+    const movable = options.movable !== false;
+    const resizable = options.resizable !== false;
+    const minimizable = options.minimizable !== false;
+    const maximizable = options.maximizable !== false;
+    const closable = options.closable !== false;
+    const rememberLayout = options.rememberLayout !== false;
+
+    const panel = document.createElement('section');
+    panel.id = domId;
+    panel.className = `pg-ui-window pg-ui-managed${options.className ? ` ${String(options.className)}` : ''}`;
+    panel.hidden = options.hidden !== false;
+    panel.style.width = `${width}px`;
+    panel.style.minWidth = `${minWidth}px`;
+    panel.style.minHeight = `${minHeight}px`;
+    panel.style.maxWidth = '96vw';
+    panel.style.maxHeight = '92vh';
+    panel.style.resize = resizable ? 'both' : 'none';
+    panel.style.left = options.left != null ? `${Number(options.left)}px` : `calc(100vw - ${width + 30}px)`;
+    panel.style.top = options.top != null ? `${Number(options.top)}px` : '72px';
+    if (height != null) panel.style.height = `${height}px`;
+
+    const header = document.createElement('div');
+    header.className = 'pg-ui-header';
+
+    const title = document.createElement('span');
+    title.className = 'pg-ui-title';
+    title.textContent = String(options.title || id);
+
+    const subtitle = document.createElement('span');
+    subtitle.className = 'pg-ui-subtitle';
+    subtitle.textContent = String(options.subtitle || '');
+
+    const opacityWrap = document.createElement('label');
+    opacityWrap.className = 'pg-ui-opacity';
+    opacityWrap.title = 'Opacidad del fondo de esta ventana';
+    const opacitySlider = document.createElement('input');
+    opacitySlider.type = 'range';
+    opacitySlider.min = '0';
+    opacitySlider.max = '100';
+    opacitySlider.step = '1';
+    const opacityValue = document.createElement('span');
+    opacityValue.className = 'pg-ui-opacity-value';
+
+    opacityWrap.append(opacitySlider, opacityValue);
+    header.append(title, subtitle, opacityWrap);
+
+    const minimizeButton = minimizable ? document.createElement('button') : null;
+    if (minimizeButton) {
+      minimizeButton.type = 'button';
+      minimizeButton.className = 'pg-ui-button';
+      minimizeButton.textContent = '—';
+      minimizeButton.title = 'Minimizar';
+      header.appendChild(minimizeButton);
+    }
+
+    const maximizeButton = maximizable ? document.createElement('button') : null;
+    if (maximizeButton) {
+      maximizeButton.type = 'button';
+      maximizeButton.className = 'pg-ui-button';
+      maximizeButton.textContent = '□';
+      maximizeButton.title = 'Maximizar';
+      header.appendChild(maximizeButton);
+    }
+
+    const closeButton = closable ? document.createElement('button') : null;
+    if (closeButton) {
+      closeButton.type = 'button';
+      closeButton.className = 'pg-ui-button';
+      closeButton.textContent = '×';
+      closeButton.title = 'Cerrar';
+      header.appendChild(closeButton);
+    }
+
+    const body = document.createElement('div');
+    body.className = `pg-ui-body${options.bodyClass ? ` ${String(options.bodyClass)}` : ''}`;
+    panel.append(header, body);
+    document.body.appendChild(panel);
+
+    let maximized = false;
+    let layoutBeforeMaximize = null;
+    let drag = null;
+
+    const applyOpacity = value => {
+      const percent = uiClamp(value, 0, 100);
+      const alpha = percent / 100;
+      panel.style.setProperty('--pg-ui-opacity', alpha.toFixed(2));
+      panel.style.setProperty('--pg-ui-head-opacity', uiClamp(alpha + 0.04, 0, 1).toFixed(2));
+      panel.style.setProperty('--pg-ui-card-opacity', uiClamp(alpha * 0.91, 0, 1).toFixed(2));
+      panel.style.setProperty('--pg-ui-soft-opacity', uiClamp(alpha * 0.76, 0, 1).toFixed(2));
+      opacitySlider.value = String(Math.round(percent));
+      opacityValue.textContent = `${Math.round(percent)}%`;
+      uiWriteOpacity(id, percent);
+      return percent;
+    };
+
+    const clampPanel = () => {
+      if (!panel.isConnected || maximized) return;
+      const rect = panel.getBoundingClientRect();
+      const maxLeft = Math.max(4, innerWidth - Math.min(rect.width, innerWidth - 8) - 4);
+      const maxTop = Math.max(4, innerHeight - Math.min(rect.height, innerHeight - 8) - 4);
+      panel.style.left = `${uiClamp(rect.left, 4, maxLeft)}px`;
+      panel.style.top = `${uiClamp(rect.top, 4, maxTop)}px`;
+    };
+
+    const saveLayout = () => {
+      if (!rememberLayout || panel.hidden || maximized || panel.classList.contains('pg-ui-minimized')) return false;
+      const rect = panel.getBoundingClientRect();
+      return uiWriteJson(layoutKey, {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height
+      });
+    };
+
+    const restoreLayout = () => {
+      if (!rememberLayout) return false;
+      const layout = uiReadJson(layoutKey, null);
+      if (!layout || !['left','top','width','height'].every(key => Number.isFinite(Number(layout[key])))) return false;
+      panel.style.left = `${Number(layout.left)}px`;
+      panel.style.top = `${Number(layout.top)}px`;
+      panel.style.width = `${Math.max(minWidth, Number(layout.width))}px`;
+      panel.style.height = `${Math.max(minHeight, Number(layout.height))}px`;
+      requestAnimationFrame(clampPanel);
+      return true;
+    };
+
+    const setMinimized = minimized => {
+      const next = Boolean(minimized);
+      panel.classList.toggle('pg-ui-minimized', next);
+      if (minimizeButton) {
+        minimizeButton.textContent = next ? '▾' : '—';
+        minimizeButton.title = next ? 'Desplegar' : 'Minimizar';
+      }
+      return next;
+    };
+
+    const toggleMaximize = () => {
+      maximized = !maximized;
+      if (maximized) {
+        const rect = panel.getBoundingClientRect();
+        layoutBeforeMaximize = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+        panel.classList.add('pg-ui-maximized');
+        setMinimized(false);
+        if (maximizeButton) {
+          maximizeButton.textContent = '❐';
+          maximizeButton.title = 'Restaurar';
+        }
+      } else {
+        panel.classList.remove('pg-ui-maximized');
+        const layout = layoutBeforeMaximize || uiReadJson(layoutKey, null);
+        if (layout) {
+          panel.style.left = `${Number(layout.left)}px`;
+          panel.style.top = `${Number(layout.top)}px`;
+          panel.style.width = `${Math.max(minWidth, Number(layout.width))}px`;
+          panel.style.height = `${Math.max(minHeight, Number(layout.height))}px`;
+        }
+        if (maximizeButton) {
+          maximizeButton.textContent = '□';
+          maximizeButton.title = 'Maximizar';
+        }
+        clampPanel();
+        saveLayout();
+      }
+      return maximized;
+    };
+
+    if (movable) {
+      header.addEventListener('pointerdown', event => {
+        if (event.button !== 0 || event.target.closest('button,input,label')) return;
+        if (maximized) return;
+        const rect = panel.getBoundingClientRect();
+        drag = {
+          id: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          left: rect.left,
+          top: rect.top
+        };
+        try { header.setPointerCapture(event.pointerId); } catch {}
+      });
+
+      header.addEventListener('pointermove', event => {
+        if (!drag || event.pointerId !== drag.id) return;
+        panel.style.left = `${uiClamp(drag.left + event.clientX - drag.startX, 4, Math.max(4, innerWidth - panel.offsetWidth - 4))}px`;
+        panel.style.top = `${uiClamp(drag.top + event.clientY - drag.startY, 4, Math.max(4, innerHeight - panel.offsetHeight - 4))}px`;
+        event.preventDefault();
+      });
+
+      const finishDrag = event => {
+        if (!drag || (event?.pointerId !== undefined && event.pointerId !== drag.id)) return;
+        drag = null;
+        clampPanel();
+        saveLayout();
+      };
+      header.addEventListener('pointerup', finishDrag);
+      header.addEventListener('pointercancel', finishDrag);
+    }
+
+    opacitySlider.addEventListener('input', () => applyOpacity(opacitySlider.value));
+    minimizeButton?.addEventListener('click', () => setMinimized(!panel.classList.contains('pg-ui-minimized')));
+    maximizeButton?.addEventListener('click', toggleMaximize);
+    closeButton?.addEventListener('click', () => { panel.hidden = true; });
+
+    if (typeof ResizeObserver === 'function') {
+      const observer = new ResizeObserver(() => saveLayout());
+      observer.observe(panel);
+      panel.__pgUiResizeObserver = observer;
+    }
+    const onResize = () => clampPanel();
+    window.addEventListener('resize', onResize);
+
+    applyOpacity(uiReadOpacity(id, defaultOpacity));
+    restoreLayout();
+
+    const controller = Object.freeze({
+      id,
+      panel,
+      header,
+      body,
+      titleElement: title,
+      subtitleElement: subtitle,
+      opacitySlider,
+      open: () => {
+        panel.hidden = false;
+        requestAnimationFrame(clampPanel);
+        return true;
+      },
+      close: () => {
+        panel.hidden = true;
+        return true;
+      },
+      isOpen: () => !panel.hidden,
+      setTitle: value => {
+        title.textContent = String(value ?? '');
+        return title.textContent;
+      },
+      setSubtitle: value => {
+        subtitle.textContent = String(value ?? '');
+        return subtitle.textContent;
+      },
+      setOpacity: value => applyOpacity(value),
+      getOpacity: () => Number(opacitySlider.value),
+      setMinimized,
+      toggleMinimized: () => setMinimized(!panel.classList.contains('pg-ui-minimized')),
+      toggleMaximized: toggleMaximize,
+      saveLayout,
+      restoreLayout,
+      destroy: () => {
+        try { panel.__pgUiResizeObserver?.disconnect(); } catch {}
+        window.removeEventListener('resize', onResize);
+        panel.remove();
+        uiWindows.delete(id);
+        return true;
+      }
+    });
+
+    uiWindows.set(id, controller);
+    return controller;
+  }
+
+  function getUiWindow(id) {
+    return uiWindows.get(String(id)) || null;
+  }
+
+  const uiCore = Object.freeze({
+    version: UI_CORE_VERSION,
+    createWindow: createUiWindow,
+    getWindow: getUiWindow,
+    listWindows: () => [...uiWindows.keys()],
+    getOpacity: id => uiReadOpacity(String(id), 90),
+    setOpacity: (id, value) => {
+      const controller = getUiWindow(id);
+      return controller ? controller.setOpacity(value) : (uiWriteOpacity(String(id), value), uiClamp(value, 0, 100));
+    }
+  });
+
   function getScript(id) {
     const entry = scripts.get(String(id));
     return entry ? publicEntry(entry) : null;
@@ -584,7 +987,8 @@
     getScript,
     listScripts,
     getEnvironment: environmentInfo,
-    sanitize
+    sanitize,
+    ui: uiCore
   });
 
   Object.defineProperty(window, '__pokeGridScripts', {
@@ -604,7 +1008,7 @@
     status: 'ok',
     statusText: 'Puente local disponible.',
     staleAfterMs: 60000,
-    capabilities: ['health', 'metrics', 'errors', 'commands', 'snapshot', 'functional-tests', 'auto-error-diagnostics']
+    capabilities: ['health', 'metrics', 'errors', 'commands', 'snapshot', 'functional-tests', 'auto-error-diagnostics', 'ui-core']
   });
 
   const gameClient = register({
@@ -684,7 +1088,7 @@
   }, { label: 'Obtener pruebas funcionales' });
 
   registerTest('script-bridge', () => ({
-    ok: Boolean(window.__pokeGridScripts?.getSnapshot && scripts.size >= 2),
+    ok: Boolean(window.__pokeGridScripts?.getSnapshot && window.__pokeGridScripts?.ui?.createWindow && scripts.size >= 2),
     registeredScripts: scripts.size,
     commandHandlers: commandHandlers.size,
     testHandlers: testHandlers.size
@@ -713,5 +1117,5 @@
   } catch {}
 
   try { window.dispatchEvent(new CustomEvent(READY_EVENT, { detail: { apiVersion: API_VERSION, bridgeVersion: BRIDGE_VERSION } })); } catch {}
-  console.info('[PokeGrid Script Bridge] v1.1.2 cargado: diagnóstico visual automático al entrar un script en error.');
+  console.info('[PokeGrid Script Bridge] v1.1.3 cargado: UI Core v1 con layout y opacidad persistentes por script.');
 })();

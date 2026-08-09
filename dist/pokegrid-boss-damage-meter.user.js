@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Boss Damage Meter
 // @namespace    ivan-pokegrid-tools
-// @version      1.0.3
+// @version      1.0.4
 // @description  Medidor automático de daño por Pokémon para cada run de Boss. Top 6 en tiempo real, daño efectivo por pérdida real de HP y reset por run.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,10 +12,10 @@
 
 (() => {
   'use strict';
-  if (window.__pgBossDamageMeterV103) return;
-  window.__pgBossDamageMeterV103 = true;
+  if (window.__pgBossDamageMeterV104) return;
+  window.__pgBossDamageMeterV104 = true;
 
-  const VERSION = '1.0.3';
+  const VERSION = '1.0.4';
   const PANEL_ID = 'pg-boss-damage-meter-panel';
   const STYLE_ID = 'pg-boss-damage-meter-style';
   const LAYOUT_KEY = 'pg-boss-damage-meter-v1:layout';
@@ -39,6 +39,8 @@
   let maximized = false;
   let layoutBeforeMaximize = null;
   let healthClient = null;
+  let uiWindow = null;
+  let usingBridgeUi = false;
 
   const finite = (...values) => {
     for (const value of values) {
@@ -504,7 +506,7 @@
     const style = document.createElement('style');
     style.id = STYLE_ID;
     style.textContent = `
-      #${PANEL_ID}{
+      #${PANEL_ID}:not(.pg-ui-managed){
         position:fixed;z-index:100290;left:calc(100vw - 490px);top:80px;
         width:460px;height:auto;min-width:380px;min-height:210px;max-width:96vw;max-height:92vh;
         resize:both;overflow:auto;background:rgba(12,19,29,.86);color:#f2f6fb;
@@ -558,7 +560,7 @@
         display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:10px
       }
       #${PANEL_ID} .pg-bdm-summary>div{
-        padding:8px;border:1px solid #34465d;border-radius:9px;background:rgba(16,25,35,.78);text-align:center
+        padding:8px;border:1px solid #34465d;border-radius:9px;background:rgba(16,25,35,var(--pg-ui-card-opacity,.78));text-align:center
       }
       #${PANEL_ID} .pg-bdm-summary b{display:block;font-size:13px;color:#f3f7fc}
       #${PANEL_ID} .pg-bdm-summary small{display:block;margin-top:2px;color:#8190a5;font-size:9px}
@@ -573,7 +575,7 @@
       #${PANEL_ID} .pg-bdm-table-head>span:not(:nth-child(2)){text-align:right}
       #${PANEL_ID} .pg-bdm-row{
         position:relative;overflow:hidden;padding:8px 7px;margin-bottom:5px;
-        border:1px solid #34465d;border-radius:9px;background:rgba(16,25,35,.80);font-size:10px
+        border:1px solid #34465d;border-radius:9px;background:rgba(16,25,35,var(--pg-ui-card-opacity,.80));font-size:10px
       }
       #${PANEL_ID} .pg-bdm-row.active{border-color:#4f83b9;box-shadow:inset 0 0 0 1px #315b83}
       #${PANEL_ID} .pg-bdm-row.ko{opacity:.72}
@@ -604,7 +606,39 @@
   function ensureUi() {
     ensureStyles();
 
-    if (document.getElementById(PANEL_ID)) return;
+    const existing = document.getElementById(PANEL_ID);
+    if (existing) return;
+
+    const bridgeUi = window.__pokeGridScripts?.ui;
+    if (bridgeUi?.createWindow) {
+      try {
+        uiWindow = bridgeUi.createWindow({
+          id: 'boss-damage-meter',
+          domId: PANEL_ID,
+          title: '⚔️ Boss Damage Meter',
+          subtitle: 'Esperando Boss',
+          width: 460,
+          minWidth: 380,
+          minHeight: 210,
+          resizable: true,
+          movable: true,
+          minimizable: true,
+          maximizable: true,
+          closable: false,
+          rememberLayout: true,
+          defaultOpacity: 86,
+          bodyClass: 'pg-bdm-body'
+        });
+        uiWindow.body.setAttribute('data-body', '');
+        uiWindow.subtitleElement.setAttribute('data-boss-title', '');
+        usingBridgeUi = true;
+        return;
+      } catch (error) {
+        console.warn('[Boss Damage Meter] UI Core no disponible; usando interfaz propia.', error);
+        uiWindow = null;
+        usingBridgeUi = false;
+      }
+    }
 
     const panel = document.createElement('section');
     panel.id = PANEL_ID;
@@ -641,7 +675,8 @@
     const panel = document.getElementById(PANEL_ID);
     if (!panel) return;
     if (!force && panelClosedForRun) return;
-    panel.hidden = false;
+    if (usingBridgeUi && uiWindow) uiWindow.open();
+    else panel.hidden = false;
     render();
   }
 
@@ -891,7 +926,9 @@
           bossHp: finite(run?.bossHp),
           bossMaxHp: finite(run?.maxBossHp),
           totalDamage: finite(run?.totalDamage),
-          teamRows: run?.team?.length || 0
+          teamRows: run?.team?.length || 0,
+          uiCore: usingBridgeUi,
+          opacity: usingBridgeUi && uiWindow ? uiWindow.getOpacity() : 86
         }
       });
     } catch {}
@@ -912,7 +949,7 @@
         status: 'waiting',
         statusText: 'Esperando entrada a un Boss.',
         staleAfterMs: 45000,
-        capabilities: ['boss-auto-detection', 'per-run-damage', 'team-top6', 'effective-hp-delta']
+        capabilities: ['boss-auto-detection', 'per-run-damage', 'team-top6', 'effective-hp-delta', 'bridge-ui-core', 'persistent-opacity']
       });
       healthClient.registerCommand('open', () => {
         panelClosedForRun = false;
@@ -938,7 +975,8 @@
     },
     close: () => {
       const panel = document.getElementById(PANEL_ID);
-      if (panel) panel.hidden = true;
+      if (usingBridgeUi && uiWindow) uiWindow.close();
+      else if (panel) panel.hidden = true;
       panelClosedForRun = true;
       return true;
     },
@@ -973,5 +1011,5 @@
   setInterval(() => refreshBossDefinitions().catch(() => {}), BOSS_REFRESH_MS);
   setInterval(heartbeat, 10000);
 
-  console.info('[Boss Damage Meter] v1.0.3 cargado · barras de daño relativas al líder en tiempo real.');
+  console.info('[Boss Damage Meter] v1.0.4 cargado · primera ventana migrada a Bridge UI Core con opacidad persistente.');
 })();
