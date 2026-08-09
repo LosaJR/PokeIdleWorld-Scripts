@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Script Bridge & Health Agent
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.3
+// @version      1.1.4
 // @description  Puente local para que los scripts publiquen estado, métricas, errores y comandos a la interfaz principal de PokeGrid.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,10 +12,10 @@
 
 (() => {
   'use strict';
-  if (window.__pgScriptBridgeV113) return;
-  window.__pgScriptBridgeV113 = true;
+  if (window.__pgScriptBridgeV114) return;
+  window.__pgScriptBridgeV114 = true;
 
-  const BRIDGE_VERSION = '1.1.3';
+  const BRIDGE_VERSION = '1.1.4';
   const API_VERSION = '1.0.0'; // Contrato base compatible; las pruebas son campos aditivos.
   const EVENT_NAME = 'pokegrid-script-health-update';
   const READY_EVENT = 'pokegrid-health-bridge-ready';
@@ -37,6 +37,7 @@
   const UI_STORAGE_PREFIX = 'pokegrid-ui-core-v1';
   const uiWindows = new Map();
   const alertedFailures = new Map();
+  const diagnosticCards = new Map();
   let lastAutoDiagnostic = null;
 
   const now = () => Date.now();
@@ -203,6 +204,29 @@
     return container;
   }
 
+  function dismissAutoDiagnostic(id, { recovered = false } = {}) {
+    const key = String(id || '');
+    const card = diagnosticCards.get(key);
+    diagnosticCards.delete(key);
+    if (!card?.isConnected) return false;
+
+    if (recovered) {
+      card.style.transition = 'opacity .22s ease, transform .22s ease';
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(-6px)';
+      setTimeout(() => {
+        try { card.remove(); } catch {}
+        const container = document.getElementById(DIAG_CONTAINER_ID);
+        if (container && !container.children.length) container.remove();
+      }, 240);
+    } else {
+      card.remove();
+      const container = document.getElementById(DIAG_CONTAINER_ID);
+      if (container && !container.children.length) container.remove();
+    }
+    return true;
+  }
+
   function showAutoDiagnostic(entry) {
     if (!entry || entry.status !== 'error') return;
     if (!document.body) {
@@ -213,6 +237,7 @@
       return;
     }
 
+    dismissAutoDiagnostic(entry.id);
     const diagnostic = buildAutoDiagnostic(entry);
     lastAutoDiagnostic = diagnostic;
     const failed = diagnostic.failedDependencies || [];
@@ -251,7 +276,7 @@
       </div>
     `;
 
-    card.querySelector('[data-close]')?.addEventListener('click', () => card.remove());
+    card.querySelector('[data-close]')?.addEventListener('click', () => dismissAutoDiagnostic(entry.id));
     card.querySelector('[data-copy]')?.addEventListener('click', async event => {
       const button = event.currentTarget;
       const copied = await copyDiagnosticText(diagnostic);
@@ -262,13 +287,20 @@
     });
 
     container.prepend(card);
-    while (container.children.length > 3) container.lastElementChild?.remove();
+    diagnosticCards.set(String(entry.id), card);
+    while (container.children.length > 3) {
+      const removed = container.lastElementChild;
+      const removedId = [...diagnosticCards.entries()].find(([, node]) => node === removed)?.[0];
+      if (removedId) diagnosticCards.delete(removedId);
+      removed?.remove();
+    }
   }
 
   function evaluateAutoDiagnostic(entry) {
     if (!entry) return;
     if (entry.status !== 'error') {
       alertedFailures.delete(entry.id);
+      dismissAutoDiagnostic(entry.id, { recovered: true });
       return;
     }
     const failed = failedDependencies(entry).map(row => row.key).sort().join(',');
@@ -1117,5 +1149,5 @@
   } catch {}
 
   try { window.dispatchEvent(new CustomEvent(READY_EVENT, { detail: { apiVersion: API_VERSION, bridgeVersion: BRIDGE_VERSION } })); } catch {}
-  console.info('[PokeGrid Script Bridge] v1.1.3 cargado: UI Core v1 con layout y opacidad persistentes por script.');
+  console.info('[PokeGrid Script Bridge] v1.1.4 cargado: UI Core + diagnósticos que se cierran automáticamente al recuperarse.');
 })();

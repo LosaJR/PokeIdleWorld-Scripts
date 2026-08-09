@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Script Bridge & Health Agent
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.4
+// @version      1.1.5
 // @description  Puente local para que los scripts publiquen estado, métricas, errores y comandos a la interfaz principal de PokeGrid.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,10 +12,10 @@
 
 (() => {
   'use strict';
-  if (window.__pgScriptBridgeV114) return;
-  window.__pgScriptBridgeV114 = true;
+  if (window.__pgScriptBridgeV115) return;
+  window.__pgScriptBridgeV115 = true;
 
-  const BRIDGE_VERSION = '1.1.4';
+  const BRIDGE_VERSION = '1.1.5';
   const API_VERSION = '1.0.0'; // Contrato base compatible; las pruebas son campos aditivos.
   const EVENT_NAME = 'pokegrid-script-health-update';
   const READY_EVENT = 'pokegrid-health-bridge-ready';
@@ -38,6 +38,8 @@
   const uiWindows = new Map();
   const alertedFailures = new Map();
   const diagnosticCards = new Map();
+  const pendingWarningTimers = new Map();
+  const WARNING_STABLE_MS = 1800;
   let lastAutoDiagnostic = null;
 
   const now = () => Date.now();
@@ -206,6 +208,9 @@
 
   function dismissAutoDiagnostic(id, { recovered = false } = {}) {
     const key = String(id || '');
+    const pending = pendingWarningTimers.get(key);
+    if (pending) clearTimeout(pending);
+    pendingWarningTimers.delete(key);
     const card = diagnosticCards.get(key);
     diagnosticCards.delete(key);
     if (!card?.isConnected) return false;
@@ -228,11 +233,11 @@
   }
 
   function showAutoDiagnostic(entry) {
-    if (!entry || entry.status !== 'error') return;
+    if (!entry || !['warning', 'error'].includes(entry.status)) return;
     if (!document.body) {
       setTimeout(() => {
         const current = scripts.get(entry.id);
-        if (current?.status === 'error') showAutoDiagnostic(current);
+        if (current && ['warning', 'error'].includes(current.status)) showAutoDiagnostic(current);
       }, 250);
       return;
     }
@@ -242,15 +247,16 @@
     lastAutoDiagnostic = diagnostic;
     const failed = diagnostic.failedDependencies || [];
     const error = entry.lastError;
+    const isError = entry.status === 'error';
     const container = ensureDiagnosticContainer();
     if (!container) return;
 
     const card = document.createElement('section');
     card.style.cssText = [
       'pointer-events:auto',
-      'background:rgba(30,14,18,.94)',
+      isError ? 'background:rgba(30,14,18,.94)' : 'background:rgba(35,27,10,.94)',
       'color:#f5edf0',
-      'border:1px solid rgba(255,116,126,.55)',
+      isError ? 'border:1px solid rgba(255,116,126,.55)' : 'border:1px solid rgba(238,190,87,.58)',
       'border-radius:11px',
       'box-shadow:0 12px 36px rgba(0,0,0,.55)',
       'padding:10px 11px',
@@ -263,9 +269,9 @@
 
     card.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        <strong style="font-size:13px;flex:1;">⚠️ ${truncate(entry.name || entry.id, 120)} · error</strong>
-        <button type="button" data-copy style="border:1px solid #70434a;background:#321b20;color:#ffd7dc;border-radius:7px;padding:5px 8px;cursor:pointer;font:700 11px system-ui;">Copiar diagnóstico</button>
-        <button type="button" data-close style="border:0;background:transparent;color:#d9aeb4;font-size:18px;cursor:pointer;line-height:1;">×</button>
+        <strong style="font-size:13px;flex:1;">${isError ? '⛔' : '⚠️'} ${truncate(entry.name || entry.id, 120)} · ${isError ? 'error' : 'advertencia'}</strong>
+        <button type="button" data-copy style="border:1px solid ${isError ? '#70434a' : '#76602c'};background:${isError ? '#321b20' : '#342a12'};color:${isError ? '#ffd7dc' : '#ffe7a2'};border-radius:7px;padding:5px 8px;cursor:pointer;font:700 11px system-ui;">Copiar diagnóstico</button>
+        <button type="button" data-close style="border:0;background:transparent;color:${isError ? '#d9aeb4' : '#e0c682'};font-size:18px;cursor:pointer;line-height:1;">×</button>
       </div>
       <div style="font-size:11px;line-height:1.45;color:#f0d8dc;">
         <div><b>Versión:</b> ${truncate(entry.version || '—', 80)}</div>
@@ -298,11 +304,14 @@
 
   function evaluateAutoDiagnostic(entry) {
     if (!entry) return;
-    if (entry.status !== 'error') {
-      alertedFailures.delete(entry.id);
-      dismissAutoDiagnostic(entry.id, { recovered: true });
+    const key = String(entry.id);
+
+    if (!['warning', 'error'].includes(entry.status)) {
+      alertedFailures.delete(key);
+      dismissAutoDiagnostic(key, { recovered: true });
       return;
     }
+
     const failed = failedDependencies(entry).map(row => row.key).sort().join(',');
     const fingerprint = [
       entry.status,
@@ -311,11 +320,43 @@
       entry.lastError?.context || '',
       failed
     ].join('|');
-    if (alertedFailures.get(entry.id) === fingerprint) return;
-    alertedFailures.set(entry.id, fingerprint);
-    showAutoDiagnostic(entry);
-  }
 
+    if (alertedFailures.get(key) === fingerprint && diagnosticCards.get(key)?.isConnected) return;
+
+    if (entry.status === 'error') {
+      const pending = pendingWarningTimers.get(key);
+      if (pending) clearTimeout(pending);
+      pendingWarningTimers.delete(key);
+      alertedFailures.set(key, fingerprint);
+      showAutoDiagnostic(entry);
+      return;
+    }
+
+    // Las advertencias se muestran solo si siguen activas un instante.
+    // Evita parpadeos de arranque, pero una advertencia real y persistente sí aparece.
+    const pending = pendingWarningTimers.get(key);
+    if (pending) clearTimeout(pending);
+
+    const timer = setTimeout(() => {
+      pendingWarningTimers.delete(key);
+      const current = scripts.get(key);
+      if (!current || current.status !== 'warning') return;
+
+      const currentFailed = failedDependencies(current).map(row => row.key).sort().join(',');
+      const currentFingerprint = [
+        current.status,
+        current.statusText,
+        current.lastError?.message || '',
+        current.lastError?.context || '',
+        currentFailed
+      ].join('|');
+
+      alertedFailures.set(key, currentFingerprint);
+      showAutoDiagnostic(current);
+    }, WARNING_STABLE_MS);
+
+    pendingWarningTimers.set(key, timer);
+  }
   function makeClient(id) {
     return Object.freeze({
       id,
@@ -424,6 +465,7 @@
     entry.updatedAt = now();
     alertedFailures.delete(entry.id);
     emitUpdate(`clear-error:${id}`);
+    evaluateAutoDiagnostic(entry);
     return true;
   }
 
@@ -1040,7 +1082,7 @@
     status: 'ok',
     statusText: 'Puente local disponible.',
     staleAfterMs: 60000,
-    capabilities: ['health', 'metrics', 'errors', 'commands', 'snapshot', 'functional-tests', 'auto-error-diagnostics', 'ui-core']
+    capabilities: ['health', 'metrics', 'errors', 'commands', 'snapshot', 'functional-tests', 'auto-health-diagnostics', 'ui-core']
   });
 
   const gameClient = register({
@@ -1149,5 +1191,5 @@
   } catch {}
 
   try { window.dispatchEvent(new CustomEvent(READY_EVENT, { detail: { apiVersion: API_VERSION, bridgeVersion: BRIDGE_VERSION } })); } catch {}
-  console.info('[PokeGrid Script Bridge] v1.1.4 cargado: UI Core + diagnósticos que se cierran automáticamente al recuperarse.');
+  console.info('[PokeGrid Script Bridge] v1.1.5 cargado: advertencias estables + errores con cierre automático al recuperarse.');
 })();
