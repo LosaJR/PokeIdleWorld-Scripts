@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Poke Idle World - Quality of Life (PIW-QOL ES)
 // @namespace    http://tampermonkey.net/
-// @version      9.10.26
+// @version      9.10.27
 // @description  Mejoras de calidad de vida en español, sin modificar el mapa y con candados de venta configurables.
 // @author       Desjunior (JulianoCLI)
 // @match        https://poke.idleworld.online/play
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_BUILD = '9.10.26';
+    const SCRIPT_BUILD = '9.10.27';
 
     const NativeWebSocket = window.WebSocket;
     const nativeWebSocketSend = NativeWebSocket.prototype.send;
@@ -673,14 +673,30 @@
         .portable-depot-poke-filters {
             flex-basis: 100%;
             display: grid;
-            grid-template-columns: minmax(190px, 2fr) repeat(4, minmax(82px, 1fr)) auto;
+            grid-template-columns: minmax(190px, 2fr) repeat(4, minmax(82px, 1fr)) auto auto;
             gap: 6px;
             padding: 9px;
             background: rgba(255, 255, 255, .02);
             border: 1px solid rgba(255, 255, 255, .05);
             border-radius: 8px;
         }
-        .portable-depot-clear-filters { min-height: 28px; padding: 5px 10px; cursor: pointer; }
+        .portable-depot-clear-filters,
+        .portable-depot-quality-preset { min-height: 28px; padding: 5px 10px; cursor: pointer; }
+        .portable-family-toolbar {
+            display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 9px;padding:7px;
+            background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:8px;
+        }
+        .portable-family-toolbar .portable-family-count { margin-left:auto;color:#9fb1c4;font-size:11px;font-weight:800; }
+        .portable-family-row {
+            display:flex;width:100%;box-sizing:border-box;align-items:center;gap:9px;
+            background:rgba(255,255,255,.02);color:rgb(233,226,208);
+            border:1px solid rgba(255,255,255,.05);border-radius:8px;padding:8px;margin:0 0 7px;
+        }
+        .portable-family-row.selected {
+            background:rgba(200,170,110,.10);border-color:rgba(230,205,142,.34);
+        }
+        .portable-family-row input[type="checkbox"] { width:17px;height:17px;flex:none;cursor:pointer; }
+        .portable-family-row .portable-family-single { flex:none;white-space:nowrap;cursor:pointer; }
         .portable-shop-heading {
             margin: 8px 0 0;
             padding: 7px 3px 5px;
@@ -1793,31 +1809,114 @@
         let busy = false;
         const depotPokeFilters = { name: '', ivMin: '', ivMax: '', qualityMin: '', qualityMax: '' };
         const familyPokeFilters = { name: '', ivMin: '', ivMax: '', qualityMin: '', qualityMax: '' };
+        const familySelections = {
+            'item:deposit': new Set(),
+            'item:withdraw': new Set(),
+            'pokemon:deposit': new Set(),
+            'pokemon:withdraw': new Set()
+        };
+        const familyEntryKey = (entry, kind) => String(kind === 'item' ? (entry.itemId ?? entry.id) : entry.id);
+        const familySelection = (direction, kind) => familySelections[`${kind}:${direction}`];
+
+        const performFamilyAction = async payload => {
+            latestFamily = null;
+            familyData = await requestGameEvent('family', { type: 'family-action', ...payload }, null, 3500);
+            if (!familyData?.family) throw new Error('La familia ya no está disponible.');
+            if (payload.action === 'item') {
+                latestInventory = null;
+                inventory = await requestFreshGameEvent('inventory', 'inv-get', { timeoutMs: 2500, attempts: 2 });
+            } else {
+                latestPokemon = null;
+                pokes = await requestGameEvent('pokes', 'pokes-get', null, 2500);
+            }
+            return true;
+        };
+
+        const ensureFamilyMovesAvailable = count => {
+            const family = familyData?.family;
+            if (!family) return false;
+            if (family.frozen) {
+                showWindowMessage(backdrop.querySelector('.sell-confirm-modal'), 'El depósito familiar está bloqueado.', true);
+                return false;
+            }
+            const remaining = Math.max(0, Number(family.movesCap || 0) - Number(family.movesUsed || 0));
+            if (remaining < count) {
+                showWindowMessage(
+                    backdrop.querySelector('.sell-confirm-modal'),
+                    `Has seleccionado ${count} movimientos, pero solo quedan ${remaining} disponibles hoy.`,
+                    true
+                );
+                return false;
+            }
+            return true;
+        };
 
         const familyAction = async payload => {
-            if (busy || !familyData?.family) return;
-            const family = familyData.family;
-            if (family.frozen || family.movesUsed >= family.movesCap) {
-                showWindowMessage(backdrop.querySelector('.sell-confirm-modal'), family.frozen
-                    ? 'El depósito familiar está bloqueado.'
-                    : 'Se ha alcanzado el límite diario de movimientos.', true);
-                return;
-            }
+            if (busy || !familyData?.family || !ensureFamilyMovesAvailable(1)) return false;
             busy = true;
             try {
-                latestFamily = null;
-                familyData = await requestGameEvent('family', { type: 'family-action', ...payload }, null, 3500);
-                if (!familyData?.family) throw new Error('La familia ya no está disponible.');
-                if (payload.action === 'item') {
-                    latestInventory = null;
-                    inventory = await requestFreshGameEvent('inventory', 'inv-get', { timeoutMs: 2500, attempts: 2 });
-                } else {
-                    latestPokemon = null;
-                    pokes = await requestGameEvent('pokes', 'pokes-get', null, 2500);
-                }
+                await performFamilyAction(payload);
                 render();
+                return true;
             } catch (error) {
                 showWindowMessage(backdrop.querySelector('.sell-confirm-modal'), error.message || 'No se ha podido mover.', true);
+                return false;
+            } finally {
+                busy = false;
+            }
+        };
+
+        const familyBulkAction = async (entries, direction, kind) => {
+            if (busy || !familyData?.family || !entries.length) return false;
+            if (!ensureFamilyMovesAvailable(entries.length)) return false;
+
+            const verb = direction === 'deposit' ? 'Depositar' : 'Retirar';
+            const noun = kind === 'item'
+                ? `${entries.length} tipo${entries.length === 1 ? '' : 's'} de objeto`
+                : `${entries.length} Pokémon`;
+            const extra = kind === 'item'
+                ? ' Se moverá la cantidad completa disponible de cada pila seleccionada.'
+                : '';
+            const confirmed = await showScriptConfirm(
+                `${verb} ${noun} en un solo lote?${extra} Esto consumirá ${entries.length} movimiento${entries.length === 1 ? '' : 's'} familiar${entries.length === 1 ? '' : 'es'}.`,
+                { title: 'Depósito familiar · Selección múltiple', confirmLabel: verb }
+            );
+            if (!confirmed) return false;
+
+            busy = true;
+            let moved = 0;
+            try {
+                for (const entry of entries) {
+                    const payload = kind === 'item'
+                        ? {
+                            action: 'item',
+                            dir: direction,
+                            itemId: entry.itemId ?? entry.id,
+                            quantity: Math.max(1, Math.floor(Number(entry.quantity) || 1))
+                        }
+                        : {
+                            action: 'poke',
+                            dir: direction,
+                            capturedId: entry.id
+                        };
+                    await performFamilyAction(payload);
+                    moved++;
+                }
+                familySelection(direction, kind).clear();
+                render();
+                showWindowMessage(
+                    backdrop.querySelector('.sell-confirm-modal'),
+                    `${moved} movimiento${moved === 1 ? '' : 's'} completado${moved === 1 ? '' : 's'}.`
+                );
+                return true;
+            } catch (error) {
+                render();
+                showWindowMessage(
+                    backdrop.querySelector('.sell-confirm-modal'),
+                    `${moved} completado${moved === 1 ? '' : 's'} antes del error: ${error.message || 'no se ha podido continuar.'}`,
+                    true
+                );
+                return false;
             } finally {
                 busy = false;
             }
@@ -1830,32 +1929,94 @@
             heading.style.cssText = 'font-weight:800;color:#e7edf4;margin:2px 4px 10px;';
             heading.textContent = `${title} (${entries.length})`;
             column.appendChild(heading);
+
             if (!entries.length) {
+                familySelection(direction, kind).clear();
                 const empty = document.createElement('div');
                 empty.style.cssText = 'color:#7f91a3;text-align:center;padding:28px 8px;';
                 empty.textContent = 'No hay contenido disponible.';
                 column.appendChild(empty);
                 return column;
             }
+
+            const selection = familySelection(direction, kind);
+            const availableKeys = new Set(entries.map(entry => familyEntryKey(entry, kind)));
+            [...selection].forEach(key => { if (!availableKeys.has(key)) selection.delete(key); });
+
+            const toolbar = document.createElement('div');
+            toolbar.className = 'portable-family-toolbar';
+            const selectAll = document.createElement('button');
+            selectAll.type = 'button';
+            selectAll.className = 'mk-bulk-btn';
+            selectAll.textContent = 'Seleccionar todo';
+            const clear = document.createElement('button');
+            clear.type = 'button';
+            clear.className = 'mk-bulk-btn';
+            clear.textContent = 'Ninguno';
+            const move = document.createElement('button');
+            move.type = 'button';
+            move.className = 'mk-bulk-btn';
+            const count = document.createElement('span');
+            count.className = 'portable-family-count';
+
+            const updateToolbar = () => {
+                move.textContent = `${direction === 'deposit' ? 'Depositar' : 'Retirar'} seleccionados (${selection.size})`;
+                move.disabled = selection.size === 0 || busy;
+                count.textContent = `${selection.size}/${entries.length} seleccionados`;
+            };
+
+            selectAll.addEventListener('click', () => {
+                entries.forEach(entry => selection.add(familyEntryKey(entry, kind)));
+                render();
+            });
+            clear.addEventListener('click', () => {
+                selection.clear();
+                render();
+            });
+            move.addEventListener('click', async () => {
+                const selectedEntries = entries.filter(entry => selection.has(familyEntryKey(entry, kind)));
+                await familyBulkAction(selectedEntries, direction, kind);
+            });
+            toolbar.append(selectAll, clear, move, count);
+            column.appendChild(toolbar);
+
             entries.forEach(entry => {
-                const row = document.createElement('button');
-                row.type = 'button';
-                row.style.cssText = 'display:flex;width:100%;align-items:center;gap:9px;background:#13222f;color:#e7edf4;border:1px solid #263b4c;border-radius:8px;padding:8px;margin:0 0 7px;cursor:pointer;text-align:left;';
+                const key = familyEntryKey(entry, kind);
+                const row = document.createElement('div');
+                row.className = `portable-family-row${selection.has(key) ? ' selected' : ''}`;
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = selection.has(key);
+                checkbox.title = 'Incluir en selección múltiple';
+                checkbox.addEventListener('change', () => {
+                    if (checkbox.checked) selection.add(key);
+                    else selection.delete(key);
+                    row.classList.toggle('selected', checkbox.checked);
+                    updateToolbar();
+                });
+
                 const icon = document.createElement('img');
                 icon.src = kind === 'item' ? normalizeGameItemIcon(entry.icon) : getPokemonIconUrl(entry.speciesId);
                 icon.alt = entry.name || '';
                 icon.style.cssText = `width:34px;height:34px;object-fit:contain;${kind === 'pokemon' ? 'image-rendering:pixelated;' : ''}flex:none;`;
                 icon.onerror = () => { icon.style.visibility = 'hidden'; };
+
                 const label = document.createElement('span');
-                label.style.cssText = 'min-width:0;flex:1;font-weight:700;';
+                label.style.cssText = 'min-width:0;flex:1;font-weight:700;cursor:pointer;';
                 label.textContent = kind === 'item'
                     ? `${entry.name || `Item #${entry.itemId}`} · ${Number(entry.quantity || 0).toLocaleString('es-ES')}`
                     : `${entry.name || entry.speciesId} · Nv. ${Number(entry.level || 0)} · IV ${Number(entry.ivTotal || 0)} · ${formatPokemonQualityWithPotential(entry.quality, entry.ivTotal)}${direction === 'deposit' ? ` · ${entry.team ? 'Equipo' : 'Caja'}` : ''}`;
-                const action = document.createElement('span');
-                action.style.cssText = 'color:#64c8ff;font-size:12px;font-weight:800;';
+                label.addEventListener('click', () => {
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.dispatchEvent(new Event('change'));
+                });
+
+                const action = document.createElement('button');
+                action.type = 'button';
+                action.className = 'mk-bulk-btn portable-family-single';
                 action.textContent = direction === 'deposit' ? 'Depositar →' : '← Retirar';
-                row.append(icon, label, action);
-                row.addEventListener('click', async () => {
+                action.addEventListener('click', async () => {
                     if (kind === 'item') {
                         const available = Math.max(1, Math.floor(Number(entry.quantity) || 1));
                         const quantity = await showScriptQuantityPrompt(
@@ -1883,8 +2044,12 @@
                         if (confirmed) await familyAction({ action: 'poke', dir: direction, capturedId: entry.id });
                     }
                 });
+
+                row.append(checkbox, icon, label, action);
                 column.appendChild(row);
             });
+
+            updateToolbar();
             return column;
         };
 
@@ -1928,6 +2093,7 @@
                 <input type="number" data-filter="ivMax" min="0" max="192" placeholder="IV máx.">
                 <input type="text" inputmode="decimal" autocomplete="off" data-filter="qualityMin" placeholder="Calidad mín. · 1,70">
                 <input type="text" inputmode="decimal" autocomplete="off" data-filter="qualityMax" placeholder="Calidad máx. · 1,70">
+                <button type="button" class="portable-depot-quality-preset" title="Calidad ≥ 1,70 e IV ≥ 100">1,70+ · IV 100+</button>
                 <button type="button" class="portable-depot-clear-filters">Limpiar</button>`;
             controls.querySelectorAll('[data-filter]').forEach(input => {
                 input.value = filters[input.dataset.filter];
@@ -1938,6 +2104,13 @@
                     replacement?.focus();
                     replacement?.setSelectionRange?.(replacement.value.length, replacement.value.length);
                 });
+            });
+            controls.querySelector('.portable-depot-quality-preset').addEventListener('click', () => {
+                filters.ivMin = '100';
+                filters.ivMax = '';
+                filters.qualityMin = '1,70';
+                filters.qualityMax = '';
+                render();
             });
             controls.querySelector('.portable-depot-clear-filters').addEventListener('click', () => {
                 Object.keys(filters).forEach(key => { filters[key] = ''; });
@@ -4659,5 +4832,5 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
     } else {
         initializeDOMEnhancements();
     }
-    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · Depósito familiar de objetos con cantidad integrada y filtros decimales de calidad corregidos.`);
+    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · selección múltiple en Familia y preset 1,70+ / IV 100+.`);
 })();

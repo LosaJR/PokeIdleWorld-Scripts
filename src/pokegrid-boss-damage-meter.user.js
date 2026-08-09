@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Boss Damage Meter
 // @namespace    ivan-pokegrid-tools
-// @version      1.0.2
+// @version      1.0.3
 // @description  Medidor automático de daño por Pokémon para cada run de Boss. Top 6 en tiempo real, daño efectivo por pérdida real de HP y reset por run.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,10 +12,10 @@
 
 (() => {
   'use strict';
-  if (window.__pgBossDamageMeterV102) return;
-  window.__pgBossDamageMeterV102 = true;
+  if (window.__pgBossDamageMeterV103) return;
+  window.__pgBossDamageMeterV103 = true;
 
-  const VERSION = '1.0.2';
+  const VERSION = '1.0.3';
   const PANEL_ID = 'pg-boss-damage-meter-panel';
   const STYLE_ID = 'pg-boss-damage-meter-style';
   const LAYOUT_KEY = 'pg-boss-damage-meter-v1:layout';
@@ -578,7 +578,7 @@
       #${PANEL_ID} .pg-bdm-row.active{border-color:#4f83b9;box-shadow:inset 0 0 0 1px #315b83}
       #${PANEL_ID} .pg-bdm-row.ko{opacity:.72}
       #${PANEL_ID} .pg-bdm-row-bg{
-        position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#24466a55,transparent);
+        position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#2f639477,#24466a28 72%,transparent);
         pointer-events:none;transition:width .12s linear
       }
       #${PANEL_ID} .pg-bdm-row>*:not(.pg-bdm-row-bg){position:relative;z-index:1}
@@ -789,11 +789,12 @@
     const rows = run.team
       .map(row => ({ ...row }))
       .sort((a, b) => b.damage - a.damage || a.index - b.index);
+    const leaderDamage = Math.max(0, finite(rows[0]?.damage));
 
     body.innerHTML = `
       <div class="pg-bdm-status">
         <span class="pg-bdm-state ${run.outcome ? 'won' : ''}">${run.outcome ? '🏆 VICTORIA' : '⚔️ EN COMBATE'}</span>
-        <span>Top 6 en tiempo real · daño de esta run · sin acumulación histórica</span>
+        <span>Top 6 en tiempo real · barras relativas al líder · sin acumulación histórica</span>
       </div>
 
       <div class="pg-bdm-hp">
@@ -817,7 +818,7 @@
           const pct = maxHp ? row.damage / maxHp * 100 : 0;
           const active = !run.outcome && row.index === run.activeIdx;
           const ko = row.hp !== null && row.hp <= 0;
-          const bar = clamp(pct, 0, 100);
+          const bar = leaderDamage > 0 ? clamp(row.damage / leaderDamage * 100, 0, 100) : 0;
           return `
             <div class="pg-bdm-row ${active ? 'active' : ''} ${ko ? 'ko' : ''}">
               <div class="pg-bdm-row-bg" style="width:${bar.toFixed(3)}%"></div>
@@ -972,5 +973,5 @@
   setInterval(() => refreshBossDefinitions().catch(() => {}), BOSS_REFRESH_MS);
   setInterval(heartbeat, 10000);
 
-  console.info('[Boss Damage Meter] v1.0.2 cargado · interfaz automática solo durante Boss; sin icono permanente.');
+  console.info('[Boss Damage Meter] v1.0.3 cargado · barras de daño relativas al líder en tiempo real.');
 })();

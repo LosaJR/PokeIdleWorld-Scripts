@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.17
+// @version      1.1.18
 // @description  Recomendador, No capturados, Item Finder, supervisor e histórico unificados con VIP y bonus diario normalizados.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1117) return;
-  window.__pgHuntIntelligenceCoreV1117 = true;
+  if (window.__pgHuntIntelligenceCoreV1118) return;
+  window.__pgHuntIntelligenceCoreV1118 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -680,8 +680,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1117) return;
-  window.__pgHuntIntelligenceItemCoreV1117 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1118) return;
+  window.__pgHuntIntelligenceItemCoreV1118 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1165,8 +1165,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1117) return;
-  window.__pgHuntIntelligenceEngineV1117 = true;
+  if (window.__pgHuntIntelligenceEngineV1118) return;
+  window.__pgHuntIntelligenceEngineV1118 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2240,19 +2240,20 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.17 cargado: Hunts usan histórico real o PIWTools, con peso de drops raros.');
+  console.info('[Hunt Intelligence] Motor v1.1.18 cargado: Hunts usan histórico real o PIWTools, con peso de drops raros.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1117) return;
-  window.__pgHuntIntelligenceSupervisorV1117 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1118) return;
+  window.__pgHuntIntelligenceSupervisorV1118 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
   const CALIBRATION_KEY = `${NS}:calibration`;
   const CONFIG_KEY = `${NS}:supervisor-config`;
+  const ACTIVE_SAMPLE_KEY = `${NS}:active-sample`;
   const MIGRATION_KEY = `${NS}:migration-v1`;
   const OLD_SEGMENTS_KEY = 'pg-performance-supervisor-v2:segments';
   const OLD_CALIBRATION_KEY = 'pg-performance-supervisor-v2:calibration';
@@ -2262,6 +2263,7 @@
   const FIXED_MIN_MINUTES = 30;
   const SAMPLE_WINDOW_SECONDS = FIXED_MIN_MINUTES * 60;
   const SAMPLE_WINDOW_MS = SAMPLE_WINDOW_SECONDS * 1000;
+  const SAMPLE_CHECKPOINT_MS = 2000;
   const WINDOW_MIGRATION_KEY = `${NS}:fixed-window-v1`;
   const DEFAULT_CONFIG = { threshold: 80, minMinutes: FIXED_MIN_MINUTES, minKills: 30, refreshSeconds: 15 };
 
@@ -2281,13 +2283,17 @@
   config.minMinutes = FIXED_MIN_MINUTES;
   let segments = Array.isArray(loadJson(SEGMENTS_KEY, [])) ? loadJson(SEGMENTS_KEY, []) : [];
   let calibrationRegistry = loadJson(CALIBRATION_KEY, {}) || {};
-  let activeSample = null;
+  let activeSample = loadJson(ACTIVE_SAMPLE_KEY, null);
+  if (!activeSample || typeof activeSample !== 'object' || Array.isArray(activeSample)) activeSample = null;
+  let restoredActiveSample = Boolean(activeSample);
   let lastReport = null;
   let lastResetReason = '';
   let lastHistoryPokemonKey = '';
   let busy = false;
   let timer = null;
+  let sampleCheckpointTimer = null;
   let historyPokemonTimer = null;
+  let contextRefreshPending = false;
 
   function accountId() {
     const character = window.__poke?.api?.['/api/characters/me']?.character || {};
@@ -2327,12 +2333,24 @@
     try { localStorage.setItem(MIGRATION_KEY, '1'); } catch {}
   }
 
+  function persistActiveSample() {
+    try {
+      if (activeSample) {
+        activeSample.savedAt = Date.now();
+        localStorage.setItem(ACTIVE_SAMPLE_KEY, JSON.stringify(activeSample));
+      } else {
+        localStorage.removeItem(ACTIVE_SAMPLE_KEY);
+      }
+    } catch {}
+  }
+
   function persist() {
     config.minMinutes = FIXED_MIN_MINUTES;
     segments = segments.slice(-800);
     saveJson(SEGMENTS_KEY, segments);
     saveJson(CALIBRATION_KEY, calibrationRegistry);
     saveJson(CONFIG_KEY, config);
+    persistActiveSample();
   }
 
   function addCalibrationRow(row, registry = calibrationRegistry) {
@@ -2496,6 +2514,8 @@
         expectedKph: Math.max(0, finite(current?.theoreticalKph, current?.kph)), expectedXph: Math.max(0, finite(current?.theoreticalXph, current?.xph))
       }
     };
+    restoredActiveSample = false;
+    persistActiveSample();
   }
 
   function calibrationKey(meta) { return `${compact(meta.leadId || meta.leadName || 'unknown')}|${compact(meta.huntKey || meta.slug || meta.huntName || 'unknown')}|${compact(meta.move || 'unknown')}|${meta.tm?'tm':'base'}`; }
@@ -2550,15 +2570,25 @@
     if (completed.length) {
       persist();
       try { window.dispatchEvent(new CustomEvent('pokegrid-intelligence-updated')); } catch {}
+    } else {
+      persistActiveSample();
     }
     return completed;
   }
 
-  function finalizeActiveSample(reason = 'cambio detectado', endAt = Date.now()) {
+  function activeSampleSafeEnd(now = Date.now()) {
+    if (!activeSample) return now;
+    const lastProgress = Math.max(0, finite(activeSample.lastProgressAt));
+    return lastProgress && now - lastProgress > INACTIVITY_MS ? lastProgress : now;
+  }
+
+  function finalizeActiveSample(reason = 'cambio detectado', endAt = activeSampleSafeEnd(Date.now())) {
     const sample = activeSample;
     if (!sample) return null;
     const completed = collectCompletedWindows(sample, endAt, reason);
     activeSample = null;
+    restoredActiveSample = false;
+    persistActiveSample();
     lastResetReason = reason;
     return completed.at(-1) || null;
   }
@@ -2567,21 +2597,37 @@
     const raw = rawSession();
     if (!raw || !current) return null;
     const now = Date.now(), signature = sampleSignature(result,current);
+
+    if (activeSample && restoredActiveSample) {
+      const restoredInvalid = activeSample.meta?.accountId !== accountId()
+        || activeSample.rawStart !== raw.start
+        || raw.kills < finite(activeSample.lastKills)
+        || raw.xp < finite(activeSample.lastXp);
+      if (restoredInvalid) {
+        activeSample = null;
+        restoredActiveSample = false;
+        persistActiveSample();
+      }
+    }
+
     if (!activeSample) beginSample(raw,result,current,now);
     else if (activeSample.rawStart !== raw.start || raw.kills < activeSample.lastKills || raw.xp < activeSample.lastXp) {
-      finalizeActiveSample('reinicio de sesión', activeSample.lastProgressAt || now); beginSample(raw,result,current,now);
+      finalizeActiveSample('reinicio de sesión', activeSampleSafeEnd(now)); beginSample(raw,result,current,now);
     } else if (activeSample.signature !== signature) {
-      finalizeActiveSample('cambio de hunt, Pokémon, nivel, ataque, MT, VIP o bonus', activeSample.lastProgressAt || now); beginSample(raw,result,current,now);
-    } else if (raw.kills > activeSample.lastKills && now-activeSample.lastProgressAt > INACTIVITY_MS) {
-      finalizeActiveSample('reanudar tras una interrupción', activeSample.lastProgressAt); beginSample(raw,result,current,now);
+      finalizeActiveSample('cambio de hunt, Pokémon, nivel, ataque, MT, VIP o bonus', activeSampleSafeEnd(now)); beginSample(raw,result,current,now);
     }
+
     if (!activeSample) return null;
     if (raw.kills > activeSample.lastKills || raw.xp > activeSample.lastXp) activeSample.lastProgressAt = now;
-    activeSample.lastKills = raw.kills; activeSample.lastXp = raw.xp;
-    const end = now-activeSample.lastProgressAt > INACTIVITY_MS ? activeSample.lastProgressAt : now;
+    activeSample.lastKills = raw.kills;
+    activeSample.lastXp = raw.xp;
+    restoredActiveSample = false;
+
+    const end = activeSampleSafeEnd(now);
     const completedRows = collectCompletedWindows(activeSample, end);
     const elapsedSeconds = Math.max(0,(end-activeSample.startedAt)/1000);
     const kills=Math.max(0,raw.kills-activeSample.baseKills), xp=Math.max(0,raw.xp-activeSample.baseXp), hours=elapsedSeconds/3600;
+    persistActiveSample();
     return {
       slug:raw.slug,start:activeSample.startedAt,elapsedSeconds,kills,xp,
       kph:hours?kills/hours:0,xph:hours?xp/hours:0,
@@ -2777,10 +2823,43 @@
   function state() {
     const r=lastReport; let status='waiting',statusText='Esperando una muestra de rendimiento.';
     if(r?.error&&!r?.current){status='error';statusText=r.error;}else if(r?.ready){status=r.level==='good'?'ok':'warning';statusText=r.level==='good'?`Rendimiento correcto: ${fmt(r.percent,1)} % de PIWTools.`:`Rendimiento por debajo de PIWTools: ${fmt(r.percent,1)} %.`;}else if(r?.current){status='waiting';statusText=`Midiendo ${r.current?.hunt?.name||r.slug||'hunt'}: ${fmt(r.session?.kills||0)} derrotas.`;}
-    return {status,statusText,dependencies:{huntAdvisor:{ok:Boolean(window.__PGUnifiedHuntCore?.calculateRecommendations),checkedAt:Date.now()},session:{ok:Boolean(window.__poke?.sess?.start),checkedAt:Date.now()},activeHunt:{ok:Boolean(currentSlug()),checkedAt:Date.now()}},metrics:{busy,ready:Boolean(r?.ready),level:r?.level||'waiting',hunt:r?.current?.hunt?.name||r?.slug||'',expectedKph:finite(r?.expectedKph),actualKph:finite(r?.actualKph),efficiencyPercent:finite(r?.percent),elapsedMinutes:finite(r?.session?.elapsedSeconds)/60,kills:finite(r?.session?.kills),vipActive:Boolean(r?.result?.vipActive),dailyBoosted:Boolean(r?.current?.dailyBoosted),storedSegments:segments.length,validPersonalRows:segments.filter(x=>x.vipKnown===true).length,legacyRows:legacyCount(),config:{...config}}};
+    return {status,statusText,dependencies:{huntAdvisor:{ok:Boolean(window.__PGUnifiedHuntCore?.calculateRecommendations),checkedAt:Date.now()},session:{ok:Boolean(window.__poke?.sess?.start),checkedAt:Date.now()},activeHunt:{ok:Boolean(currentSlug()),checkedAt:Date.now()}},metrics:{busy,ready:Boolean(r?.ready),level:r?.level||'waiting',hunt:r?.current?.hunt?.name||r?.slug||'',expectedKph:finite(r?.expectedKph),actualKph:finite(r?.actualKph),efficiencyPercent:finite(r?.percent),elapsedMinutes:finite(r?.session?.elapsedSeconds)/60,kills:finite(r?.session?.kills),vipActive:Boolean(r?.result?.vipActive),dailyBoosted:Boolean(r?.current?.dailyBoosted),storedSegments:segments.length,validPersonalRows:segments.filter(x=>x.vipKnown===true).length,legacyRows:legacyCount(),activeSamplePersisted:Boolean(activeSample),sampleCheckpointMs:SAMPLE_CHECKPOINT_MS,config:{...config}}};
   }
 
   function restartTimer(){clearInterval(timer);timer=setInterval(()=>refresh(false),Math.max(8,finite(config.refreshSeconds,15))*1000);}
+
+  function requestContextRefresh(){
+    if(contextRefreshPending)return;
+    contextRefreshPending=true;
+    Promise.resolve(refresh(false)).finally(()=>{contextRefreshPending=false;});
+  }
+
+  function checkpointActiveSample(){
+    if(!activeSample)return false;
+    const raw=rawSession();
+    if(!raw)return false;
+
+    const now=Date.now();
+    const slugChanged=Boolean(raw.slug&&activeSample.meta?.slug&&norm(raw.slug)!==norm(activeSample.meta.slug));
+    const sessionChanged=activeSample.rawStart!==raw.start||raw.kills<finite(activeSample.lastKills)||raw.xp<finite(activeSample.lastXp);
+    if(slugChanged||sessionChanged){
+      requestContextRefresh();
+      return false;
+    }
+
+    if(raw.kills>finite(activeSample.lastKills)||raw.xp>finite(activeSample.lastXp))activeSample.lastProgressAt=now;
+    activeSample.lastKills=raw.kills;
+    activeSample.lastXp=raw.xp;
+
+    collectCompletedWindows(activeSample,activeSampleSafeEnd(now));
+    persistActiveSample();
+    return true;
+  }
+
+  function restartSampleCheckpoint(){
+    clearInterval(sampleCheckpointTimer);
+    sampleCheckpointTimer=setInterval(checkpointActiveSample,SAMPLE_CHECKPOINT_MS);
+  }
 
   function checkHistoryPokemonChange(){
     const nextKey=currentHistoryPokemon()?.key||'';
@@ -2789,6 +2868,7 @@
     if(nextKey===lastHistoryPokemonKey)return false;
     lastHistoryPokemonKey=nextKey;
     try{window.dispatchEvent(new CustomEvent('pokegrid-intelligence-updated',{detail:{reason:'pokemon-changed',pokemonKey:nextKey}}));}catch{}
+    requestContextRefresh();
     return true;
   }
 
@@ -2798,32 +2878,33 @@
     historyPokemonTimer=setInterval(checkHistoryPokemonChange,1000);
   }
 
-  const finalizeOnExit=()=>{try{finalizeActiveSample('cierre o recarga',activeSample?.lastProgressAt||Date.now());}catch{}};
+  const finalizeOnExit=()=>{try{checkpointActiveSample();finalizeActiveSample('cierre o recarga',activeSampleSafeEnd(Date.now()));}catch{}};
   window.addEventListener('pagehide',finalizeOnExit);window.addEventListener('beforeunload',finalizeOnExit);
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.17',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    version:'1.1.18',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.17',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.18',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.17',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.18',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   migrateLegacy();
   migrateToFixedWindows();
   restartTimer();
+  restartSampleCheckpoint();
   startHistoryPokemonWatcher();
   setTimeout(()=>refresh(false),1200);
-  console.info('[Hunt Intelligence] Supervisor unificado v1.1.17 cargado: histórico filtrado por Pokémon activo.');
+  console.info('[Hunt Intelligence] Supervisor unificado v1.1.18 cargado: muestras de 30 min con checkpoint persistente cada 2 s.');
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1117) return;
-  window.__pgHuntIntelligenceUiV1117 = true;
+  if (window.__pgHuntIntelligenceUiV1118) return;
+  window.__pgHuntIntelligenceUiV1118 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -4444,7 +4525,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.17',
+    version: '1.1.18',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -4491,7 +4572,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.17',
+      version: '1.1.18',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -4525,7 +4606,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.17',
+    version: '1.1.18',
     openHunt: () => { activeTab='hunt'; return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; return loadNotCaught(false); },
     openItem: query => { activeTab='item'; return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -4552,5 +4633,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.17 cargado: Mejor general con XP, loot, rareza y oro; histórico o PIWTools sin calibración intermedia.');
+  console.info('[Hunt Intelligence] v1.1.18 cargado: Mejor general con XP, loot, rareza y oro; histórico o PIWTools sin calibración intermedia.');
 })();

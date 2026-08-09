@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Poke Idle World - Quality of Life (PIW-QOL ES)
 // @namespace    http://tampermonkey.net/
-// @version      9.10.25
+// @version      9.10.26
 // @description  Mejoras de calidad de vida en español, sin modificar el mapa y con candados de venta configurables.
 // @author       Desjunior (JulianoCLI)
 // @match        https://poke.idleworld.online/play
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_BUILD = '9.10.25';
+    const SCRIPT_BUILD = '9.10.26';
 
     const NativeWebSocket = window.WebSocket;
     const nativeWebSocketSend = NativeWebSocket.prototype.send;
@@ -1671,6 +1671,75 @@
         });
     }
 
+    function showScriptQuantityPrompt(message, {
+        title = 'Cantidad',
+        value = 1,
+        min = 1,
+        max = Number.MAX_SAFE_INTEGER,
+        confirmLabel = 'Aceptar',
+        cancelLabel = 'Cancelar'
+    } = {}) {
+        return new Promise(resolve => {
+            const safeMin = Math.max(1, Math.floor(Number(min) || 1));
+            const safeMax = Math.max(safeMin, Math.floor(Number(max) || safeMin));
+            const safeValue = Math.min(safeMax, Math.max(safeMin, Math.floor(Number(value) || safeMin)));
+            const backdrop = document.createElement('div');
+            backdrop.className = 'sell-confirm-backdrop script-quantity-backdrop';
+            backdrop.innerHTML = `
+                <div class="sell-confirm-modal" style="width:min(440px,92vw);">
+                    <div class="sell-confirm-title">🔢 ${escapeHTML(title)}</div>
+                    <div class="sell-confirm-body">
+                        <p style="margin:0 0 12px;color:#e2e8f0;">${escapeHTML(message)}</p>
+                        <input class="script-quantity-input" type="number" min="${safeMin}" max="${safeMax}" step="1" value="${safeValue}"
+                            style="width:100%;box-sizing:border-box;background:#0c161f;color:#e2e8f0;border:1px solid #273f52;border-radius:6px;padding:8px 10px;font-weight:800;">
+                        <div style="margin-top:6px;color:#8293a6;font-size:11px;">Disponible: ${safeMax.toLocaleString('es-ES')}</div>
+                        <div class="sell-confirm-footer">
+                            <button class="sell-confirm-btn yes script-quantity-yes" type="button">${escapeHTML(confirmLabel)}</button>
+                            <button class="sell-confirm-btn no script-quantity-no" type="button">${escapeHTML(cancelLabel)}</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(backdrop);
+
+            const input = backdrop.querySelector('.script-quantity-input');
+            const finish = accepted => {
+                if (!accepted) {
+                    backdrop.remove();
+                    resolve(null);
+                    return;
+                }
+                const quantity = Math.floor(Number(input.value));
+                if (!Number.isFinite(quantity) || quantity < safeMin || quantity > safeMax) {
+                    input.focus();
+                    input.select();
+                    return;
+                }
+                backdrop.remove();
+                resolve(quantity);
+            };
+
+            backdrop.querySelector('.script-quantity-yes').addEventListener('click', () => finish(true));
+            backdrop.querySelector('.script-quantity-no').addEventListener('click', () => finish(false));
+            backdrop.addEventListener('click', event => {
+                if (event.target === backdrop) finish(false);
+            });
+            input.addEventListener('keydown', event => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    finish(true);
+                } else if (event.key === 'Escape') {
+                    event.preventDefault();
+                    finish(false);
+                }
+            });
+
+            requestAnimationFrame(() => {
+                input.focus();
+                input.select();
+            });
+        });
+    }
+
     function showWindowMessage(windowElement, message, isError = false) {
         let messageElement = windowElement.querySelector('.script-window-message');
         if (!messageElement) {
@@ -1789,17 +1858,29 @@
                 row.addEventListener('click', async () => {
                     if (kind === 'item') {
                         const available = Math.max(1, Math.floor(Number(entry.quantity) || 1));
-                        const answer = window.prompt(`Cantidad de ${entry.name || `Item #${entry.itemId}`}:`, String(available));
-                        if (answer === null) return;
-                        const quantity = Math.min(available, Math.floor(Number(answer)));
-                        if (!Number.isFinite(quantity) || quantity < 1) return;
-                        familyAction({ action: 'item', dir: direction, itemId: entry.itemId ?? entry.id, quantity });
+                        const quantity = await showScriptQuantityPrompt(
+                            `${direction === 'deposit' ? 'Depositar' : 'Retirar'} ${entry.name || `Item #${entry.itemId ?? entry.id}`}:`,
+                            {
+                                title: 'Depósito familiar · Objetos',
+                                value: available,
+                                min: 1,
+                                max: available,
+                                confirmLabel: direction === 'deposit' ? 'Depositar' : 'Retirar'
+                            }
+                        );
+                        if (quantity === null) return;
+                        await familyAction({
+                            action: 'item',
+                            dir: direction,
+                            itemId: entry.itemId ?? entry.id,
+                            quantity
+                        });
                     } else {
                         const confirmed = await showScriptConfirm(
                             `${direction === 'deposit' ? 'Depositar' : 'Retirar'} ${entry.name || 'este Pokémon'} en el depósito familiar?`,
                             { title: 'Depósito familiar' }
                         );
-                        if (confirmed) familyAction({ action: 'poke', dir: direction, capturedId: entry.id });
+                        if (confirmed) await familyAction({ action: 'poke', dir: direction, capturedId: entry.id });
                     }
                 });
                 column.appendChild(row);
@@ -1816,16 +1897,25 @@
             content.appendChild(header);
         };
 
+        const parseDepotDecimalFilter = value => {
+            const text = String(value ?? '').trim();
+            if (!text) return null;
+            const parsed = Number(text.replace(',', '.'));
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+
         const filterDepotPokemon = (entries, filters) => entries.filter(entry => {
             const name = String(entry.name || '').toLocaleLowerCase();
             const query = filters.name.trim().toLocaleLowerCase();
             const iv = Number(entry.ivTotal || 0);
             const quality = Number(entry.quality || 0);
+            const qualityMin = parseDepotDecimalFilter(filters.qualityMin);
+            const qualityMax = parseDepotDecimalFilter(filters.qualityMax);
             if (query && !name.includes(query)) return false;
             if (filters.ivMin !== '' && iv < Number(filters.ivMin)) return false;
             if (filters.ivMax !== '' && iv > Number(filters.ivMax)) return false;
-            if (filters.qualityMin !== '' && quality < Number(filters.qualityMin)) return false;
-            if (filters.qualityMax !== '' && quality > Number(filters.qualityMax)) return false;
+            if (qualityMin !== null && quality < qualityMin) return false;
+            if (qualityMax !== null && quality > qualityMax) return false;
             return true;
         });
 
@@ -1836,8 +1926,8 @@
                 <input type="search" data-filter="name" placeholder="Buscar Pokémon por nombre">
                 <input type="number" data-filter="ivMin" min="0" max="192" placeholder="IV mín.">
                 <input type="number" data-filter="ivMax" min="0" max="192" placeholder="IV máx.">
-                <input type="number" data-filter="qualityMin" min="0" step="0.01" placeholder="Calidad mín.">
-                <input type="number" data-filter="qualityMax" min="0" step="0.01" placeholder="Calidad máx.">
+                <input type="text" inputmode="decimal" autocomplete="off" data-filter="qualityMin" placeholder="Calidad mín. · 1,70">
+                <input type="text" inputmode="decimal" autocomplete="off" data-filter="qualityMax" placeholder="Calidad máx. · 1,70">
                 <button type="button" class="portable-depot-clear-filters">Limpiar</button>`;
             controls.querySelectorAll('[data-filter]').forEach(input => {
                 input.value = filters[input.dataset.filter];
@@ -4569,5 +4659,5 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
     } else {
         initializeDOMEnhancements();
     }
-    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · candados persistentes para objetos y Pokémon en la venta masiva.`);
+    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · Depósito familiar de objetos con cantidad integrada y filtros decimales de calidad corregidos.`);
 })();
