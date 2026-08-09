@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Script Bridge & Health Agent
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.5
+// @version      1.1.6
 // @description  Puente local para que los scripts publiquen estado, métricas, errores y comandos a la interfaz principal de PokeGrid.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,10 +12,10 @@
 
 (() => {
   'use strict';
-  if (window.__pgScriptBridgeV115) return;
-  window.__pgScriptBridgeV115 = true;
+  if (window.__pgScriptBridgeV116) return;
+  window.__pgScriptBridgeV116 = true;
 
-  const BRIDGE_VERSION = '1.1.5';
+  const BRIDGE_VERSION = '1.1.6';
   const API_VERSION = '1.0.0'; // Contrato base compatible; las pruebas son campos aditivos.
   const EVENT_NAME = 'pokegrid-script-health-update';
   const READY_EVENT = 'pokegrid-health-bridge-ready';
@@ -40,6 +40,7 @@
   const diagnosticCards = new Map();
   const pendingWarningTimers = new Map();
   const WARNING_STABLE_MS = 1800;
+  const WARNING_VISIBLE_MS = 10000;
   let lastAutoDiagnostic = null;
 
   const now = () => Date.now();
@@ -294,6 +295,14 @@
 
     container.prepend(card);
     diagnosticCards.set(String(entry.id), card);
+
+    if (!isError) {
+      setTimeout(() => {
+        const currentCard = diagnosticCards.get(String(entry.id));
+        if (currentCard === card) dismissAutoDiagnostic(entry.id);
+      }, WARNING_VISIBLE_MS);
+    }
+
     while (container.children.length > 3) {
       const removed = container.lastElementChild;
       const removedId = [...diagnosticCards.entries()].find(([, node]) => node === removed)?.[0];
@@ -321,7 +330,7 @@
       failed
     ].join('|');
 
-    if (alertedFailures.get(key) === fingerprint && diagnosticCards.get(key)?.isConnected) return;
+    if (alertedFailures.get(key) === fingerprint) return;
 
     if (entry.status === 'error') {
       const pending = pendingWarningTimers.get(key);
@@ -1191,5 +1200,5 @@
   } catch {}
 
   try { window.dispatchEvent(new CustomEvent(READY_EVENT, { detail: { apiVersion: API_VERSION, bridgeVersion: BRIDGE_VERSION } })); } catch {}
-  console.info('[PokeGrid Script Bridge] v1.1.5 cargado: advertencias estables + errores con cierre automático al recuperarse.');
+  console.info('[PokeGrid Script Bridge] v1.1.6 cargado: warnings transitorios por cambio; errores persistentes hasta recuperación.');
 })();
