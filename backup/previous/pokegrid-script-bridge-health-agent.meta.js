@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Script Bridge & Health Agent
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.4
+// @version      1.1.5
 // @description  Puente local para que los scripts publiquen estado, métricas, errores y comandos a la interfaz principal de PokeGrid.
 // @match        https://poke.idleworld.online/*
 // @grant        none

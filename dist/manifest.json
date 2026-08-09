@@ -18,7 +18,7 @@
     },
     {
       "name": "PokeGrid - Detector de Decisiones y Suministros",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "file": "pokegrid-decision-detector.user.js",
       "metaFile": "pokegrid-decision-detector.meta.js",
       "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-decision-detector.user.js",
