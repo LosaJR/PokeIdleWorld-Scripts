@@ -42,7 +42,7 @@
     },
     {
       "name": "PokeGrid - Script Bridge & Health Agent",
-      "version": "1.1.6",
+      "version": "1.1.7",
       "file": "pokegrid-script-bridge-health-agent.user.js",
       "metaFile": "pokegrid-script-bridge-health-agent.meta.js",
       "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-script-bridge-health-agent.user.js",
