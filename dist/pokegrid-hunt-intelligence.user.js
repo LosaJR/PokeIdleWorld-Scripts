@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.27
-// @description  Recomendador, No capturados, Item Finder, supervisor e histórico unificados con VIP y bonus diario normalizados.
+// @version      1.1.28
+// @description  Recomendador, No capturados, Item Finder y supervisor con histórico móvil de 12 muestras por Hunt + Pokémon.
 // @match        https://poke.idleworld.online/*
 // @grant        none
 // @run-at       document-idle
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1127) return;
-  window.__pgHuntIntelligenceCoreV1127 = true;
+  if (window.__pgHuntIntelligenceCoreV1128) return;
+  window.__pgHuntIntelligenceCoreV1128 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -680,8 +680,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1127) return;
-  window.__pgHuntIntelligenceItemCoreV1127 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1128) return;
+  window.__pgHuntIntelligenceItemCoreV1128 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1165,8 +1165,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1127) return;
-  window.__pgHuntIntelligenceEngineV1127 = true;
+  if (window.__pgHuntIntelligenceEngineV1128) return;
+  window.__pgHuntIntelligenceEngineV1128 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2172,9 +2172,7 @@
       if (diff.offense.isTM) sourceParts.push('mejor ataque: MT');
       sourceParts.push(
         usePersonal
-          ? exact.matchType === 'exacto'
-            ? `ranking: tu histórico exacto (${exact.confidence})`
-            : `ranking: marca personal Nv.${Math.round(finite(exact.matchMinLevel, exact.matchLevel))}${finite(exact.matchMaxLevel, exact.matchLevel)!==finite(exact.matchMinLevel, exact.matchLevel)?`–${Math.round(finite(exact.matchMaxLevel, exact.matchLevel))}`:''}→Nv.${Math.round(finite(lead.level))} (${exact.confidence})`
+          ? `ranking: últimas ${exact.samples}/${exact.windowSamples || 12} muestras · vel ×${finite(exact.speedFactor, 1).toFixed(3)} · XP ×${finite(exact.xpFactor, 1).toFixed(3)} (${exact.confidence})`
           : 'ranking: PIWTools'
       );
       sourceParts.push(usePersonalLoot ? `items: histórico real (${exact.lootSamples})` : 'items: estimación');
@@ -2191,7 +2189,7 @@
         calibration: null, personal: usePersonal ? exact : null, personalKph, personalXph,
         lootRankingSource: usePersonalLoot ? 'historico-real' : 'estimado',
         rareRankingSource: usePersonalRare ? 'historico-real' : 'estimado',
-        rankingSource: usePersonal ? (exact.matchType === 'exacto' ? 'historico-real' : 'marca-personal-calibrada') : 'piwtools'
+        rankingSource: usePersonal ? 'historico-reciente' : 'piwtools'
       };
     }).filter(row => Number.isFinite(row.kph) && row.kph > 0 && Number.isFinite(row.xph));
 
@@ -2343,14 +2341,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.27 cargado: XP/h real histórico restaurada; nivel/ataque ya no hacen desaparecer la marca personal.');
+  console.info('[Hunt Intelligence] Motor v1.1.28 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1127) return;
-  window.__pgHuntIntelligenceSupervisorV1127 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1128) return;
+  window.__pgHuntIntelligenceSupervisorV1128 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -2371,6 +2369,8 @@
   const HISTORY_BACKUP_KEY = `${NS}:segments-backup-v1`;
   const HISTORY_CLEARED_KEY = `${NS}:segments-explicitly-cleared-v1`;
   const DEFAULT_CONFIG = { threshold: 80, minMinutes: FIXED_MIN_MINUTES, minKills: 30, refreshSeconds: 15 };
+  const HISTORY_WINDOW_SAMPLES = 12;
+  const HISTORY_TRIM_MIN_SAMPLES = 8;
 
   const norm = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[_-]+/g, ' ').replace(/\[[^\]]*]/g, '').replace(/\([^)]*\)/g, '')
@@ -2400,6 +2400,64 @@
   let sampleCheckpointTimer = null;
   let historyPokemonTimer = null;
   let contextRefreshPending = false;
+
+  function rollingHistoryKey(row) {
+    const acct = compact(row?.accountId || 'cuenta-local') || 'cuenta-local';
+    const leadKey = compact(row?.leadId || row?.leadName || 'unknown');
+    const huntKey = compact(row?.huntKey || row?.slug || row?.huntName || 'unknown');
+    return `${acct}|${leadKey}|${huntKey}`;
+  }
+
+  function historySampleValid(row) {
+    return Boolean(
+      row
+      && finite(row.elapsedSeconds) === SAMPLE_WINDOW_SECONDS
+      && row.calibrationValid === true
+      && rowExpectedKphForCalibration(row) > 0
+    );
+  }
+
+  function trimRollingHistory(source = segments) {
+    const groups = new Map();
+    const ordered = (Array.isArray(source) ? source : [])
+      .filter(row => row && typeof row === 'object')
+      .sort((a, b) => finite(a.end, a.start) - finite(b.end, b.start));
+
+    for (const row of ordered) {
+      if (!historySampleValid(row)) continue;
+      const key = rollingHistoryKey(row);
+      const bucket = groups.get(key) || [];
+      bucket.push(row);
+      if (bucket.length > HISTORY_WINDOW_SAMPLES) bucket.splice(0, bucket.length - HISTORY_WINDOW_SAMPLES);
+      groups.set(key, bucket);
+    }
+
+    return [...groups.values()]
+      .flat()
+      .sort((a, b) => finite(a.end, a.start) - finite(b.end, b.start));
+  }
+
+  function trimmedFactor(values, fallback = 1) {
+    const sorted = (Array.isArray(values) ? values : [])
+      .map(Number)
+      .filter(value => Number.isFinite(value) && value > 0)
+      .sort((a, b) => a - b);
+
+    if (!sorted.length) {
+      return { value: fallback, total: 0, used: 0, discarded: 0 };
+    }
+
+    const trimmed = sorted.length >= HISTORY_TRIM_MIN_SAMPLES
+      ? sorted.slice(1, -1)
+      : sorted;
+
+    return {
+      value: trimmed.reduce((sum, value) => sum + value, 0) / trimmed.length,
+      total: sorted.length,
+      used: trimmed.length,
+      discarded: sorted.length - trimmed.length
+    };
+  }
 
   function recoverHistoryIfNeeded() {
     try {
@@ -2483,7 +2541,10 @@
 
   function persist() {
     config.minMinutes = FIXED_MIN_MINUTES;
-    segments = segments.slice(-800);
+    let fixedWindowsReady = false;
+    try { fixedWindowsReady = localStorage.getItem(WINDOW_MIGRATION_KEY) === '1'; } catch {}
+    segments = fixedWindowsReady ? trimRollingHistory(segments) : segments.slice(-800);
+    rebuildCalibrationRegistry();
     saveJson(SEGMENTS_KEY, segments);
     if (segments.length) {
       saveJson(HISTORY_BACKUP_KEY, segments);
@@ -2565,10 +2626,10 @@
         });
       }
     }
-    segments = converted.slice(-800);
+    segments = trimRollingHistory(converted);
     rebuildCalibrationRegistry();
-    persist();
     try { localStorage.setItem(WINDOW_MIGRATION_KEY, '1'); } catch {}
+    persist();
   }
 
   const LOOT_ZERO_FIX_KEY = `${NS}:loot-zero-parser-fix-v1`;
@@ -3000,8 +3061,7 @@
         lootMeasured,
         reason
       );
-      segments.push(row);
-      addCalibrationRow(row);
+      if (historySampleValid(row)) segments.push(row);
       completed.push(row);
 
       sample.startedAt = boundary;
@@ -3201,108 +3261,75 @@
     expectedKph=0,
     expectedXph=0
   } = {}) {
-    const exactContextKey = contextKey(lead,hunt,diff);
-    const identityKey = personalIdentityKeyFromCurrent(lead,hunt);
+    const identityKey = personalIdentityKeyFromCurrent(lead, hunt);
     const level = Math.max(1, finite(lead?.level));
     const acct = accountId();
-    const levelBand = Math.max(25, level * 0.10);
 
-    const baseRows = segments.filter(row =>
-      row.accountId===acct
-      && finite(row.elapsedSeconds)===SAMPLE_WINDOW_SECONDS
-      && row.vipKnown===true
-      && Number.isFinite(Number(row.cleanBaseXph))
-      && personalIdentityKeyFromRow(row)===identityKey
+    const rows = segments
+      .filter(row =>
+        row.accountId === acct
+        && historySampleValid(row)
+        && personalIdentityKeyFromRow(row) === identityKey
+      )
+      .sort((a, b) => finite(b.end, b.start) - finite(a.end, a.start))
+      .slice(0, HISTORY_WINDOW_SAMPLES);
+
+    if (!rows.length || !(finite(expectedKph) > 0)) return null;
+
+    const speedRows = rows.filter(row => {
+      const expected = rowExpectedKphForCalibration(row);
+      return expected > 0 && finite(row.kph) > 0;
+    });
+    if (!speedRows.length) return null;
+
+    const speedFactors = speedRows.map(row =>
+      clamp(finite(row.kph) / rowExpectedKphForCalibration(row), 0.60, 1.60)
     );
+    const speedStats = trimmedFactor(speedFactors, 1);
+    const factor = clamp(speedStats.value, 0.60, 1.60);
+    const kph = Math.max(0, finite(expectedKph) * factor);
 
-    if (!baseRows.length) return null;
-
-    const exactRows = baseRows.filter(row => {
-      const startLevel = finite(row.leadLevelStart, row.leadLevel);
-      const endLevel = finite(row.leadLevelEnd, row.leadLevel);
-      return startLevel===level
-        && endLevel===level
-        && row.levelingSample!==true
-        && calibrationKey(row)===exactContextKey;
+    const currentMultiplier = (vipActive ? VIP_MULT : 1) * (dailyBoosted ? DAILY_MULT : 1);
+    const xpRows = rows.filter(row => {
+      const expectedRow = rowExpectedXphForCalibration(row);
+      const rowMultiplier = (row.vipActive ? VIP_MULT : 1) * (row.dailyBoosted ? DAILY_MULT : 1);
+      const expectedBaseXph = expectedRow > 0 ? expectedRow / rowMultiplier : 0;
+      return row.vipKnown === true
+        && Number.isFinite(Number(row.cleanBaseXph))
+        && finite(row.cleanBaseXph) > 0
+        && expectedBaseXph > 0;
     });
 
-    let rows = exactRows;
-    let matchType = exactRows.length ? 'exacto' : 'calibrado';
-    let factor = 1;
-    let xpFactor = 1;
-    let kph = 0;
+    const xpFactors = xpRows.map(row => {
+      const rowMultiplier = (row.vipActive ? VIP_MULT : 1) * (row.dailyBoosted ? DAILY_MULT : 1);
+      const expectedBaseXph = rowExpectedXphForCalibration(row) / rowMultiplier;
+      return clamp(finite(row.cleanBaseXph) / expectedBaseXph, 0.60, 1.60);
+    });
+    const xpStats = trimmedFactor(xpFactors, factor);
+    const xpFactor = clamp(xpStats.value, 0.60, 1.60);
+
     let baseXph = 0;
-    let historicalKph = 0;
-    let matchMinLevel = level;
-    let matchMaxLevel = level;
-
-    if (exactRows.length) {
-      historicalKph = exactRows.reduce((sum,row)=>sum+finite(row.kph),0)/exactRows.length;
-      baseXph = exactRows.reduce((sum,row)=>sum+finite(row.cleanBaseXph),0)/exactRows.length;
-      kph = historicalKph;
+    if (finite(expectedXph) > 0) {
+      baseXph = Math.max(0, finite(expectedXph) / currentMultiplier * xpFactor);
     } else {
-      const candidates = baseRows.filter(row => {
-        const refLevel = rowReferenceLevel(row);
-        const expected = rowExpectedKphForCalibration(row);
-        return refLevel <= level
-          && level - refLevel <= levelBand
-          && expected > 0
-          && finite(row.kph) > 0;
-      });
-
-      if (!candidates.length || !(finite(expectedKph) > 0)) return null;
-
-      rows = candidates;
-      matchMinLevel = Math.min(...rows.map(rowReferenceLevel));
-      matchMaxLevel = Math.max(...rows.map(rowReferenceLevel));
-
-      let weightedFactor = 0;
-      let totalWeight = 0;
-      for (const row of rows) {
-        const refLevel = rowReferenceLevel(row);
-        const distance = Math.max(0, level - refLevel);
-        const proximity = clamp(1 - (distance / Math.max(1, levelBand)) * 0.50, 0.50, 1);
-        const expected = rowExpectedKphForCalibration(row);
-        const rowFactor = clamp(finite(row.kph) / expected, 0.60, 1.60);
-        const weight = SAMPLE_WINDOW_SECONDS * proximity;
-        weightedFactor += rowFactor * weight;
-        totalWeight += weight;
-      }
-
-      factor = totalWeight ? weightedFactor / totalWeight : 1;
-      kph = Math.max(0, finite(expectedKph) * factor);
-
-      const currentMultiplier = (vipActive?VIP_MULT:1)*(dailyBoosted?DAILY_MULT:1);
-      if (finite(expectedXph) > 0) {
-        let weightedXpFactor = 0;
-        let totalXpWeight = 0;
-        for (const row of rows) {
-          const expectedXphRow = rowExpectedXphForCalibration(row);
-          const rowMultiplier = (row.vipActive?VIP_MULT:1)*(row.dailyBoosted?DAILY_MULT:1);
-          const expectedBaseXph = expectedXphRow > 0 ? expectedXphRow / rowMultiplier : 0;
-          if (!(expectedBaseXph > 0) || !(finite(row.cleanBaseXph) > 0)) continue;
-          const refLevel = rowReferenceLevel(row);
-          const distance = Math.max(0, level - refLevel);
-          const proximity = clamp(1 - (distance / Math.max(1, levelBand)) * 0.50, 0.50, 1);
-          const weight = SAMPLE_WINDOW_SECONDS * proximity;
-          const rowXpFactor = clamp(finite(row.cleanBaseXph) / expectedBaseXph, 0.60, 1.60);
-          weightedXpFactor += rowXpFactor * weight;
-          totalXpWeight += weight;
-        }
-        xpFactor = totalXpWeight ? weightedXpFactor / totalXpWeight : factor;
-        baseXph = Math.max(0, finite(expectedXph) / currentMultiplier * xpFactor);
-      } else {
-        const avgHistoricalBaseXph = rows.reduce((sum,row)=>sum+finite(row.cleanBaseXph),0)/rows.length;
-        const avgHistoricalKph = rows.reduce((sum,row)=>sum+finite(row.kph),0)/rows.length;
-        baseXph = avgHistoricalKph > 0 ? avgHistoricalBaseXph * (kph / avgHistoricalKph) : avgHistoricalBaseXph;
-      }
-
-      historicalKph = rows.reduce((sum,row)=>sum+finite(row.kph),0)/rows.length;
+      const knownXpRows = rows.filter(row =>
+        row.vipKnown === true
+        && Number.isFinite(Number(row.cleanBaseXph))
+        && finite(row.cleanBaseXph) > 0
+      );
+      const avgHistoricalBaseXph = knownXpRows.length
+        ? knownXpRows.reduce((sum, row) => sum + finite(row.cleanBaseXph), 0) / knownXpRows.length
+        : 0;
+      const avgHistoricalKph = speedRows.reduce((sum, row) => sum + finite(row.kph), 0) / speedRows.length;
+      baseXph = avgHistoricalKph > 0
+        ? avgHistoricalBaseXph * (kph / avgHistoricalKph)
+        : avgHistoricalBaseXph;
     }
 
-    const totalSeconds=rows.length*SAMPLE_WINDOW_SECONDS;
-    const totalKills=rows.reduce((sum,row)=>sum+Math.max(0,finite(row.kills)),0);
-    if (totalKills<=0 || !(kph > 0) || !(baseXph > 0)) return null;
+    const historicalKph = speedRows.reduce((sum, row) => sum + finite(row.kph), 0) / speedRows.length;
+    const totalSeconds = rows.length * SAMPLE_WINDOW_SECONDS;
+    const totalKills = rows.reduce((sum, row) => sum + Math.max(0, finite(row.kills)), 0);
+    if (totalKills <= 0 || !(kph > 0) || !(baseXph > 0)) return null;
 
     const lootRows = rows.filter(row =>
       row.lootMeasured === true
@@ -3314,45 +3341,51 @@
     );
 
     let baseItemsPh = lootRows.length
-      ? lootRows.reduce((sum,row)=>sum+Number(row.cleanBaseItemsPh),0)/lootRows.length
+      ? lootRows.reduce((sum, row) => sum + Number(row.cleanBaseItemsPh), 0) / lootRows.length
       : null;
     let baseRareItemsPh = rareRows.length
-      ? rareRows.reduce((sum,row)=>sum+Number(row.cleanBaseRareItemsPh),0)/rareRows.length
+      ? rareRows.reduce((sum, row) => sum + Number(row.cleanBaseRareItemsPh), 0) / rareRows.length
       : null;
 
-    if (matchType !== 'exacto' && historicalKph > 0 && kph > 0) {
+    if (historicalKph > 0 && kph > 0) {
       const kphScale = kph / historicalKph;
       if (baseItemsPh !== null) baseItemsPh *= kphScale;
       if (baseRareItemsPh !== null) baseRareItemsPh *= kphScale;
     }
 
+    const levels = rows.map(rowReferenceLevel).filter(value => value > 0);
     const currentLootMultiplier = dailyBoosted ? DAILY_MULT : 1;
 
     return {
-      source: matchType === 'exacto' ? 'historico-real' : 'marca-personal-calibrada',
-      matchType,
-      matchLevel: matchMaxLevel,
-      matchMinLevel,
-      matchMaxLevel,
+      source: 'historico-reciente',
+      matchType: 'ventana-reciente',
+      matchLevel: levels.length ? Math.max(...levels) : level,
+      matchMinLevel: levels.length ? Math.min(...levels) : level,
+      matchMaxLevel: levels.length ? Math.max(...levels) : level,
       currentLevel: level,
-      levelBand,
       factor,
-      speedFactor:factor,
+      speedFactor: factor,
       xpFactor,
+      speedFactorSamples: speedStats.total,
+      speedFactorSamplesUsed: speedStats.used,
+      xpFactorSamples: xpStats.total,
+      xpFactorSamplesUsed: xpStats.used,
+      outliersDiscarded: Math.max(speedStats.discarded, xpStats.discarded),
       historicalKph,
       baseXph,
-      currentXph:baseXph*(vipActive?VIP_MULT:1)*(dailyBoosted?DAILY_MULT:1),
+      currentXph: baseXph * currentMultiplier,
       kph,
-      samples:rows.length,
+      samples: rows.length,
+      windowSamples: HISTORY_WINDOW_SAMPLES,
       totalSeconds,
       totalKills,
-      confidence:confidence(totalSeconds,totalKills),
-      lootSamples:lootRows.length,
-      rareSamples:rareRows.length,
+      confidence: confidence(totalSeconds, totalKills),
+      lootSamples: lootRows.length,
+      rareSamples: rareRows.length,
       baseItemsPh,
-      currentItemsPh:baseItemsPh===null?null:baseItemsPh*currentLootMultiplier,
+      currentItemsPh: baseItemsPh === null ? null : baseItemsPh * currentLootMultiplier,
       baseRareItemsPh,
-      currentRareItemsPh:baseRareItemsPh===null?null:baseRareItemsPh*currentLootMultiplier
+      currentRareItemsPh: baseRareItemsPh === null ? null : baseRareItemsPh * currentLootMultiplier
     };
   }
 
@@ -3405,12 +3438,14 @@
     for (const row of currentPokemonHistoryRows()) {
       const key=historyGroupKey(row);
       const agg=map.get(key)||{
-        key,huntName:row.huntName,leadName:row.leadName,move:row.move,tm:row.tm,
+        key,huntName:row.huntName,leadName:row.leadName,moves:[],
         samples:0,seconds:0,kills:0,cleanXp:0,rawXp:0,rawXpSamples:0,legacy:0,vipYes:0,vipNo:0,
         lootSamples:0,cleanItemsPh:0,rareSamples:0,cleanRareItemsPh:0,
         minLevel:Infinity,maxLevel:0,levelingSamples:0
       };
       agg.samples++; agg.seconds+=SAMPLE_WINDOW_SECONDS; agg.kills+=finite(row.kills);
+      const moveLabel = `${String(row.move || 'Ataque')}${row.tm ? ' (MT)' : ''}`;
+      if (!agg.moves.includes(moveLabel)) agg.moves.push(moveLabel);
       if(Number.isFinite(Number(row.rawXph))){
         agg.rawXp+=Number(row.rawXph);
         agg.rawXpSamples++;
@@ -3438,8 +3473,11 @@
       const personalXph=row.rawXpSamples?row.rawXp/row.rawXpSamples:0;
       const baseItemsPh=row.lootSamples?row.cleanItemsPh/row.lootSamples:null;
       const baseRareItemsPh=row.rareSamples?row.cleanRareItemsPh/row.rareSamples:null;
+      const moveSummary = row.moves.length <= 2
+        ? row.moves.join(' / ')
+        : `${row.moves.slice(0, 2).join(' / ')} +${row.moves.length - 2}`;
       return {
-        ...row,hours,kph:row.samples?row.kills/hours:0,baseXph,personalXph,
+        ...row,hours,kph:row.samples?row.kills/hours:0,baseXph,personalXph,moveSummary,
         vipXph:baseXph*VIP_MULT,vipDailyXph:baseXph*VIP_MULT*DAILY_MULT,
         baseItemsPh,baseRareItemsPh
       };
@@ -3447,7 +3485,7 @@
   }
 
   function historyGroupKey(row) {
-    return `${compact(row.huntKey||row.slug||row.huntName)}|${compact(row.leadId||row.leadName)}|${compact(row.move)}|${row.tm?'tm':'base'}`;
+    return `${compact(row.huntKey||row.slug||row.huntName)}|${compact(row.leadId||row.leadName)}`;
   }
 
   function legacyCount(){ return segments.filter(row=>row.accountId===accountId()&&row.vipKnown!==true).length; }
@@ -3543,7 +3581,7 @@
       : `Recopilando muestra: ${fmt(progress,1)} / ${FIXED_MIN_MINUTES} min · ${fmt(session.kills)} derrotas.`;
     return `<div class="pg-hi-banner ${tone}">${banner}</div>
       <div class="pg-hi-hero"><div><b>${esc(current.hunt?.name||r.slug||'Hunt actual')}</b><small>${esc(r.result?.lead?.name||'Pokémon')} Nv. ${fmt(r.result?.lead?.level)} · ${vip?'VIP Sí':'VIP No'}${daily?' · +20 % diario':''}${lastResetReason?` · ${esc(lastResetReason)}`:''}</small></div><div><b>${fmt(r.expectedKph)}</b><small>kills/h PIWTools</small></div><div><b>${fmt(r.actualKph)}</b><small>${evaluation?'última muestra':'muestra actual'} kills/h</small></div><div><b>${fmt(actualRaw)}</b><small>EXP/h observada</small></div><div><b>${fmt(clean)}</b><small>EXP/h base limpia</small></div></div>
-      <div class="pg-hi-grid"><div class="pg-hi-card"><h3>Condiciones y muestra</h3><div class="pg-hi-lines"><span>PIWTools actual</span><b>${fmt(finite(current.theoreticalXph,current.xph))}</b><span>Ranking utilizado</span><b>${fmt(current.xph)}</b><span>Muestra actual</span><b>${fmt(progress,1)} / ${FIXED_MIN_MINUTES} min</b><span>Derrotas actuales</span><b>${fmt(session.kills)}</b><span>Items/h observados</span><b>${observedItemsPh===null?'—':fmt(observedItemsPh,2)}</b><span>Raros/h observados</span><b>${observedRarePh===null?'—':fmt(observedRarePh,2)}</b><span>Muestras completas</span><b>${fmt(segments.filter(row=>row.accountId===accountId()&&finite(row.elapsedSeconds)===SAMPLE_WINDOW_SECONDS).length)}</b></div></div>
+      <div class="pg-hi-grid"><div class="pg-hi-card"><h3>Condiciones y muestra</h3><div class="pg-hi-lines"><span>PIWTools actual</span><b>${fmt(finite(current.theoreticalXph,current.xph))}</b><span>Ranking utilizado</span><b>${fmt(current.xph)}</b><span>Muestra actual</span><b>${fmt(progress,1)} / ${FIXED_MIN_MINUTES} min</b><span>Derrotas actuales</span><b>${fmt(session.kills)}</b><span>Items/h observados</span><b>${observedItemsPh===null?'—':fmt(observedItemsPh,2)}</b><span>Raros/h observados</span><b>${observedRarePh===null?'—':fmt(observedRarePh,2)}</b><span>Muestras retenidas</span><b>${fmt(segments.filter(row=>row.accountId===accountId()&&finite(row.elapsedSeconds)===SAMPLE_WINDOW_SECONDS).length)}</b></div></div>
       <div class="pg-hi-card"><h3>Alternativas calculadas</h3>${alternatives.map(row=>`<div class="pg-hi-alt"><span>${esc(row.hunt?.name||'Hunt')}${row.dailyBoosted?' · +20 %':''}</span><b>${fmt(row.xph)} XP/h</b></div>`).join('')||'<div class="pg-u-empty">Sin alternativas.</div>'}</div></div>
       <div class="pg-hi-settings"><div>Umbral <span><button data-supervisor-delta="-5" data-supervisor-key="threshold">−</button><b>${fmt(config.threshold)}%</b><button data-supervisor-delta="5" data-supervisor-key="threshold">+</button></span></div><div>Muestra histórica <span><b>${FIXED_MIN_MINUTES} min (fijo)</b></span></div><div>Mín. kills <span><button data-supervisor-delta="-5" data-supervisor-key="minKills">−</button><b>${fmt(config.minKills)}</b><button data-supervisor-delta="5" data-supervisor-key="minKills">+</button></span></div></div>`;
   }
@@ -3554,9 +3592,9 @@
 
     const rows=aggregateHistory(),legacy=currentPokemonLegacyCount(),vip=Boolean(window.__PGPiwToolsEngine?.getVip?.());
     const totalStored=segments.filter(row=>row.accountId===accountId()&&finite(row.elapsedSeconds)===SAMPLE_WINDOW_SECONDS).length;
-    return `<div class="pg-u-note"><b>Histórico de ${esc(pokemon.name)}</b>${pokemon.level?` Nv. ${fmt(pokemon.level)}`:''}. Muestras totales guardadas en esta cuenta: <b>${fmt(totalStored)}</b>. Solo se muestran abajo las del Pokémon activo.<br>Cada muestra representa exactamente 30 minutos útiles. <b>XP/h real histórico</b> es la experiencia real observada en tus tandas; <b>EXP base</b> elimina VIP ×1,50 y bonus diario ×1,20 para comparar. Durante leveo una tanda puede abarcar varios niveles: sigue aportando marca personal mediante su rendimiento frente a PIWTools, pero no se trata como una medición exacta de un único nivel. Items/h y Raros/h son drops realmente observados.</div>${legacy?`<div class="pg-hi-banner warn">Hay ${fmt(legacy)} muestras antiguas de ${esc(pokemon.name)} sin estado VIP. Sus kills/h siguen siendo útiles, pero su EXP no se usa hasta clasificarlas. <button data-adopt-legacy-vip>Asignarles VIP actual: ${vip?'Sí':'No'}</button></div>`:''}
+    return `<div class="pg-u-note"><b>Histórico de ${esc(pokemon.name)}</b>${pokemon.level?` Nv. ${fmt(pokemon.level)}`:''}. Muestras totales guardadas en esta cuenta: <b>${fmt(totalStored)}</b>. Solo se muestran abajo las del Pokémon activo.<br>Cada Hunt + Pokémon conserva una ventana móvil de <b>${HISTORY_WINDOW_SAMPLES} muestras válidas</b> de 30 minutos (≈ ${fmt(HISTORY_WINDOW_SAMPLES * 0.5, 1)} h). Al entrar una nueva cuando la ventana está completa, se elimina automáticamente la más antigua. El nivel y los cambios de stats no invalidan el histórico: cada tanda se compara con lo que PIWTools esperaba durante esa propia tanda. Con al menos ${HISTORY_TRIM_MIN_SAMPLES} factores se descartan el mejor y el peor antes de calcular la calibración reciente. <b>XP/h real histórico</b> es experiencia realmente observada; <b>EXP base</b> elimina VIP ×1,50 y bonus diario ×1,20. Items/h y Raros/h son drops realmente observados.</div>${legacy?`<div class="pg-hi-banner warn">Hay ${fmt(legacy)} muestras antiguas de ${esc(pokemon.name)} sin estado VIP. Sus kills/h siguen siendo útiles, pero su EXP no se usa hasta clasificarlas. <button data-adopt-legacy-vip>Asignarles VIP actual: ${vip?'Sí':'No'}</button></div>`:''}
       <div class="pg-hi-history-head"><span>Hunt · Pokémon</span><span>Muestras</span><span>Horas</span><span>Kills/h</span><span>XP/h real histórico</span><span>EXP base</span><span>Items/h base</span><span>Raros/h base</span><span></span></div>
-      <div class="pg-hi-history">${rows.map(row=>`<div class="pg-hi-history-row"><span class="pg-hi-history-name"><b>${esc(row.huntName||'Hunt')}</b><small>${esc(row.leadName||pokemon.name||'Pokémon')} · ${row.minLevel!==Infinity&&row.maxLevel?`Nv. ${fmt(row.minLevel)}${row.maxLevel!==row.minLevel?`→${fmt(row.maxLevel)}`:''} · `:''}${esc(row.move||'Ataque')}${row.tm?' (MT)':''}${row.levelingSamples?` · leveo ${row.levelingSamples}`:''}${row.legacy?` · ${row.legacy} legado`:''}${row.lootSamples?` · loot ${row.lootSamples}/${row.samples}`:' · loot aún sin muestra'}</small></span><span>${fmt(row.samples)}</span><span>${fmt(row.hours,1)}</span><span>${fmt(row.kph)}</span><span>${row.personalXph?fmt(row.personalXph):'—'}</span><span>${row.baseXph?fmt(row.baseXph):'—'}</span><span>${row.baseItemsPh===null?'—':fmt(row.baseItemsPh,2)}</span><span>${row.baseRareItemsPh===null?'—':fmt(row.baseRareItemsPh,2)}</span><button class="pg-hi-delete" data-delete-intelligence-history="${esc(row.key)}" data-history-label="${esc(`${row.huntName||'Hunt'} · ${row.leadName||pokemon.name||'Pokémon'}`)}" title="Borrar todas las muestras de esta línea" aria-label="Borrar histórico de ${esc(row.huntName||'esta hunt')}">🗑️</button></div>`).join('')||`<div class="pg-u-empty">${esc(pokemon.name)} todavía no tiene muestras completas. La primera aparecerá al completar 30 minutos útiles en la misma hunt y condiciones.</div>`}</div>
+      <div class="pg-hi-history">${rows.map(row=>`<div class="pg-hi-history-row"><span class="pg-hi-history-name"><b>${esc(row.huntName||'Hunt')}</b><small>${esc(row.leadName||pokemon.name||'Pokémon')} · ${row.minLevel!==Infinity&&row.maxLevel?`Nv. ${fmt(row.minLevel)}${row.maxLevel!==row.minLevel?`→${fmt(row.maxLevel)}`:''} · `:''}${esc(row.moveSummary||'Ataque')}${row.levelingSamples?` · leveo ${row.levelingSamples}`:''}${row.legacy?` · ${row.legacy} legado`:''}${row.lootSamples?` · loot ${row.lootSamples}/${row.samples}`:' · loot aún sin muestra'}</small></span><span>${fmt(row.samples)}/${HISTORY_WINDOW_SAMPLES}</span><span>${fmt(row.hours,1)}</span><span>${fmt(row.kph)}</span><span>${row.personalXph?fmt(row.personalXph):'—'}</span><span>${row.baseXph?fmt(row.baseXph):'—'}</span><span>${row.baseItemsPh===null?'—':fmt(row.baseItemsPh,2)}</span><span>${row.baseRareItemsPh===null?'—':fmt(row.baseRareItemsPh,2)}</span><button class="pg-hi-delete" data-delete-intelligence-history="${esc(row.key)}" data-history-label="${esc(`${row.huntName||'Hunt'} · ${row.leadName||pokemon.name||'Pokémon'}`)}" title="Borrar todas las muestras de esta línea" aria-label="Borrar histórico de ${esc(row.huntName||'esta hunt')}">🗑️</button></div>`).join('')||`<div class="pg-u-empty">${esc(pokemon.name)} todavía no tiene muestras completas. La primera aparecerá al completar 30 minutos útiles en la misma hunt y condiciones.</div>`}</div>
       <div class="pg-hi-actions"><button data-clear-intelligence-history>🗑️ Borrar histórico de ${esc(pokemon.name)}</button></div>`;
   }
 
@@ -3673,13 +3711,13 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.27',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    version:'1.1.28',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.27',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.28',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.27',description:'Mide rendimiento real y normaliza VIP y bonus diario dentro del motor unificado.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.28',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   const historyRecovery = recoverHistoryIfNeeded();
@@ -3690,13 +3728,13 @@
   restartSampleCheckpoint();
   startHistoryPokemonWatcher();
   setTimeout(()=>refresh(false),1200);
-  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.27 cargado: histórico protegido; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
+  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.28 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1127) return;
-  window.__pgHuntIntelligenceUiV1127 = true;
+  if (window.__pgHuntIntelligenceUiV1128) return;
+  window.__pgHuntIntelligenceUiV1128 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -5538,7 +5576,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.27',
+    version: '1.1.28',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -5585,7 +5623,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.27',
+      version: '1.1.28',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -5619,7 +5657,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.27',
+    version: '1.1.28',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -5653,5 +5691,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.27 cargado: histórico muestra XP/h real histórico y las tandas de leveo calibran con PIWTools medio.');
+  console.info('[Hunt Intelligence] v1.1.28 cargado: Histórico usa las 12 muestras recientes por Hunt + Pokémon y expulsa automáticamente la más antigua.');
 })();
