@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.28
-// @description  Recomendador, No capturados, Item Finder y supervisor con histórico móvil de 12 muestras por Hunt + Pokémon.
+// @version      1.1.29
+// @description  Recomendador, Farm sincronizado de favoritos, No capturados, Item Finder y supervisor con histórico móvil de 12 muestras por Hunt + Pokémon.
 // @match        https://poke.idleworld.online/*
 // @grant        none
 // @run-at       document-idle
