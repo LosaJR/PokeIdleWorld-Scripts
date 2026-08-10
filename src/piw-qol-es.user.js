@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Poke Idle World - Quality of Life (PIW-QOL ES)
 // @namespace    http://tampermonkey.net/
-// @version      9.10.30
+// @version      9.10.31
 // @description  Mejoras de calidad de vida en español, sin modificar el mapa y con candados de venta configurables.
 // @author       Desjunior (JulianoCLI)
 // @match        https://poke.idleworld.online/play
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_BUILD = '9.10.30';
+    const SCRIPT_BUILD = '9.10.31';
 
     const NativeWebSocket = window.WebSocket;
     const nativeWebSocketSend = NativeWebSocket.prototype.send;
@@ -27,6 +27,8 @@
     let recentPokemonAdditions = [];
     let pokemonRefreshPromise = null;
     let lastPokemonRefreshAt = 0;
+    let captureLogSyncPromise = null;
+    const captureLogWindowState = new WeakMap();
     const gameEventWaiters = new Map();
     const trackedGameSockets = new WeakSet();
 
@@ -189,8 +191,9 @@
     const STORAGE_CAPTURE_QUALITY_HISTORY = 'script_capture_quality_history_v1';
     const CAPTURE_QUALITY_HISTORY_LIMIT = 300;
     const CAPTURE_PENDING_MAX_AGE_MS = 20000;
-    const CAPTURE_RECENT_ADDITION_MAX_AGE_MS = 20000;
+    const CAPTURE_RECENT_ADDITION_MAX_AGE_MS = 90000;
     const CAPTURE_ROW_MATCH_MAX_DELTA_MS = 120000;
+    const CAPTURE_LOG_SYNC_DELAYS_MS = [0, 250, 700, 1400];
     const STORAGE_CUSTOM_FONT = 'script_custom_font_v1';
     const STORAGE_CUSTOM_FONT_NAME = 'script_custom_font_name_v1';
     const CUSTOM_FONT_FAMILY = 'PIW Uploaded Font';
@@ -4975,6 +4978,93 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
         purgeRecentPokemonAdditions();
     }
 
+    function recentCaptureAdditionKey(entry, index = 0) {
+        const descriptor = entry?.descriptor || {};
+        return descriptor.id
+            ? `id:${descriptor.id}`
+            : `recent:${index}:${Number(entry?.seenAt || descriptor.capturedAt || 0)}`;
+    }
+
+    function findRecentCaptureDescriptor(rowName, rowIv, rowTimestamp, usedKeys) {
+        purgeRecentPokemonAdditions();
+        const candidates = recentPokemonAdditions
+            .map((entry, index) => ({ entry, index, descriptor: entry?.descriptor }))
+            .filter(candidate => {
+                const descriptor = candidate.descriptor;
+                if (!descriptor || !Number.isFinite(Number(descriptor.quality))) return false;
+                const name = normalizePartyPokemonName(descriptor.name);
+                if (rowName && name && !rowName.includes(name)) return false;
+                if (Number.isFinite(Number(rowIv))
+                    && Number.isFinite(Number(descriptor.ivTotal))
+                    && Number(descriptor.ivTotal) !== Number(rowIv)) return false;
+                const key = recentCaptureAdditionKey(candidate.entry, candidate.index);
+                if (usedKeys.has(key)) return false;
+                if (Number.isFinite(Number(rowTimestamp))) {
+                    const seenAt = Number(candidate.entry.seenAt || descriptor.capturedAt || 0);
+                    const minuteStart = Number(rowTimestamp);
+                    const minuteEnd = minuteStart + 60000;
+                    const inMinute = seenAt >= minuteStart && seenAt < minuteEnd;
+                    const closeEnough = Math.abs(seenAt - minuteStart) <= CAPTURE_ROW_MATCH_MAX_DELTA_MS;
+                    if (!inMinute && !closeEnough) return false;
+                }
+                return true;
+            })
+            .sort((a, b) => Number(b.entry.seenAt || 0) - Number(a.entry.seenAt || 0));
+
+        if (!candidates.length) return null;
+
+        let chosen = null;
+        if (Number.isFinite(Number(rowTimestamp))) {
+            const minuteStart = Number(rowTimestamp);
+            const minuteEnd = minuteStart + 60000;
+            const sameMinute = candidates.filter(candidate => {
+                const seenAt = Number(candidate.entry.seenAt || candidate.descriptor.capturedAt || 0);
+                return seenAt >= minuteStart && seenAt < minuteEnd;
+            });
+            if (sameMinute.length) {
+                chosen = sameMinute[0];
+            } else {
+                const ranked = candidates
+                    .map(candidate => ({
+                        ...candidate,
+                        delta: Math.abs(Number(candidate.entry.seenAt || candidate.descriptor.capturedAt || 0) - minuteStart)
+                    }))
+                    .sort((a, b) => a.delta - b.delta);
+                if (ranked.length === 1 || ranked[0].delta < ranked[1].delta) chosen = ranked[0];
+            }
+        } else if (candidates.length === 1) {
+            chosen = candidates[0];
+        }
+
+        if (!chosen) return null;
+        usedKeys.add(recentCaptureAdditionKey(chosen.entry, chosen.index));
+        return {
+            ...chosen.descriptor,
+            capturedAt: Number(chosen.entry.seenAt || chosen.descriptor.capturedAt || Date.now())
+        };
+    }
+
+    function captureLogRowsFingerprint(rows) {
+        return rows.slice(0, 4).map((row, index) => {
+            const text = String(row?.textContent || '').replace(/\s+/g, ' ').trim();
+            return `${index}:${text}`;
+        }).join('||') + `|count:${rows.length}`;
+    }
+
+    function scheduleCaptureLogFreshSync() {
+        if (captureLogSyncPromise) return captureLogSyncPromise;
+        captureLogSyncPromise = (async () => {
+            for (const delay of CAPTURE_LOG_SYNC_DELAYS_MS) {
+                if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+                await refreshLatestPokemon(true).catch(() => []);
+                enhanceCaptureLogQuality(latestPokemon, { skipFreshSync: true });
+            }
+        })().finally(() => {
+            captureLogSyncPromise = null;
+        });
+        return captureLogSyncPromise;
+    }
+
     function captureMatchScore(hint, pokemon) {
         if (!hint) return 0;
         let score = 0;
@@ -5221,23 +5311,31 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
         row.style.removeProperty('--script-capture-quality-color');
     }
 
-    function enhanceCaptureLogQuality(pokemonList = latestPokemon) {
+    function enhanceCaptureLogQuality(pokemonList = latestPokemon, { skipFreshSync = false } = {}) {
         const owned = Array.isArray(pokemonList) ? pokemonList : [];
         const windows = Array.from(document.querySelectorAll('[role="dialog"],.win-window,.window,[class*="window"]'))
             .filter(element => /capture\s*log|registro\s+de\s+capturas?/i.test(String(element.textContent || '').slice(0, 1200)));
         if (!windows.length) return;
 
-        // Después de un refresh latestPokemon empieza vacío. Pedimos de forma activa la
-        // colección en cuanto se abre Capture Log para que el resultado no dependa de
-        // esperar pasivamente a otro evento `pokes` del juego.
         if (!owned.length) {
             refreshLatestPokemon(false).catch(() => {});
         }
+
+        let shouldFreshSync = false;
 
         windows.forEach(windowElement => {
             windowElement.classList.add('script-capture-log-window');
             const rows = Array.from(windowElement.querySelectorAll('tr,li,[class*="row"]'))
                 .filter(row => /IV\s*:?\s*\d+/i.test(row.textContent || ''));
+
+            const fingerprint = captureLogRowsFingerprint(rows);
+            const previousState = captureLogWindowState.get(windowElement);
+            if (!skipFreshSync && (!previousState || previousState.fingerprint !== fingerprint)) {
+                shouldFreshSync = true;
+            }
+            captureLogWindowState.set(windowElement, { fingerprint, rowCount: rows.length, seenAt: Date.now() });
+
+            const usedRecentKeys = new Set();
             const usedHistoryKeys = new Set();
 
             rows.forEach(row => {
@@ -5247,13 +5345,21 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
 
                 let descriptor = findNativeCaptureDescriptor(row, rowName, ivTotal);
                 let source = 'native';
+
                 if (descriptor) {
                     descriptor.capturedAt = rowTimestamp || descriptor.capturedAt;
                     rememberCaptureQualityEntry(descriptor);
                 } else {
+                    descriptor = findRecentCaptureDescriptor(rowName, ivTotal, rowTimestamp, usedRecentKeys);
+                    source = 'recent';
+                    if (descriptor) rememberCaptureQualityEntry(descriptor);
+                }
+
+                if (!descriptor) {
                     descriptor = findStoredCaptureDescriptor(rowName, ivTotal, rowTimestamp, usedHistoryKeys);
                     source = 'history';
                 }
+
                 if (!descriptor) {
                     descriptor = findOwnedCaptureDescriptor(owned, rowName, ivTotal, rowTimestamp);
                     source = 'owned';
@@ -5281,6 +5387,13 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
                 row.classList.add('script-capture-quality-row');
             });
         });
+
+        // La aparición/cambio de filas del Capture Log es ahora una señal primaria de
+        // captura. Pedimos varias instantáneas frescas para cubrir el pequeño desfase
+        // entre la fila visual y la incorporación real del Pokémon a `pokes`.
+        if (shouldFreshSync) {
+            scheduleCaptureLogFreshSync().catch(() => {});
+        }
     }
 
     // Ventana nativa «Mercado Global» del juego (distinta de la versión portátil
@@ -5382,5 +5495,5 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
     } else {
         initializeDOMEnhancements();
     }
-    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · Capture Log persiste Quality, rehidrata Pokémon tras refresh y tolera cualquier orden entre catch-result y pokes.`);
+    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · Capture Log sincroniza cada fila nueva con instantáneas frescas de Pokémon y persiste su Quality.`);
 })();

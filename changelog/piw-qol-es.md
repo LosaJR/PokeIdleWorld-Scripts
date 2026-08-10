@@ -1,5 +1,147 @@
 # Poke Idle World - Quality of Life (PIW-QOL ES)
 
+## 9.10.31 — 2026-08-10
+
+POKE IDLE WORLD — PIW-QOL ES
+ACTUALIZACIONES DE LA VERSIÓN 9.10.31
+Fecha: 2026-08-10
+
+VERSIÓN
+=======
+Anterior: 9.10.30
+Nueva:    9.10.31
+
+CAUSA CONFIRMADA
+================
+La 9.10.30 tenía un buffer de Pokémon recién añadidos, pero ese buffer solo se
+utilizaba para resolver una captura cuando también existía un evento
+"catch-result" pendiente.
+
+En la práctica, el juego puede actualizar Capture Log sin proporcionar un
+catch-result con datos suficientes para identificar la Quality. Por eso:
+
+- La nueva fila aparecía inicialmente sin Quality.
+- Después de refrescar, los Pokémon con nombre + IV únicos podían reconstruirse
+  desde la colección actual.
+- Dos Pokémon iguales con los mismos IV seguían siendo ambiguos.
+- Un Pokémon que ya no estaba disponible en la colección tampoco podía
+  reconstruirse.
+
+AÑADIDO
+=======
+- La aparición o modificación de filas en Capture Log pasa a ser una señal
+  primaria de que puede haber ocurrido una nueva captura.
+- Se añade un fingerprint por ventana de Capture Log para detectar:
+  * aumento de filas;
+  * cambio de la fila superior;
+  * re-render del listado.
+- Se añade captureLogWindowState mediante WeakMap.
+- Se añade scheduleCaptureLogFreshSync().
+- Cada cambio real de Capture Log dispara consultas frescas de Pokémon en:
+  * 0 ms
+  * 250 ms
+  * 700 ms
+  * 1400 ms
+- Esto cubre el desfase entre:
+  * la aparición visual de la captura;
+  * la incorporación real del Pokémon a la lista "pokes".
+- Se añade findRecentCaptureDescriptor().
+- Se añade recentCaptureAdditionKey().
+- Las filas nuevas pueden resolverse directamente contra el buffer de Pokémon
+  recién añadidos aunque NO exista ningún catch-result pendiente.
+- El buffer de adiciones recientes se conserva durante 90 segundos para cubrir
+  re-renders y aperturas inmediatas de Capture Log.
+- Se añade la fuente de diagnóstico "recent" en:
+  data-script-capture-quality-source
+
+NUEVO ORDEN DE RESOLUCIÓN
+=========================
+Para cada fila del Capture Log:
+
+1. Datos internos/nativos de la propia fila.
+2. Pokémon recién añadido detectado mediante una instantánea fresca de "pokes".
+3. Historial persistente de capturas guardadas.
+4. Colección actual como último respaldo.
+
+La novedad importante es el punto 2: una captura nueva se identifica mientras
+todavía sabemos exactamente qué ID acaba de añadirse.
+
+MODIFICADO
+==========
+- enhanceCaptureLogQuality() acepta ahora un modo interno skipFreshSync para
+  evitar bucles cuando la propia sincronización vuelve a renderizar.
+- Al detectar una nueva fila se solicita una lista fresca aunque latestPokemon
+  ya contenga datos.
+- Cada Pokémon nuevo detectado se asocia por:
+  * nombre;
+  * IV;
+  * minuto de captura;
+  * ID nuevo respecto a la instantánea anterior.
+- Si se resuelve mediante el buffer reciente, la entrada se guarda
+  inmediatamente en localStorage.
+- Varias capturas con el mismo nombre e IV dentro del mismo minuto se consumen
+  de más reciente a más antigua, sin reutilizar el mismo ID.
+- El histórico persistente sigue siendo el mecanismo utilizado después de
+  refrescar la página.
+
+ELIMINADO / SUSTITUIDO
+======================
+- Se elimina la dependencia de que exista un catch-result pendiente para usar
+  recentPokemonAdditions.
+- La colección actual deja de ser la primera fuente útil para una captura nueva.
+- Nombre + IV deja de ser el mecanismo normal de identificación en tiempo real;
+  queda únicamente como respaldo.
+- Se evita que una fila nueva permanezca sin intentar una sincronización fresca
+  simplemente porque latestPokemon ya estuviera cargado.
+
+CASO DE DOS POKÉMON IGUALES
+===========================
+Ejemplo:
+
+Geodude IV 114/192 — captura A — ID 123
+Geodude IV 114/192 — captura B — ID 456
+
+La 9.10.30 podía ver dos candidatos después de refrescar y no sabía cuál
+correspondía a cada fila.
+
+La 9.10.31 detecta el ID que se acaba de añadir en cada captura y guarda cada
+Quality por separado. Tras refrescar ya no necesita volver a adivinar usando
+solo nombre + IV.
+
+CONSERVADO
+==========
+- Historial persistente de hasta 300 capturas.
+- Lectura de la hora del Capture Log.
+- Inspección de datos internos de React cuando existen.
+- Protección frente a coincidencias ambiguas.
+- Rehidratación automática tras refresh.
+- Compatibilidad con catch-result si el juego sí proporciona datos útiles.
+- Quality/potencial mediante CSS y data-attributes, sin modificar el textContent
+  nativo ni los filtros/ordenaciones del Capture Log.
+- Todas las demás funciones de PIW-QOL.
+
+VALIDACIÓN
+==========
+- JavaScript validado correctamente con node --check.
+- @version comprobada: 9.10.31.
+- SCRIPT_BUILD comprobado: 9.10.31.
+- Confirmada resolución directa mediante recentPokemonAdditions.
+- Confirmadas las cuatro consultas frescas al cambiar Capture Log.
+- Confirmado que recentPokemonAdditions ya no depende de un catch-result
+  pendiente para pintar y persistir una fila.
+
+SHA-256
+=======
+42619f01259d3be5c03cce6e07b8de1e84e31306e1a24895b5170ccf4acb7afd
+
+ARCHIVOS
+========
+Script:
+piw-qol-es-9.10.31.txt
+
+Registro de cambios:
+actualizaciones-piw-qol-es-9.10.31.txt
+
 ## 9.10.30 — 2026-08-10
 
 POKE IDLE WORLD — PIW-QOL ES
