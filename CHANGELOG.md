@@ -1,5 +1,194 @@
 # Poke Idle World Scripts — Changelog
 
+## PokeGrid - Hunt Intelligence 1.1.32 — 2026-08-10
+
+POKE IDLE WORLD — HUNT INTELLIGENCE
+ACTUALIZACIONES DE LA VERSIÓN 1.1.32
+Fecha: 2026-08-10
+
+VERSIÓN
+=======
+Anterior: 1.1.31
+Nueva:    1.1.32
+
+PROBLEMA CONFIRMADO EN LA PRUEBA DE FARM x4
+============================================
+La 1.1.31 podía mostrar:
+- Objetivo activo;
+- "activo en las cuentas";
+- e incluso el aviso verde de Farm sincronizado;
+
+sin haber iniciado ninguna hunt.
+
+El auditor entregado tras pulsar Farmear x4 muestra:
+- no aparece GET /api/game/hunt-config?slug=larvitar;
+- no aparece un field-init nuevo para Larvitar;
+- el mensaje analyzer está en kills=0 y seconds=0.
+
+Por tanto, la función de entrada estaba siendo abortada ANTES de intentar
+la transición.
+
+CAUSA REAL
+==========
+favoriteMatchesCurrent() utilizaba currentSlug(), y currentSlug() da prioridad a:
+
+window.__poke.ws['field-init'].slug
+
+Ese valor puede seguir guardando la ÚLTIMA hunt aunque la cuenta ya haya salido
+al mapa/ciudad.
+
+Si la última hunt había sido Larvitar, al pulsar Farmear x4 ocurría:
+
+1. El objetivo se guarda como Larvitar.
+2. favoriteMatchesCurrent() ve el field-init antiguo "larvitar".
+3. Decide erróneamente que la cuenta YA está cazando Larvitar.
+4. executeFavoriteFarmTarget() devuelve éxito inmediatamente.
+5. No se ejecuta hunt-config.
+6. No llega ningún field-init nuevo.
+7. La interfaz pinta un falso estado activo.
+
+Esta secuencia encaja exactamente con el auditor de la prueba.
+
+CORRECCIÓN — HUNT VIVA, NO SOLO ÚLTIMO SLUG
+============================================
+Se añade favoriteLiveHuntState().
+
+Ahora un slug coincidente NO basta para afirmar que una cuenta está cazando.
+
+La comprobación exige señales de actividad real de la hunt:
+- field reciente del servidor (serverNow dentro de una ventana de 10 segundos),
+  o
+- analyzer con tiempo de sesión > 0.
+
+Si field-init conserva "larvitar" pero la cuenta está fuera de la hunt y el
+analyzer está a 0, se considera correctamente que Larvitar NO está activo.
+
+favoriteMatchesCurrent() usa esta nueva comprobación.
+
+CORRECCIÓN — TRANSICIÓN DIRECTA
+===============================
+startHuntByOfficialConfig() también tenía una segunda comprobación antigua que
+podía abortar por el mismo field-init obsoleto.
+
+Ahora:
+- "already active" solo se acepta con favoriteHuntLiveConfirmed();
+- después de solicitar hunt-config se espera una hunt VIVA del slug objetivo;
+- un field-init viejo no puede confirmar el intento;
+- el fallback visual también exige confirmación viva cuando se ejecuta desde
+  Favoritos.
+
+La ruta directa GET /api/game/hunt-config?slug=<objetivo> se mantiene en esta
+versión porque el auditor actual demuestra que 1.1.31 NO llegó a ejecutarla:
+el falso positivo ocurrió antes. Por tanto, esta prueba todavía no permite
+concluir que dicha ruta falle.
+
+INTERFAZ DE FAVORITOS
+=====================
+Se eliminan los textos engañosos.
+
+Antes:
+- "Objetivo activo"
+- "Farm sincronizado en curso"
+- "activo en las cuentas"
+
+Ahora se distingue entre:
+- "Objetivo sincronizado": el objetivo se ha enviado/guardado;
+- "Hunt confirmada en esta cuenta": existe actividad real en la hunt objetivo;
+- "pendiente en esta cuenta": todavía no se ha confirmado.
+
+El script ya no afirma que las otras cuentas están cazando únicamente porque
+comparten el objetivo.
+
+AVISO DE ÉXITO / FALLO
+======================
+El aviso verde:
+"Farm sincronizado activo"
+
+se sustituye por:
+"✅ Hunt confirmada en esta cuenta"
+
+y solo aparece si la hunt está realmente activa.
+
+Si transcurren 10,5 segundos sin confirmación se muestra un error visible:
+"❌ Objetivo enviado, pero esta cuenta todavía no confirmó la hunt de <Pokémon>."
+
+Ya no queda únicamente un warning escondido en consola.
+
+POPUPS MOLESTOS DE DIAGNÓSTICO
+==============================
+Se identificó que los popups de la segunda captura son generados por:
+PokeGrid - Script Bridge & Health Agent
+
+Concretamente por su contenedor:
+pg-bridge-auto-diagnostic-container
+
+Las tarjetas corresponden a estados publicados por:
+- Game Structure Monitor;
+- Agente de datos del juego;
+- Detector de decisiones y suministros.
+
+En 1.1.32 se añade una supresión VISUAL del contenedor automático:
+- se elimina una tarjeta/contenedor ya existente al cargar;
+- se instala CSS permanente para que el Bridge no pueda volver a mostrarlo;
+- no se desactivan los estados, errores, heartbeat ni diagnósticos internos;
+- no se modifica el funcionamiento de los otros scripts.
+
+Esto elimina el ruido en pantalla pero conserva la información técnica para
+cuando necesitemos diagnosticar algo.
+
+BOTÓN ALTERNATIVO TIPO AUTOHUNT
+===============================
+No se añade todavía.
+
+Motivo:
+esta prueba ha revelado un bug concreto anterior a cualquier intento real de
+entrada: un field-init antiguo hacía que el script creyera que ya estaba dentro.
+
+Primero debe probarse esta corrección. Si 1.1.32 ya genera el intento real pero
+aun así no consigue entrar, entonces sí se abandona esta arquitectura y se
+plantea el botón específico tipo AutoHunt para el favorito activo.
+
+SE CONSERVA
+===========
+- Favoritos en pestaña independiente.
+- Añadir/eliminar favoritos.
+- Farmear x4 / Reenviar x4.
+- Detener farm.
+- BroadcastChannel + localStorage.
+- Watchdog del objetivo sincronizado.
+- Ranking XP/general.
+- No capturados.
+- Item Finder.
+- Rendimiento.
+- Histórico móvil de 12 muestras.
+- Bridge UI de Hunt Intelligence.
+- Auto Catch y Poké Ball sin cambios.
+
+VALIDACIÓN
+==========
+- JavaScript validado con node --check.
+- @version: 1.1.32.
+- Guards internos actualizados de V1131 a V1132.
+- 0 referencias restantes a 1.1.31.
+- favoriteMatchesCurrent() ya no acepta un slug almacenado sin actividad real.
+- startHuntByOfficialConfig() usa favoriteHuntLiveConfirmed().
+- El éxito de Farm favorito requiere hunt viva.
+- El estado visual distingue objetivo enviado de hunt confirmada.
+- El contenedor automático de diagnósticos del Bridge queda oculto sin apagar
+  el sistema de health/diagnóstico.
+
+SHA-256
+=======
+a5fce179283daab7622b057c16724dfab1f1683462117472a48f373d67c6ad72
+
+ARCHIVOS
+========
+Script:
+pokegrid-hunt-intelligence-1.1.32.txt
+
+Registro de cambios:
+actualizaciones-hunt-intelligence-1.1.32.txt
+
 ## PokeGrid - Hunt Intelligence 1.1.31 — 2026-08-10
 
 POKE IDLE WORLD — HUNT INTELLIGENCE
