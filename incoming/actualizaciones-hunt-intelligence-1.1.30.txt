@@ -1,0 +1,138 @@
+POKE IDLE WORLD — HUNT INTELLIGENCE
+ACTUALIZACIONES DE LA VERSIÓN 1.1.30
+Fecha: 2026-08-10
+
+VERSIÓN
+=======
+Anterior: 1.1.29
+Nueva: 1.1.30
+
+PROBLEMA DETECTADO CON EL AUDITOR
+=================================
+La prueba de 1.1.29 mostraba que, al pulsar Farmear x4, Hunt Intelligence cargaba
+los datos necesarios (personaje, criaturas, objetos y /api/game/map-markers),
+pero no llegaba a una entrada real de hunt.
+
+No aparecía:
+GET /api/game/hunt-config?slug=<objetivo>
+
+ni un nuevo:
+WebSocket field-init
+
+Por tanto el fallo estaba antes de que startHunt() llegara a ejecutar la hunt.
+
+CAUSA
+=====
+resolveFavoriteHunt() dependía primero de recommendation.rows, es decir, de las
+filas del ranking de Hunt Intelligence.
+
+Si el Pokémon elegido manualmente como favorito no aparecía en esas filas,
+1.1.29 devolvía null aunque la hunt existiera y estuviera desbloqueada.
+
+Eso no corresponde al objetivo de Favoritos: una hunt favorita no tiene por qué
+ser buena para XP ni aparecer en ningún ranking.
+
+CORREGIDO
+=========
+Favoritos queda completamente independiente del ranking.
+
+Ahora cada cuenta:
+1. Consulta directamente el catálogo oficial de hunts.
+2. Resuelve el Pokémon por slug exacto, speciesId, nombre exacto o coincidencia
+   compatible de respaldo.
+3. Calcula el nivel requerido de la hunt.
+4. Calcula el nivel de acceso de esa cuenta usando el Pokémon equipado y el nivel
+   del entrenador.
+5. Si puede acceder, entrega directamente esa hunt a startHunt().
+6. startHunt() abre el mapa, localiza el marker/región y ejecuta la entrada.
+
+Favoritos ya NO depende de:
+- Solo XP/h
+- Mejor general
+- Top N
+- Item Finder
+- No capturados
+- recommendation.rows
+
+CONFIRMACIÓN REAL
+=================
+startHunt() devuelve ahora:
+- true si el juego confirma el slug de la nueva hunt;
+- false si no consigue confirmarlo.
+
+Farmear x4 ya no muestra éxito solamente porque la orden se haya emitido.
+
+La cuenta desde la que pulsas:
+- envía la orden;
+- intenta entrar;
+- espera a que el juego confirme el cambio;
+- solo después muestra el Farm como iniciado correctamente.
+
+Si no se confirma, queda como fallo y el watchdog puede reintentarlo mientras
+el objetivo siga activo.
+
+SINCRONIZACIÓN ENTRE CUENTAS
+============================
+Se conserva:
+- BroadcastChannel;
+- localStorage como respaldo;
+- IDs únicos de orden;
+- deduplicación;
+- objetivo compartido;
+- watchdog;
+- prioridad del objetivo favorito.
+
+Cada cuenta resuelve la hunt con su propio nivel.
+
+BOTÓN FLOTANTE ⭐
+=================
+ELIMINADO.
+
+Se elimina completamente el botón separado que únicamente abría la pestaña
+Favoritos.
+
+Se conserva la pestaña:
+⭐ Favoritos
+
+Dentro de ella siguen disponibles:
+- buscador;
+- añadir favorito;
+- lista persistente;
+- Farmear x4;
+- Reenviar x4;
+- Detener farm;
+- eliminar favorito;
+- objetivo activo.
+
+NO MODIFICADO
+=============
+- No se añaden favoritos en Hunts.
+- No se añaden favoritos en No capturados.
+- No se cambia Auto Catch.
+- No se cambia la Poké Ball.
+- No se altera el histórico móvil de 12 muestras.
+- No se altera el ranking XP/general.
+- No se altera Item Finder.
+- No se altera Rendimiento.
+- No se altera Histórico.
+- No se altera Bridge UI.
+
+VALIDACIÓN
+==========
+- JavaScript validado correctamente con node --check usando copia temporal .js.
+- @version: 1.1.30
+- Guards internos: V1130
+- 0 referencias a 1.1.29
+- 0 referencias a FAVORITES_BUTTON_ID
+- resolveFavoriteHunt() ya no depende de recommendation.rows
+- startHunt() confirma éxito/fallo real
+- sincronización BroadcastChannel + localStorage conservada
+
+SHA-256
+=======
+46bc8ccffdf444cf190f7931153bf971786d0cbcd0a8a03f43f7aa5f7f4f3aea
+
+ARCHIVOS
+========
+pokegrid-hunt-intelligence-1.1.30.txt
+actualizaciones-hunt-intelligence-1.1.30.txt
