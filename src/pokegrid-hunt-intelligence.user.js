@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.30
+// @version      1.1.31
 // @description  Recomendador, Farm sincronizado de favoritos, No capturados, Item Finder y supervisor con histórico móvil de 12 muestras por Hunt + Pokémon.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1130) return;
-  window.__pgHuntIntelligenceCoreV1130 = true;
+  if (window.__pgHuntIntelligenceCoreV1131) return;
+  window.__pgHuntIntelligenceCoreV1131 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -680,8 +680,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1130) return;
-  window.__pgHuntIntelligenceItemCoreV1130 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1131) return;
+  window.__pgHuntIntelligenceItemCoreV1131 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1165,8 +1165,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1130) return;
-  window.__pgHuntIntelligenceEngineV1130 = true;
+  if (window.__pgHuntIntelligenceEngineV1131) return;
+  window.__pgHuntIntelligenceEngineV1131 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2341,14 +2341,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.30 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
+  console.info('[Hunt Intelligence] Motor v1.1.31 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1130) return;
-  window.__pgHuntIntelligenceSupervisorV1130 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1131) return;
+  window.__pgHuntIntelligenceSupervisorV1131 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -3711,13 +3711,13 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.30',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    version:'1.1.31',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.30',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.31',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.30',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.31',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   const historyRecovery = recoverHistoryIfNeeded();
@@ -3728,13 +3728,13 @@
   restartSampleCheckpoint();
   startHistoryPokemonWatcher();
   setTimeout(()=>refresh(false),1200);
-  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.30 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
+  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.31 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1130) return;
-  window.__pgHuntIntelligenceUiV1130 = true;
+  if (window.__pgHuntIntelligenceUiV1131) return;
+  window.__pgHuntIntelligenceUiV1131 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -4699,6 +4699,7 @@
 
   async function handleFavoriteFarmCommand(command) {
     if (!command?.id || !rememberFavoriteCommand(command.id)) return false;
+    console.info('[Hunt Intelligence · Farm favorito] Orden recibida:', command.type, command.target?.name || '', command.id);
     if (command.type === 'stop') {
       clearFavoriteFarmActive();
       if (activeTab === 'favorites' && document.getElementById(PANEL_ID)?.isConnected) renderFavorites(false);
@@ -4883,6 +4884,119 @@
     if (!refreshed?.accessToken) return null;
     sessionStorage.setItem('pokeweb:tokens', JSON.stringify(refreshed));
     return refreshed.accessToken;
+  }
+
+
+  /*
+   * Entrada directa a una hunt.
+   *
+   * Los auditores reales del juego muestran que una transición correcta produce:
+   *   GET /api/game/hunt-config?slug=<slug>
+   *   -> websocket field-init con ese mismo slug
+   *
+   * Favoritos usa esta ruta como mecanismo principal porque no depende de que
+   * el mapa esté abierto, de la región seleccionada ni de que un click sintético
+   * sobre React sea aceptado. La UI del mapa se conserva como respaldo.
+   */
+  function huntRawSlug(hunt) {
+    return String(
+      hunt?.slug
+      || hunt?.marker?.slug
+      || hunt?.marker?.hunt
+      || hunt?.key
+      || ''
+    ).trim();
+  }
+
+  function huntSlugConfirmed(hunt) {
+    const now = currentSlug();
+    if (!now) return false;
+    const rawSlug = huntRawSlug(hunt);
+    const exact = norm(rawSlug);
+    if (exact && now === exact) return true;
+    const terms = huntTerms(hunt);
+    return terms.some(term => term && (now === term || now.includes(term) || term.includes(now)));
+  }
+
+  async function requestHuntConfigTransition(slug) {
+    const cleanSlug = String(slug || '').trim();
+    if (!cleanSlug) throw new Error('La hunt objetivo no tiene un slug válido.');
+
+    const endpoint = `/api/game/hunt-config?slug=${encodeURIComponent(cleanSlug)}`;
+    const send = accessToken => fetch(endpoint, {
+      method: 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+    });
+
+    let response = await send(getGameTokens()?.accessToken);
+
+    if (response.status === 401 || response.status === 403) {
+      const refreshedToken = await refreshGameAccessToken();
+      if (refreshedToken) response = await send(refreshedToken);
+    }
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(
+        payload?.message
+        || `No se pudo abrir la hunt “${cleanSlug}” (HTTP ${response.status}).`
+      );
+    }
+
+    return { endpoint, status: response.status, payload };
+  }
+
+  async function startHuntByOfficialConfig(hunt, { timeoutMs = 7000 } = {}) {
+    const slug = huntRawSlug(hunt);
+    if (!slug) return { attempted: false, confirmed: false, reason: 'missing-slug' };
+    if (huntSlugConfirmed(hunt)) {
+      return { attempted: false, confirmed: true, reason: 'already-active', slug };
+    }
+
+    console.info(`[Hunt Intelligence · transición directa] Solicitando hunt-config: ${slug}`);
+
+    try {
+      const request = await requestHuntConfigTransition(slug);
+      const confirmed = Boolean(await waitFor(
+        () => huntSlugConfirmed(hunt),
+        timeoutMs,
+        100
+      ));
+
+      if (confirmed) {
+        console.info(`[Hunt Intelligence · transición directa] field-init confirmado: ${slug}`);
+        return {
+          attempted: true,
+          confirmed: true,
+          reason: 'field-init-confirmed',
+          slug,
+          status: request.status
+        };
+      }
+
+      console.warn(
+        `[Hunt Intelligence · transición directa] hunt-config respondió HTTP ${request.status}, `
+        + `pero no llegó field-init para ${slug}; se usará el respaldo visual.`
+      );
+      return {
+        attempted: true,
+        confirmed: false,
+        reason: 'no-field-init',
+        slug,
+        status: request.status
+      };
+    } catch (error) {
+      console.warn('[Hunt Intelligence · transición directa] Falló la ruta directa:', error);
+      return {
+        attempted: true,
+        confirmed: false,
+        reason: 'request-failed',
+        slug,
+        error: error?.message || String(error)
+      };
+    }
   }
 
   function pokedexCaughtState(value) {
@@ -5675,11 +5789,36 @@
       return false;
     }
     if (busy) return false;
-    busy = true; suppressMapAutoOpenUntil = Date.now() + 25000;
+    busy = true;
+    suppressMapAutoOpenUntil = Date.now() + 25000;
     closePanel();
+
     const target = hunt.name || hunt.creature?.name || hunt.slug || 'objetivo';
-    toast(`Abriendo mapa para cazar ${target}…`);
+
     try {
+      /*
+       * El Farm favorito no debe depender del DOM del mapa.
+       * Cada cuenta solicita directamente la configuración de SU hunt objetivo
+       * con su propia sesión/token y solo considera éxito cuando field-init
+       * confirma el slug. Si la ruta directa no produce field-init, se conserva
+       * el mecanismo visual histórico como respaldo.
+       */
+      if (options.favoriteFarm) {
+        toast(`🎯 Entrando directamente a ${target}…`);
+        const direct = await startHuntByOfficialConfig(hunt, { timeoutMs: 7000 });
+        if (direct.confirmed) {
+          toast(`Hunt iniciada: ${target}`, 'ok');
+          return true;
+        }
+        console.warn(
+          '[Hunt Intelligence · Farm favorito] La transición directa no quedó confirmada; '
+          + 'probando el mapa como respaldo.',
+          direct
+        );
+      }
+
+      toast(`Abriendo mapa para cazar ${target}…`);
+
       const before = currentSlug();
       let marker = findHuntMarker(hunt);
       if (!marker) {
@@ -5688,8 +5827,10 @@
         mapButton.click();
         await waitFor(() => findMapRoot(), 5000, 120);
       }
+
       marker = await findHuntAcrossRegions(hunt);
       if (!marker) throw new Error(`El mapa se abrió y revisé sus regiones, pero no pude localizar a ${target}.`);
+
       marker.scrollIntoView?.({ block: 'center', inline: 'center' });
       marker.click();
 
@@ -5698,25 +5839,27 @@
         const now = currentSlug();
         return now && now !== before && targetTerms.some(t => now.includes(t) || t.includes(now));
       }, 1300, 100);
+
       if (!changed) {
         const start = await waitFor(() => findStartButton(hunt), 3000, 100);
-        if (start) { start.click(); }
+        if (start) start.click();
       }
-      const confirmed = await waitFor(() => {
-        const now = currentSlug();
-        return now && targetTerms.some(t => now.includes(t) || t.includes(now));
-      }, 5500, 150);
+
+      const confirmed = await waitFor(() => huntSlugConfirmed(hunt), 5500, 150);
       if (confirmed) {
         toast(`Hunt iniciada: ${target}`, 'ok');
         return true;
       }
+
       toast(`He seleccionado ${target}, pero no pude confirmar que la hunt comenzara. Revisa la pantalla.`, 'bad');
       return false;
     } catch (error) {
       console.error('[Hunt Advisor · iniciar hunt]', error);
       toast(error?.message || 'No se pudo iniciar la hunt.', 'bad');
       return false;
-    } finally { busy = false; }
+    } finally {
+      busy = false;
+    }
   }
 
   function looksLikeMapButton(element) {
@@ -6034,7 +6177,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.30',
+    version: '1.1.31',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -6082,7 +6225,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.30',
+      version: '1.1.31',
       description: 'Ranking personal, Farm sincronizado de favoritos, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -6130,7 +6273,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.30',
+    version: '1.1.31',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -6169,5 +6312,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.30 cargado: Histórico móvil de 12 muestras y Farm sincronizado de Favoritos corregido para resolver hunts directamente por catálogo y nivel.');
+  console.info('[Hunt Intelligence] v1.1.31 cargado: Favoritos usa hunt-config directo + confirmación field-init por cuenta, con mapa solo como respaldo.');
 })();
