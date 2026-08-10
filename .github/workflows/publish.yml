@@ -44,6 +44,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Aplicar release 2026-08-10
+        run: python3 scripts/apply-release-2026-08-10.py
+
       - name: Procesar bandeja incoming
         run: node scripts/process-incoming.mjs
 
