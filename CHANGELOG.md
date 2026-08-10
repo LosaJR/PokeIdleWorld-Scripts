@@ -1,5 +1,132 @@
 # Poke Idle World Scripts — Changelog
 
+## Poke Idle World - Quality of Life (PIW-QOL ES) 9.10.30 — 2026-08-10
+
+POKE IDLE WORLD — PIW-QOL ES
+ACTUALIZACIONES DE LA VERSIÓN 9.10.30
+Fecha: 2026-08-10
+
+VERSIÓN
+=======
+Anterior: 9.10.29
+Nueva:    9.10.30
+
+PROBLEMAS CORREGIDOS
+====================
+1. Después de refrescar completamente el juego, latestPokemon volvía a estar vacío.
+   PIW-QOL esperaba pasivamente a que el juego enviase otro evento "pokes", por lo
+   que Capture Log podía quedarse sin mostrar ninguna Quality tras un refresh.
+
+2. Existía una carrera entre los eventos "pokes" y "catch-result".
+   La 9.10.29 funcionaba correctamente principalmente cuando catch-result llegaba
+   antes que la actualización de Pokémon. Si el Pokémon nuevo llegaba primero,
+   podía mostrarse temporalmente por la colección actual pero no quedar registrado
+   en el historial persistente.
+
+3. Después de reiniciar Capture Log, un registro antiguo del historial local podía
+   llegar a reutilizarse como respaldo únicamente porque coincidían nombre + IV,
+   aunque la hora de captura fuese distinta.
+
+AÑADIDO
+=======
+- Buffer temporal recentPokemonAdditions para conservar Pokémon recién añadidos
+  durante 20 segundos.
+- El buffer permite reconciliar una captura tanto si el orden recibido es:
+    catch-result -> pokes
+  como si es:
+    pokes -> catch-result
+- Se añade resolvePendingCapturesFromRecentAdditions().
+- Se añade rememberRecentPokemonAdditions().
+- Se añade purgeRecentPokemonAdditions().
+- Se añade refreshLatestPokemon().
+- PIW-QOL solicita activamente "pokes-get" después de una recarga completa.
+- Al detectar Capture Log abierto sin colección cargada, solicita inmediatamente
+  la lista de Pokémon.
+- Se realizan reintentos de hidratación tras iniciar el DOM para evitar depender
+  de que ocurra una captura nueva.
+- Se añade CAPTURE_RECENT_ADDITION_MAX_AGE_MS = 20000.
+- Se añade CAPTURE_ROW_MATCH_MAX_DELTA_MS = 120000.
+
+MODIFICADO
+==========
+- El procesamiento de un evento "pokes" registra primero las nuevas adiciones,
+  después reconcilia capturas pendientes y finalmente actualiza latestPokemon.
+- rememberCaptureResult() intenta también resolver inmediatamente contra Pokémon
+  que hayan aparecido unos segundos antes.
+- reconcileCapturedPokemon() ya no depende de un único orden de eventos.
+- El histórico persistente sigue usando localStorage, pero ahora recibe registros
+  de forma fiable en ambos órdenes de WebSocket.
+- findStoredCaptureDescriptor() prioriza capturas almacenadas dentro del mismo
+  minuto mostrado por Capture Log.
+- Cuando existen varias capturas iguales en el mismo minuto, se consumen de más
+  reciente a más antigua, siguiendo el orden visual del Capture Log.
+- El tiempo máximo de una captura pendiente pasa de 15 a 20 segundos.
+- El mensaje de carga de PIW-QOL se actualiza a la lógica de 9.10.30.
+
+ELIMINADO / SUSTITUIDO
+======================
+- Se elimina la dependencia de esperar pasivamente a un futuro evento "pokes"
+  después de refrescar la página.
+- Se elimina la suposición de que catch-result siempre llega antes que pokes.
+- Se elimina el fallback peligroso que permitía asociar una entrada antigua del
+  historial cuando una fila tenía fecha/hora pero no existía ninguna captura
+  reciente compatible.
+- Si Capture Log contiene hora, una entrada histórica con el mismo nombre + IV
+  pero una hora claramente distinta ya NO puede utilizarse como coincidencia.
+- No se elige arbitrariamente entre dos candidatos con la misma puntuación.
+
+COMPORTAMIENTO DESPUÉS DE REFRESCAR
+===================================
+- El historial guardado en localStorage se carga al iniciar el script.
+- PIW-QOL vuelve a solicitar la colección actual automáticamente.
+- Capture Log puede reconstruir las Quality guardadas sin esperar a realizar una
+  nueva captura.
+- Las capturas nuevas quedan persistidas aunque pokes y catch-result lleguen en
+  orden inverso.
+
+COMPORTAMIENTO DESPUÉS DE "CLEAR HISTORY"
+=========================================
+- Reiniciar el Capture Log del juego no borra automáticamente el historial técnico
+  interno de PIW-QOL, porque puede seguir siendo útil para otras entradas.
+- Sin embargo, los registros antiguos NO se aplican a las nuevas filas si sus
+  timestamps no coinciden.
+- De este modo un Larvitar antiguo con IV 133 no puede prestar por accidente su
+  Quality a un Larvitar nuevo con IV 133 capturado mucho después.
+
+CONSERVADO
+==========
+- Resolución mediante datos internos/nativos de la propia fila cuando existen.
+- Historial persistente de hasta 300 capturas.
+- Identificación por hora de captura.
+- Colección actual como último respaldo.
+- Quality y potencial dibujados mediante CSS/data-attributes sin alterar el
+  textContent nativo de Capture Log.
+- Filtros y ordenaciones originales del juego.
+- Todas las demás funciones de PIW-QOL.
+
+VALIDACIÓN
+==========
+- JavaScript validado correctamente con node --check.
+- @version comprobada: 9.10.30.
+- SCRIPT_BUILD comprobado: 9.10.30.
+- Confirmado buffer de adiciones recientes.
+- Confirmada rehidratación mediante pokes-get.
+- Confirmada compatibilidad con ambos órdenes catch-result/pokes.
+- Confirmado que el fallback histórico antiguo por nombre + IV ya no se usa
+  cuando la fila dispone de hora y no coincide temporalmente.
+
+SHA-256
+=======
+a4a4f53591cbf460439e75d6f88670637a7d4e2aa7c36464d747a3c6db97ed13
+
+ARCHIVOS
+========
+Script:
+piw-qol-es-9.10.30.txt
+
+Registro de cambios:
+actualizaciones-piw-qol-es-9.10.30.txt
+
 ## Poke Idle World - Quality of Life (PIW-QOL ES) 9.10.29 — 2026-08-10
 
 POKE IDLE WORLD — PIW-QOL ES

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Poke Idle World - Quality of Life (PIW-QOL ES)
 // @namespace    http://tampermonkey.net/
-// @version      9.10.28
+// @version      9.10.29
 // @description  Mejoras de calidad de vida en español, sin modificar el mapa y con candados de venta configurables.
 // @author       Desjunior (JulianoCLI)
 // @match        https://poke.idleworld.online/play
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_BUILD = '9.10.28';
+    const SCRIPT_BUILD = '9.10.29';
 
     const NativeWebSocket = window.WebSocket;
     const nativeWebSocketSend = NativeWebSocket.prototype.send;
@@ -22,6 +22,8 @@
     let latestInventory = null;
     let latestPokemon = null;
     let latestFamily = null;
+    let captureQualityHistory = [];
+    let pendingCaptureResults = [];
     const gameEventWaiters = new Map();
     const trackedGameSockets = new WeakSet();
 
@@ -34,8 +36,11 @@
         }
         if (message?.type === 'inventory') latestInventory = message.items || [];
         if (message?.type === 'family') latestFamily = message;
+        if (message?.type === 'catch-result') rememberCaptureResult(message);
         if (message?.type === 'pokes') {
-            latestPokemon = message.list || [];
+            const nextPokemon = message.list || [];
+            reconcileCapturedPokemon(latestPokemon, nextPokemon);
+            latestPokemon = nextPokemon;
             setTimeout(() => {
                 enhancePartyQuality();
                 enhanceCaptureLogQuality();
@@ -176,9 +181,19 @@
     const STORAGE_MARK_QUICK_BUY = 'script_mark_quick_buy_v1';
     const STORAGE_MARK_QUALITY_PICKER = 'script_mark_quality_picker_v1';
     const STORAGE_SHOW_QUALITY_POTENTIAL = 'script_show_quality_potential_v1';
+    const STORAGE_CAPTURE_QUALITY_HISTORY = 'script_capture_quality_history_v1';
+    const CAPTURE_QUALITY_HISTORY_LIMIT = 300;
+    const CAPTURE_PENDING_MAX_AGE_MS = 15000;
     const STORAGE_CUSTOM_FONT = 'script_custom_font_v1';
     const STORAGE_CUSTOM_FONT_NAME = 'script_custom_font_name_v1';
     const CUSTOM_FONT_FAMILY = 'PIW Uploaded Font';
+
+    try {
+        const storedCaptureHistory = JSON.parse(localStorage.getItem(STORAGE_CAPTURE_QUALITY_HISTORY) || '[]');
+        captureQualityHistory = Array.isArray(storedCaptureHistory) ? storedCaptureHistory : [];
+    } catch {
+        captureQualityHistory = [];
+    }
 
     const GAME_FONT_OPTIONS = {
         barlow: 'Barlow, "Barlow Fallback", system-ui, sans-serif',
@@ -4741,7 +4756,328 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
     }
 
     // Capture Log: la calidad se dibuja con ::after a partir de data-attributes.
-    // No se inserta texto en los nodos nativos, por lo que filtros y ordenaciones conservan su comportamiento.
+    // La asociación prioriza datos nativos de la propia fila, después un historial local
+    // registrado al capturar y solo usa la colección actual como respaldo.
+    function capturePokemonId(pokemon) {
+        const value = pokemon?.capturedId ?? pokemon?.captureId ?? pokemon?.id ?? pokemon?.instanceId ?? pokemon?.uid;
+        return value === undefined || value === null || value === '' ? '' : String(value);
+    }
+
+    function capturePokemonSpeciesId(pokemon) {
+        const value = pokemon?.speciesId ?? pokemon?.pokeId ?? pokemon?.pokemonId ?? pokemon?.creatureId;
+        return value === undefined || value === null || value === '' ? '' : String(value);
+    }
+
+    function capturePokemonName(pokemon) {
+        return String(pokemon?.name ?? pokemon?.pokemonName ?? pokemon?.pokeName ?? pokemon?.creatureName ?? '').trim();
+    }
+
+    function captureQualityValue(pokemon) {
+        const value = Number(pokemon?.quality ?? pokemon?.qualityMultiplier ?? pokemon?.qualityMult);
+        return Number.isFinite(value) && value >= 0.5 && value <= 5 ? value : null;
+    }
+
+    function captureTimestampValue(...sources) {
+        const keys = ['capturedAt', 'caughtAt', 'captureTime', 'createdAt', 'acquiredAt', 'timestamp', 'time', 'serverNow'];
+        for (const source of sources) {
+            if (!source || typeof source !== 'object') continue;
+            for (const key of keys) {
+                const raw = source[key];
+                if (raw === undefined || raw === null || raw === '') continue;
+                if (typeof raw === 'number' && Number.isFinite(raw)) {
+                    const ms = raw < 1e12 ? raw * 1000 : raw;
+                    if (ms > 946684800000) return ms;
+                }
+                const parsed = Date.parse(String(raw));
+                if (Number.isFinite(parsed)) return parsed;
+            }
+        }
+        return null;
+    }
+
+    function captureDescriptor(pokemon, fallbackTime = null) {
+        if (!pokemon || typeof pokemon !== 'object') return null;
+        const quality = captureQualityValue(pokemon);
+        if (quality === null) return null;
+        const ivTotal = getCaptureIvTotal(pokemon, null);
+        const name = capturePokemonName(pokemon);
+        const id = capturePokemonId(pokemon);
+        if (!name && !id) return null;
+        return {
+            id,
+            speciesId: capturePokemonSpeciesId(pokemon),
+            name,
+            ivTotal: Number.isFinite(Number(ivTotal)) ? Number(ivTotal) : null,
+            quality,
+            shiny: Boolean(pokemon?.shiny ?? pokemon?.isShiny),
+            level: Number.isFinite(Number(pokemon?.level)) ? Number(pokemon.level) : null,
+            capturedAt: captureTimestampValue(pokemon) || fallbackTime || Date.now()
+        };
+    }
+
+    function findCaptureDescriptorDeep(root, { rowName = '', rowIv = null, maxDepth = 4 } = {}) {
+        if (!root || typeof root !== 'object') return null;
+        const queue = [{ value: root, depth: 0 }];
+        const seen = new WeakSet();
+        let inspected = 0;
+        let best = null;
+        let bestScore = -1;
+        let bestSignature = '';
+        let ambiguousBest = false;
+
+        while (queue.length && inspected < 180) {
+            const { value, depth } = queue.shift();
+            if (!value || typeof value !== 'object' || seen.has(value)) continue;
+            if (typeof Node !== 'undefined' && value instanceof Node) continue;
+            seen.add(value);
+            inspected += 1;
+
+            const descriptor = captureDescriptor(value);
+            if (descriptor) {
+                const normalizedName = normalizePartyPokemonName(descriptor.name);
+                let score = 1;
+                if (rowName && normalizedName) {
+                    if (!rowName.includes(normalizedName)) score = -100;
+                    else score += 5;
+                }
+                if (rowIv !== null && Number.isFinite(Number(descriptor.ivTotal))) {
+                    if (Number(descriptor.ivTotal) !== Number(rowIv)) score = -100;
+                    else score += 5;
+                }
+                if (descriptor.id) score += 2;
+                const signature = `${descriptor.id}|${normalizePartyPokemonName(descriptor.name)}|${descriptor.ivTotal}|${descriptor.quality}`;
+                if (score > bestScore) {
+                    best = descriptor;
+                    bestScore = score;
+                    bestSignature = signature;
+                    ambiguousBest = false;
+                } else if (score === bestScore && signature !== bestSignature) {
+                    ambiguousBest = true;
+                }
+            }
+
+            if (depth >= maxDepth) continue;
+            let entries = [];
+            try { entries = Object.entries(value); } catch { continue; }
+            for (const [key, child] of entries.slice(0, 50)) {
+                if (!child || typeof child !== 'object') continue;
+                if (['return', 'child', 'sibling', 'stateNode', '_owner'].includes(key)) continue;
+                queue.push({ value: child, depth: depth + 1 });
+            }
+        }
+        return bestScore >= 0 && !ambiguousBest ? best : null;
+    }
+
+    function parseCaptureRowTimestamp(row) {
+        const text = String(row?.textContent || '');
+        const match = text.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\s*,?\s*(\d{1,2}):(\d{2})\b/);
+        if (!match) return null;
+        const now = new Date();
+        let year = match[3] ? Number(match[3]) : now.getFullYear();
+        if (year < 100) year += 2000;
+        let timestamp = new Date(year, Number(match[2]) - 1, Number(match[1]), Number(match[4]), Number(match[5]), 0, 0).getTime();
+        if (!match[3] && timestamp > now.getTime() + 2 * 86400000) {
+            timestamp = new Date(year - 1, Number(match[2]) - 1, Number(match[1]), Number(match[4]), Number(match[5]), 0, 0).getTime();
+        }
+        return Number.isFinite(timestamp) ? timestamp : null;
+    }
+
+    function saveCaptureQualityHistory() {
+        captureQualityHistory = captureQualityHistory
+            .filter(entry => entry && Number.isFinite(Number(entry.quality)))
+            .sort((a, b) => Number(b.capturedAt || 0) - Number(a.capturedAt || 0))
+            .slice(0, CAPTURE_QUALITY_HISTORY_LIMIT);
+        try {
+            localStorage.setItem(STORAGE_CAPTURE_QUALITY_HISTORY, JSON.stringify(captureQualityHistory));
+        } catch (error) {
+            console.warn('[PIW-QOL] No se pudo guardar el histórico de calidad de capturas:', error);
+        }
+    }
+
+    function rememberCaptureQualityEntry(entry) {
+        if (!entry || !Number.isFinite(Number(entry.quality))) return null;
+        const normalized = {
+            id: String(entry.id || ''),
+            speciesId: String(entry.speciesId || ''),
+            name: String(entry.name || '').trim(),
+            ivTotal: Number.isFinite(Number(entry.ivTotal)) ? Number(entry.ivTotal) : null,
+            quality: Number(entry.quality),
+            shiny: Boolean(entry.shiny),
+            level: Number.isFinite(Number(entry.level)) ? Number(entry.level) : null,
+            capturedAt: Number.isFinite(Number(entry.capturedAt)) ? Number(entry.capturedAt) : Date.now()
+        };
+        if (!normalized.id && !normalized.name) return null;
+
+        const sameIndex = captureQualityHistory.findIndex(current => {
+            if (normalized.id && current.id && String(current.id) === normalized.id) return true;
+            const sameName = normalizePartyPokemonName(current.name) === normalizePartyPokemonName(normalized.name);
+            const sameIv = Number(current.ivTotal) === Number(normalized.ivTotal);
+            const sameQuality = Math.abs(Number(current.quality) - normalized.quality) < 0.0001;
+            const closeTime = Math.abs(Number(current.capturedAt || 0) - normalized.capturedAt) <= 20000;
+            return sameName && sameIv && sameQuality && closeTime;
+        });
+        if (sameIndex >= 0) {
+            const current = captureQualityHistory[sameIndex];
+            const unchanged = String(current.id || '') === normalized.id
+                && String(current.speciesId || '') === normalized.speciesId
+                && String(current.name || '') === normalized.name
+                && Number(current.ivTotal) === Number(normalized.ivTotal)
+                && Math.abs(Number(current.quality) - normalized.quality) < 0.0001
+                && Boolean(current.shiny) === normalized.shiny
+                && Number(current.level) === Number(normalized.level)
+                && Math.abs(Number(current.capturedAt || 0) - normalized.capturedAt) <= 1000;
+            if (unchanged) return current;
+            captureQualityHistory.splice(sameIndex, 1);
+        }
+        captureQualityHistory.unshift(normalized);
+        saveCaptureQualityHistory();
+        return normalized;
+    }
+
+    function purgePendingCaptureResults() {
+        const cutoff = Date.now() - CAPTURE_PENDING_MAX_AGE_MS;
+        pendingCaptureResults = pendingCaptureResults.filter(entry => Number(entry?.at || 0) >= cutoff);
+    }
+
+    function rememberCaptureResult(message) {
+        purgePendingCaptureResults();
+        const at = captureTimestampValue(message) || Date.now();
+        const descriptor = findCaptureDescriptorDeep(message, { maxDepth: 5 });
+        if (descriptor) {
+            descriptor.capturedAt = captureTimestampValue(message, descriptor) || at;
+            rememberCaptureQualityEntry(descriptor);
+        }
+        pendingCaptureResults.push({ at, descriptor });
+    }
+
+    function captureMatchScore(hint, pokemon) {
+        if (!hint) return 0;
+        let score = 0;
+        const hintId = String(hint.id || '');
+        const pokemonId = capturePokemonId(pokemon);
+        if (hintId && pokemonId) score += hintId === pokemonId ? 20 : -20;
+        const hintSpecies = String(hint.speciesId || '');
+        const pokemonSpecies = capturePokemonSpeciesId(pokemon);
+        if (hintSpecies && pokemonSpecies) score += hintSpecies === pokemonSpecies ? 6 : -6;
+        const hintName = normalizePartyPokemonName(hint.name);
+        const pokemonName = normalizePartyPokemonName(capturePokemonName(pokemon));
+        if (hintName && pokemonName) score += hintName === pokemonName ? 8 : -8;
+        if (Number.isFinite(Number(hint.ivTotal))) {
+            const pokemonIv = getCaptureIvTotal(pokemon, null);
+            if (Number.isFinite(Number(pokemonIv))) score += Number(hint.ivTotal) === Number(pokemonIv) ? 8 : -8;
+        }
+        return score;
+    }
+
+    function reconcileCapturedPokemon(previousList, nextList) {
+        purgePendingCaptureResults();
+        if (!pendingCaptureResults.length || !Array.isArray(nextList)) return;
+
+        const previousIds = new Set((Array.isArray(previousList) ? previousList : []).map(capturePokemonId).filter(Boolean));
+        let added = nextList.filter(pokemon => {
+            const id = capturePokemonId(pokemon);
+            return id && !previousIds.has(id) && captureQualityValue(pokemon) !== null;
+        });
+        if (!added.length) return;
+
+        const unresolved = [];
+        for (const pending of pendingCaptureResults) {
+            if (!added.length) { unresolved.push(pending); continue; }
+            let chosenIndex = -1;
+            if (pending.descriptor) {
+                let bestScore = -Infinity;
+                added.forEach((pokemon, index) => {
+                    const score = captureMatchScore(pending.descriptor, pokemon);
+                    if (score > bestScore) { bestScore = score; chosenIndex = index; }
+                });
+                if (bestScore < 0 && added.length !== 1) chosenIndex = -1;
+            } else if (added.length === 1) {
+                chosenIndex = 0;
+            }
+
+            if (chosenIndex < 0) { unresolved.push(pending); continue; }
+            const pokemon = added.splice(chosenIndex, 1)[0];
+            const descriptor = captureDescriptor(pokemon, pending.at);
+            if (descriptor) {
+                descriptor.capturedAt = pending.at;
+                rememberCaptureQualityEntry(descriptor);
+            }
+        }
+        pendingCaptureResults = unresolved;
+    }
+
+    function findNativeCaptureDescriptor(row, rowName, rowIv) {
+        const roots = [];
+        for (const key of Object.keys(row || {})) {
+            if (key.startsWith('__reactProps$')) roots.push(row[key]);
+            if (key.startsWith('__reactFiber$')) {
+                let fiber = row[key];
+                for (let depth = 0; fiber && depth < 6; depth += 1, fiber = fiber.return) {
+                    if (fiber.memoizedProps) roots.push(fiber.memoizedProps);
+                    if (fiber.pendingProps && fiber.pendingProps !== fiber.memoizedProps) roots.push(fiber.pendingProps);
+                }
+            }
+        }
+        for (const root of roots) {
+            const descriptor = findCaptureDescriptorDeep(root, { rowName, rowIv, maxDepth: 4 });
+            if (descriptor) return descriptor;
+        }
+        return null;
+    }
+
+    function findStoredCaptureDescriptor(rowName, rowIv, rowTimestamp, usedKeys) {
+        const candidates = captureQualityHistory.map((entry, index) => ({ entry, index })).filter(({ entry }) => {
+            if (!entry || !Number.isFinite(Number(entry.quality))) return false;
+            const name = normalizePartyPokemonName(entry.name);
+            if (rowName && name && !rowName.includes(name)) return false;
+            if (Number.isFinite(Number(rowIv)) && Number.isFinite(Number(entry.ivTotal)) && Number(entry.ivTotal) !== Number(rowIv)) return false;
+            const key = entry.id ? `id:${entry.id}` : `idx:${index}:${entry.capturedAt}`;
+            return !usedKeys.has(key);
+        });
+        if (!candidates.length) return null;
+
+        let chosen = null;
+        if (Number.isFinite(Number(rowTimestamp))) {
+            const ranked = candidates
+                .map(candidate => ({ ...candidate, delta: Math.abs(Number(candidate.entry.capturedAt || 0) - Number(rowTimestamp)) }))
+                .filter(candidate => candidate.delta <= 120000)
+                .sort((a, b) => a.delta - b.delta);
+            if (ranked.length) chosen = ranked[0];
+        }
+        if (!chosen && candidates.length === 1) chosen = candidates[0];
+        if (!chosen) return null;
+        const key = chosen.entry.id ? `id:${chosen.entry.id}` : `idx:${chosen.index}:${chosen.entry.capturedAt}`;
+        usedKeys.add(key);
+        return chosen.entry;
+    }
+
+    function findOwnedCaptureDescriptor(owned, rowName, rowIv, rowTimestamp) {
+        const matches = owned.filter(pokemon => {
+            const name = normalizePartyPokemonName(capturePokemonName(pokemon));
+            const iv = getCaptureIvTotal(pokemon, null);
+            return name && rowName.includes(name) && Number(iv) === Number(rowIv) && captureQualityValue(pokemon) !== null;
+        });
+        if (matches.length === 1) return captureDescriptor(matches[0], rowTimestamp || Date.now());
+        if (matches.length > 1 && Number.isFinite(Number(rowTimestamp))) {
+            const timed = matches.map(pokemon => ({ pokemon, timestamp: captureTimestampValue(pokemon) }))
+                .filter(entry => Number.isFinite(Number(entry.timestamp)))
+                .map(entry => ({ ...entry, delta: Math.abs(Number(entry.timestamp) - Number(rowTimestamp)) }))
+                .filter(entry => entry.delta <= 120000)
+                .sort((a, b) => a.delta - b.delta);
+            if (timed.length === 1 || (timed.length > 1 && timed[0].delta < timed[1].delta)) {
+                return captureDescriptor(timed[0].pokemon, timed[0].timestamp);
+            }
+        }
+        return null;
+    }
+
+    function clearCaptureQualityRow(row) {
+        row.classList.remove('script-capture-quality-row');
+        delete row.dataset.scriptCaptureQuality;
+        delete row.dataset.scriptCaptureQualitySource;
+        row.style.removeProperty('--script-capture-quality-color');
+    }
+
     function enhanceCaptureLogQuality(pokemonList = latestPokemon) {
         const owned = Array.isArray(pokemonList) ? pokemonList : [];
         const windows = Array.from(document.querySelectorAll('[role="dialog"],.win-window,.window,[class*="window"]'))
@@ -4752,29 +5088,45 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
             windowElement.classList.add('script-capture-log-window');
             const rows = Array.from(windowElement.querySelectorAll('tr,li,[class*="row"]'))
                 .filter(row => /IV\s*:?\s*\d+/i.test(row.textContent || ''));
+            const usedHistoryKeys = new Set();
 
             rows.forEach(row => {
                 const ivTotal = getCaptureIvTotal(null, row);
                 const rowName = normalizePartyPokemonName(row.textContent || '');
-                const matches = owned.filter(pokemon => {
-                    const name = normalizePartyPokemonName(pokemon?.name);
-                    const iv = getCaptureIvTotal(pokemon, null);
-                    return name && rowName.includes(name) && Number(iv) === Number(ivTotal);
-                });
+                const rowTimestamp = parseCaptureRowTimestamp(row);
 
-                if (matches.length !== 1 || !Number.isFinite(Number(matches[0]?.quality))) {
-                    row.classList.remove('script-capture-quality-row');
-                    delete row.dataset.scriptCaptureQuality;
-                    row.style.removeProperty('--script-capture-quality-color');
+                let descriptor = findNativeCaptureDescriptor(row, rowName, ivTotal);
+                let source = 'native';
+                if (descriptor) {
+                    descriptor.capturedAt = rowTimestamp || descriptor.capturedAt;
+                    rememberCaptureQualityEntry(descriptor);
+                } else {
+                    descriptor = findStoredCaptureDescriptor(rowName, ivTotal, rowTimestamp, usedHistoryKeys);
+                    source = 'history';
+                }
+                if (!descriptor) {
+                    descriptor = findOwnedCaptureDescriptor(owned, rowName, ivTotal, rowTimestamp);
+                    source = 'owned';
+                    if (descriptor && rowTimestamp) {
+                        descriptor.capturedAt = rowTimestamp;
+                        rememberCaptureQualityEntry(descriptor);
+                    }
+                }
+
+                if (!descriptor || !Number.isFinite(Number(descriptor.quality))) {
+                    clearCaptureQualityRow(row);
                     return;
                 }
 
-                const pokemon = matches[0];
-                const quality = Number(pokemon.quality);
+                const quality = Number(descriptor.quality);
                 const info = getPokemonQualityInfo(quality);
-                if (!info) return;
-                const potential = getPokemonPotentialPercent(quality, ivTotal, pokemon?.shiny);
+                if (!info) {
+                    clearCaptureQualityRow(row);
+                    return;
+                }
+                const potential = getPokemonPotentialPercent(quality, ivTotal, descriptor.shiny);
                 row.dataset.scriptCaptureQuality = `Q ×${quality.toFixed(2)}${potential === null ? '' : ` · ${potential}%`}`;
+                row.dataset.scriptCaptureQualitySource = source;
                 row.style.setProperty('--script-capture-quality-color', info.color);
                 row.classList.add('script-capture-quality-row');
             });
@@ -4873,5 +5225,5 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
     } else {
         initializeDOMEnhancements();
     }
-    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · Capture Log muestra calidad sin alterar filtros nativos.`);
+    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · Capture Log asocia Quality por dato nativo, historial de captura y hora; nombre + IV queda solo como respaldo.`);
 })();
