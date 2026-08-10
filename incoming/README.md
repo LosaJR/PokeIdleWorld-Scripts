@@ -4,18 +4,34 @@ Para una actualización normal, sube a `incoming/` el userscript y su TXT de cam
 
 ## Formato recomendado
 
-Los TXT de actualizaciones generados para cada script se pueden subir directamente, sin renombrarlos:
+Los archivos entregados para cada script se pueden subir directamente, sin renombrarlos.
+
+El userscript puede venir como cualquiera de estos formatos:
+
+- `nombre-version.user.js`
+- `nombre-version.user.txt`
+- `nombre-version.txt`
+
+Si se usa un `.txt` normal, el procesador comprueba que contenga una cabecera `==UserScript==` válida antes de aceptarlo como script.
+
+El registro de cambios individual puede subirse directamente con el formato:
+
+- `actualizaciones-nombre-version.txt`
+
+Ejemplo:
+
+- `pokegrid-hunt-intelligence-1.1.28.txt`
+- `actualizaciones-hunt-intelligence-1.1.28.txt`
+
+También son válidos:
 
 - `pokegrid-boss-damage-meter-1.0.6.user.js`
 - `actualizaciones-boss-damage-meter-1.0.6.txt`
 
-- `pokegrid-hunt-intelligence-1.1.27.user.js`
-- `actualizaciones-hunt-intelligence-1.1.27.txt`
-
 - `piw-qol-es-9.10.28.user.js`
 - `actualizaciones-piw-qol-es-9.10.28.txt`
 
-El procesador reconoce el prefijo `actualizaciones-` y también normaliza automáticamente el prefijo `pokegrid-` para emparejar cada TXT con su userscript.
+El procesador reconoce el prefijo `actualizaciones-` y normaliza automáticamente el prefijo `pokegrid-` para emparejar cada TXT con su userscript.
 
 ## Formato clásico compatible
 
