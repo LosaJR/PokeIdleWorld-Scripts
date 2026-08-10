@@ -1,5 +1,197 @@
 # Poke Idle World - Quality of Life (PIW-QOL ES)
 
+## 9.10.34 — 2026-08-10
+
+POKE IDLE WORLD — PIW-QOL ES
+ACTUALIZACIONES DE LA VERSIÓN 9.10.34
+Fecha: 2026-08-10
+
+VERSIÓN
+=======
+Anterior: 9.10.33
+Nueva:    9.10.34
+
+REPLANTEAMIENTO COMPLETO DE CAPTURE LOG
+=======================================
+Se elimina por completo la arquitectura experimental usada entre 9.10.29 y
+9.10.33 para reconstruir la Quality de las capturas.
+
+El nuevo Auditor General demuestra que el propio juego ya dispone de una fuente
+autoritaria y completa:
+
+GET /api/game/capture-log?filter=all
+
+Cada fila devuelta por esa API contiene directamente:
+- id propio del registro de Capture Log;
+- speciesId;
+- nombre;
+- nivel;
+- shiny;
+- quality;
+- ivTotal;
+- ballName;
+- firstCatch;
+- timestamp "at";
+- looktype.
+
+Por tanto, PIW-QOL ya no necesita observar ni reconstruir capturas.
+
+CAUSA REAL DE LOS FALLOS ANTERIORES
+===================================
+1. Se estaba intentando reconstruir información que el propio Capture Log ya
+   proporciona directamente.
+
+2. El ID de "poke-delta" NO es el mismo ID que utiliza la fila almacenada por
+   Capture Log.
+
+   Ejemplo observado en el auditor para la misma captura:
+   - poke-delta:
+     cmsnmp7o40xq7qan1yqh9xu2a
+   - Capture Log:
+     cmsnmp7o60xq9qan161ljssz4
+
+   Ambos corresponden a Geodude IV 71 Quality 1.342, pero son identificadores
+   distintos.
+
+3. Por esa diferencia, intentar guardar poke-delta y más tarde asociarlo a una
+   fila de Capture Log obligaba a usar nombre, IV, hora, orden u otras
+   aproximaciones.
+
+4. Eso explica que algunas filas apareciesen bien y otras no, incluso aunque
+   poke-delta contuviese la Quality correcta.
+
+5. Las versiones anteriores añadieron cada vez más lógica de:
+   - catch-result;
+   - poke-delta;
+   - pokes;
+   - snapshots de colección;
+   - buffers temporales;
+   - localStorage;
+   - timestamps;
+   - matching por nombre + IV.
+
+   Toda esa lógica deja de ser necesaria.
+
+AÑADIDO
+=======
+- Nueva implementación basada únicamente en la API oficial de Capture Log.
+- Se utilizan las filas nativas ".clog-row" del juego.
+- Se detecta la pestaña nativa activa ".clog-tab.on".
+- PIW-QOL consulta exactamente:
+  * /api/game/capture-log?filter=all
+  * /api/game/capture-log?filter=shiny
+  * /api/game/capture-log?filter=normal
+  según la pestaña activa.
+- Se añade una pequeña caché por filtro para evitar peticiones redundantes.
+- Cada filtro mantiene su propia promesa de carga para evitar mezclar respuestas
+  si el usuario cambia rápidamente entre All / Shiny / Normal.
+- Se usa el ID exacto de la fila de Capture Log cuando React lo conserva
+  accesible en las props internas.
+- Si el ID no puede recuperarse desde React, la fila se asocia únicamente contra
+  la MISMA respuesta de /api/game/capture-log usando:
+  * nombre;
+  * IV;
+  * nivel;
+  * minuto visible;
+  * Poké Ball;
+  * tier de Quality visible.
+- Si dos registros siguen siendo visualmente idénticos, se consumen siguiendo el
+  orden entregado por la propia API.
+- La Quality se sigue mostrando mediante data-attributes + CSS ::after.
+- Se conserva el porcentaje de potencial cuando esa preferencia está activada.
+- Se guarda como diagnóstico interno:
+  * capture-api-id
+  * capture-api-match
+  * capture-api-order
+
+ELIMINADO
+=========
+- Eliminado el historial local de capturas como fuente de datos.
+- Eliminado script_capture_quality_history_v1 como fuente.
+- Eliminado script_capture_quality_history_v2 como fuente.
+- Ambos historiales experimentales se borran al iniciar 9.10.34.
+- Eliminada la cola pendingCaptureResults.
+- Eliminado el buffer recentPokemonAdditions.
+- Eliminada la sincronización periódica de "pokes" para registrar capturas.
+- Eliminado refreshLatestPokemon() de la lógica de Capture Log.
+- Eliminado rememberCaptureResult().
+- Eliminado rememberCapturedPokemonDelta().
+- Eliminada la escucha de catch-result para Capture Log.
+- Eliminada la escucha de poke-delta para Capture Log.
+- Eliminada la comparación de IDs nuevos de la colección.
+- Eliminado el matching contra la colección actual del jugador.
+- Eliminado el matching contra capturas persistidas por PIW-QOL.
+- Eliminada la necesidad de registrar nada mientras Capture Log está cerrado.
+- Eliminada la dependencia del orden catch-result -> poke-delta -> pokes.
+- Eliminada la lógica de rehidratación de Pokémon para Capture Log.
+- Eliminados los reintentos temporizados de snapshots de Pokémon.
+- Eliminados los límites de edad de capturas pendientes y buffers recientes.
+
+COMPORTAMIENTO NUEVO
+====================
+- Capture Log puede permanecer cerrado todo el tiempo.
+- PIW-QOL NO necesita registrar ninguna captura en segundo plano.
+- El servidor ya conserva las entradas de Capture Log con su Quality.
+- Cuando abras Capture Log más tarde, PIW-QOL consulta directamente esa API.
+- Si capturaste Pokémon con la ventana cerrada, sus datos siguen estando en la
+  API y se muestran al abrirla.
+- Al refrescar el juego no se pierde nada porque no dependemos de localStorage.
+- "Clear history" funciona de forma natural:
+  la API elimina sus filas y PIW-QOL simplemente muestra el nuevo estado.
+- Una captura vendida o movida sigue teniendo Quality en Capture Log porque la
+  información pertenece al registro del servidor, no a la colección actual.
+
+POR QUÉ ESTE SISTEMA ES MÁS FIABLE
+==================================
+La Quality deja de ser un dato "reconstruido".
+
+Antes:
+captura -> evento -> guardar -> intentar identificar fila -> mostrar
+
+Ahora:
+Capture Log -> leer su propia fila del servidor -> mostrar su Quality
+
+La fuente de datos y la ventana visual son el mismo sistema.
+
+CONSERVADO
+==========
+- No se modifica el textContent original de las filas.
+- No se eliminan ni reemplazan nombre, nivel, IV, Poké Ball o fecha.
+- Los filtros y ordenaciones del juego siguen trabajando con su contenido
+  original.
+- Se conserva el color visual de Quality.
+- Se conserva el porcentaje de potencial configurable.
+- Se conservan todas las demás funciones de PIW-QOL sin cambios.
+- La Quality del equipo, mercado, depósito, ventas y demás sistemas sigue
+  utilizando su lógica existente; solo Capture Log ha sido reescrito.
+
+VALIDACIÓN
+==========
+- JavaScript validado correctamente con node --check.
+- @version comprobada: 9.10.34.
+- SCRIPT_BUILD comprobado: 9.10.34.
+- Confirmado que Capture Log usa ".clog-row".
+- Confirmado que usa ".clog-tab.on".
+- Confirmado acceso directo a /api/game/capture-log?filter=...
+- Confirmado que no queda pendingCaptureResults.
+- Confirmado que no queda recentPokemonAdditions.
+- Confirmado que no queda rememberCaptureResult().
+- Confirmado que no queda rememberCapturedPokemonDelta().
+- Confirmado que Capture Log ya no depende de pokes-get.
+- Confirmado que los historiales v1/v2 solo aparecen para ser eliminados.
+
+SHA-256
+=======
+7a66b4b028447ff415d3adf53dfd0a3bfe3f77ccb2e1aed15b5fa564d8ea0ab6
+
+ARCHIVOS
+========
+Script:
+piw-qol-es-9.10.34.txt
+
+Registro de cambios:
+actualizaciones-piw-qol-es-9.10.34.txt
+
 ## 9.10.33 — 2026-08-10
 
 POKE IDLE WORLD — PIW-QOL ES
