@@ -52,6 +52,19 @@ function scriptStem(name) {
   for (const suffix of SCRIPT_SUFFIXES) {
     if (name.endsWith(suffix)) return name.slice(0, -suffix.length);
   }
+
+  // Los scripts entregados al usuario también pueden venir como .txt normal.
+  // Solo los tratamos como userscript si el nombre no corresponde a un
+  // changelog; parseMeta() comprobará después que realmente contienen una
+  // cabecera ==UserScript== válida.
+  if (
+    name.endsWith('.txt')
+    && !name.startsWith(UPDATE_NOTES_PREFIX)
+    && !name.endsWith(CHANGELOG_SUFFIX)
+  ) {
+    return name.slice(0, -'.txt'.length);
+  }
+
   return null;
 }
 
