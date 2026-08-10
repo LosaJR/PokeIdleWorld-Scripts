@@ -1,0 +1,135 @@
+POKE IDLE WORLD — PIW-QOL ES
+ACTUALIZACIONES DE LA VERSIÓN 9.10.32
+Fecha: 2026-08-10
+
+VERSIÓN
+=======
+Anterior: 9.10.31
+Nueva:    9.10.32
+
+CAUSA DEL FALLO
+===============
+La 9.10.31 seguía teniendo una dependencia indirecta de Capture Log.
+
+Aunque ya existía un buffer de Pokémon recién añadidos, la detección más fiable
+de nuevos IDs se forzaba principalmente cuando Capture Log estaba abierto y
+aparecía una fila nueva. Si la ventana permanecía cerrada, el script podía no
+solicitar una instantánea fresca de "pokes" en el momento de la captura y esa
+Quality no quedaba persistida.
+
+Eso provocaba que:
+- con Capture Log abierto funcionase correctamente;
+- con Capture Log cerrado algunas capturas no quedasen registradas;
+- al abrirlo posteriormente faltasen esas Quality.
+
+AÑADIDO
+=======
+- Registro de Quality completamente independiente de Capture Log.
+- Cada evento "catch-result" dispara automáticamente consultas frescas de
+  Pokémon en segundo plano.
+- Las consultas se realizan aproximadamente a:
+  * 0 ms
+  * 180 ms
+  * 500 ms
+  * 1000 ms
+  * 1800 ms
+- Esto cubre el retraso entre el resultado de captura y el momento en que el
+  Pokémon nuevo aparece realmente en la lista "pokes".
+- Se añade CAPTURE_BACKGROUND_SYNC_DELAYS_MS.
+- Se añade scheduleBackgroundCaptureSync().
+- Cualquier ID nuevo observado en "pokes", después de la hidratación inicial,
+  se guarda inmediatamente en el historial persistente de Quality.
+- El guardado ya no necesita que:
+  * Capture Log esté abierto;
+  * exista una fila nueva en pantalla;
+  * catch-result contenga directamente la Quality.
+
+MODIFICADO
+==========
+- handleGameSocketMessage() usa catch-result como señal de sincronización de
+  fondo además de intentar leer sus datos internos.
+- rememberRecentPokemonAdditions() ya no se limita a mantener un buffer temporal:
+  también persiste inmediatamente cada nuevo Pokémon detectado.
+- Si posteriormente catch-result proporciona una hora más precisa, la entrada
+  persistente se actualiza mediante el mismo ID.
+- Capture Log pasa a ser únicamente un consumidor/visualizador del historial
+  ya recopilado.
+- La sincronización basada en filas introducida en 9.10.31 se conserva solo
+  como respaldo adicional, no como requisito para registrar una captura.
+- Mensaje de carga actualizado para indicar que las capturas se registran en
+  segundo plano.
+
+ELIMINADO / SUSTITUIDO
+======================
+- Eliminada la dependencia funcional de tener Capture Log abierto para que una
+  captura quede registrada correctamente.
+- La aparición de una fila nueva deja de ser el mecanismo principal que provoca
+  la captura de datos.
+- Se elimina la necesidad de abrir Capture Log poco después de capturar para
+  que PIW-QOL detecte el ID nuevo.
+- No se elimina la sincronización visual de 9.10.31: permanece como respaldo
+  para reconstrucciones y casos excepcionales.
+
+FLUJO NUEVO
+===========
+1. PIW-QOL carga una instantánea inicial de tus Pokémon.
+2. Capture Log puede permanecer completamente cerrado.
+3. Se captura un Pokémon.
+4. PIW-QOL recibe catch-result.
+5. En segundo plano solicita varias instantáneas frescas de "pokes".
+6. Detecta el ID que no existía en la instantánea anterior.
+7. Guarda inmediatamente:
+   - ID;
+   - especie;
+   - nombre;
+   - IV;
+   - Quality;
+   - shiny;
+   - nivel;
+   - timestamp.
+8. Más tarde, al abrir Capture Log, la ventana solo consulta ese historial.
+9. Después de refrescar la página, el historial continúa disponible mediante
+   localStorage.
+
+PROTECCIÓN DE HIDRATACIÓN
+=========================
+- La primera lista de Pokémon recibida tras cargar/refrescar el juego se usa
+  únicamente como línea base.
+- No se interpreta toda la colección existente como capturas nuevas.
+- Solo los IDs que aparecen después de esa línea base se registran como nuevas
+  incorporaciones.
+
+CONSERVADO
+==========
+- Historial persistente de hasta 300 entradas.
+- Asociación por timestamp.
+- Protección frente a candidatos ambiguos.
+- Soporte de datos nativos/React de Capture Log.
+- Sincronización adicional cuando Capture Log está abierto.
+- Rehidratación automática tras refresh.
+- Quality y potencial mediante CSS/data-attributes sin alterar el textContent
+  nativo.
+- Filtros y ordenaciones originales.
+- Todas las demás funciones de PIW-QOL.
+
+VALIDACIÓN
+==========
+- JavaScript validado correctamente con node --check.
+- @version comprobada: 9.10.32.
+- SCRIPT_BUILD comprobado: 9.10.32.
+- Confirmado que catch-result llama a scheduleBackgroundCaptureSync().
+- Confirmado que los nuevos IDs de pokes se persisten directamente mediante
+  rememberCaptureQualityEntry().
+- Confirmado que no quedan referencias internas a 9.10.31.
+
+SHA-256
+=======
+7b94dfef35c8cc5d611b3df965ececd6af20b5fc2add185d1026c04a849a2ba1
+
+ARCHIVOS
+========
+Script:
+piw-qol-es-9.10.32.txt
+
+Registro de cambios:
+actualizaciones-piw-qol-es-9.10.32.txt
