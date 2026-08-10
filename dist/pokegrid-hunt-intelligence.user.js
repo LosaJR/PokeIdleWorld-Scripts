@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.29
+// @version      1.1.30
 // @description  Recomendador, Farm sincronizado de favoritos, No capturados, Item Finder y supervisor con histórico móvil de 12 muestras por Hunt + Pokémon.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1129) return;
-  window.__pgHuntIntelligenceCoreV1129 = true;
+  if (window.__pgHuntIntelligenceCoreV1130) return;
+  window.__pgHuntIntelligenceCoreV1130 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -680,8 +680,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1129) return;
-  window.__pgHuntIntelligenceItemCoreV1129 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1130) return;
+  window.__pgHuntIntelligenceItemCoreV1130 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1165,8 +1165,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1129) return;
-  window.__pgHuntIntelligenceEngineV1129 = true;
+  if (window.__pgHuntIntelligenceEngineV1130) return;
+  window.__pgHuntIntelligenceEngineV1130 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2341,14 +2341,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.29 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
+  console.info('[Hunt Intelligence] Motor v1.1.30 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1129) return;
-  window.__pgHuntIntelligenceSupervisorV1129 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1130) return;
+  window.__pgHuntIntelligenceSupervisorV1130 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -3711,13 +3711,13 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.29',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    version:'1.1.30',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.29',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.30',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.29',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.30',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   const historyRecovery = recoverHistoryIfNeeded();
@@ -3728,13 +3728,13 @@
   restartSampleCheckpoint();
   startHistoryPokemonWatcher();
   setTimeout(()=>refresh(false),1200);
-  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.29 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
+  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.30 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1129) return;
-  window.__pgHuntIntelligenceUiV1129 = true;
+  if (window.__pgHuntIntelligenceUiV1130) return;
+  window.__pgHuntIntelligenceUiV1130 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -3748,7 +3748,6 @@
   const FAVORITE_ACTIVE_KEY = `${NS}:favorite-farm-active-v1`;
   const FAVORITE_COMMAND_KEY = `${NS}:favorite-farm-command-v1`;
   const FAVORITE_CHANNEL_NAME = 'pokegrid-favorite-farm-v1';
-  const FAVORITES_BUTTON_ID = `${NS}-favorite-button`;
   let activeTab = 'hunt';
   let panelCollapsed = false;
   let lastHuntResult = null;
@@ -3789,9 +3788,6 @@
       #${BUTTON_ID}{position:fixed;right:14px;bottom:48px;z-index:99980;border:1px solid #3a4556;border-radius:999px;background:#111a27;color:#fff;width:44px;height:44px;display:grid;place-items:center;padding:0;font:900 20px/1 system-ui;box-shadow:0 7px 22px #0009;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
       #${BUTTON_ID}:hover{background:#1c293b}
       #${BUTTON_ID}[data-dragging="1"]{cursor:grabbing;background:#263a55;box-shadow:0 11px 30px #000c}
-      #${FAVORITES_BUTTON_ID}{position:fixed;right:66px;bottom:48px;z-index:99980;border:1px solid #705b2b;border-radius:999px;background:#241d0f;color:#ffd76a;width:44px;height:44px;display:grid;place-items:center;padding:0;font:900 19px/1 system-ui;box-shadow:0 7px 22px #0009;cursor:pointer}
-      #${FAVORITES_BUTTON_ID}:hover{background:#332815;border-color:#a78438}
-      #${FAVORITES_BUTTON_ID}[data-active="1"]{background:#4b3510;border-color:#e3b94c;color:#fff0a7;box-shadow:0 0 0 2px #e3b94c44,0 7px 22px #0009}
       #${PANEL_ID}:not(.pg-ui-managed){position:fixed;inset:0;z-index:99990;background:transparent;pointer-events:none;font-family:system-ui;color:#e8edf5}
       #${PANEL_ID} .pg-u-card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(790px,96vw);height:min(720px,91vh);min-width:360px;min-height:220px;max-width:98vw;max-height:96vh;overflow:auto;resize:both;pointer-events:auto;background:#0d131c;border:1px solid #354052;border-radius:14px;box-shadow:0 18px 60px #000d}
       #${PANEL_ID} .pg-u-card.collapsed{width:min(390px,94vw)!important;height:auto!important;min-width:280px!important;min-height:0!important;resize:none!important;overflow:hidden!important}
@@ -4444,7 +4440,6 @@
   function writeFavorites(list) {
     const safe = Array.isArray(list) ? list.slice(0, 100) : [];
     try { localStorage.setItem(FAVORITES_KEY, JSON.stringify(safe)); } catch {}
-    updateFavoriteButtonState();
     return safe;
   }
 
@@ -4564,16 +4559,6 @@
     return true;
   }
 
-  function updateFavoriteButtonState() {
-    const button = document.getElementById(FAVORITES_BUTTON_ID);
-    if (!button) return;
-    const active = readFavoriteFarmActive();
-    button.dataset.active = active ? '1' : '0';
-    button.title = active
-      ? `Farm sincronizado activo: ${active.target?.name || 'favorito'} · clic para abrir Favoritos`
-      : 'Favoritos · clic para gestionar y lanzar Farm x4';
-  }
-
   function writeFavoriteFarmActive(target, commandId, startedAt = Date.now()) {
     const state = {
       type: 'favorite-farm',
@@ -4589,13 +4574,11 @@
       }
     };
     try { localStorage.setItem(FAVORITE_ACTIVE_KEY, JSON.stringify(state)); } catch {}
-    updateFavoriteButtonState();
     return state;
   }
 
   function clearFavoriteFarmActive() {
     try { localStorage.removeItem(FAVORITE_ACTIVE_KEY); } catch {}
-    updateFavoriteButtonState();
   }
 
   function publishFavoriteFarmCommand(type, target = null) {
@@ -4614,22 +4597,76 @@
     return command;
   }
 
+  function favoriteHuntRequiredLevel(hunt) {
+    return Math.max(1, finite(
+      hunt?.marker?.level,
+      hunt?.marker?.lvl,
+      hunt?.marker?.minLevel,
+      hunt?.creature?.huntLevel,
+      hunt?.creature?.level,
+      1
+    ));
+  }
+
+  function favoriteAccessLevel() {
+    const list = window.__poke?.ws?.pokes?.list;
+    const lead = Array.isArray(list)
+      ? list.filter(pokemon => pokemon?.team)
+          .sort((a, b) => finite(a?.slot, 99) - finite(b?.slot, 99))[0] || null
+      : null;
+    const pokemonLevel = Math.max(1, finite(lead?.level, 1));
+    const character = window.__poke?.api?.['/api/characters/me']?.character || {};
+    const trainerLevel = Math.max(0, finite(
+      character.level,
+      character.lvl,
+      character.trainerLevel,
+      character.characterLevel,
+      0
+    ));
+    return trainerLevel > 0 ? Math.min(pokemonLevel, trainerLevel) : pokemonLevel;
+  }
+
+  function favoriteTargetScore(target, hunt) {
+    if (!target || !hunt) return -1;
+    const targetSlug = norm(target.slug || '');
+    const huntSlug = norm(hunt?.slug || hunt?.marker?.slug || hunt?.marker?.hunt || '');
+    if (targetSlug && huntSlug === targetSlug) return 1000;
+
+    const targetSpecies = String(target.speciesId ?? '');
+    const huntSpecies = String(
+      hunt?.marker?.speciesId
+      ?? hunt?.marker?.pokeId
+      ?? hunt?.creature?.speciesId
+      ?? hunt?.creature?.pokeId
+      ?? ''
+    );
+    if (targetSpecies && huntSpecies && targetSpecies === huntSpecies) return 900;
+
+    const targetKey = norm(target.key || target.name || '');
+    const terms = huntTerms(hunt);
+    if (targetKey && terms.includes(targetKey)) return 800;
+    if (favoriteMatchesHunt(target, hunt)) return 500;
+    return -1;
+  }
+
   async function resolveFavoriteHunt(target) {
     if (!target?.key) return null;
-    let recommendation = null;
-    try { recommendation = await H()?.calculateRecommendations?.(false); } catch {}
-    const accessible = (recommendation?.rows || []).map(row => row?.hunt).filter(Boolean);
-    let hunt = accessible.find(candidate => favoriteMatchesHunt(target, candidate));
-    if (hunt) return hunt;
 
+    // Favoritos no depende del ranking XP/general. Se resuelve directamente
+    // contra el catálogo oficial de hunts y solo se comprueba el nivel de acceso
+    // de ESTA cuenta. Así un Pokémon puede farmearse aunque no aparezca en el Top N.
     const catalog = await favoriteCatalog(false);
-    const allMatches = catalog.map(entry => entry.hunt).filter(candidate => favoriteMatchesHunt(target, candidate));
-    if (!allMatches.length) return null;
+    const accessLevel = favoriteAccessLevel();
+    const candidates = catalog
+      .map(entry => ({
+        hunt: entry.hunt,
+        score: favoriteTargetScore(target, entry.hunt),
+        requiredLevel: favoriteHuntRequiredLevel(entry.hunt)
+      }))
+      .filter(entry => entry.score >= 0 && entry.requiredLevel <= accessLevel)
+      .sort((a, b) => b.score - a.score || a.requiredLevel - b.requiredLevel);
 
-    // Si la cuenta no ve el objetivo entre sus hunts accesibles no forzamos una
-    // hunt bloqueada. Cada cuenta decide su accesibilidad con su propio estado.
-    if (recommendation?.rows) return null;
-    return allMatches[0] || null;
+    return candidates[0]?.hunt || null;
   }
 
   async function executeFavoriteFarmTarget(target, { quiet = false } = {}) {
@@ -4643,9 +4680,14 @@
       if (busy) await waitFor(() => !busy, 9000, 120);
       if (busy) throw new Error('Hunt Intelligence sigue ocupado y no pudo aplicar el Farm sincronizado.');
       const hunt = await resolveFavoriteHunt(target);
-      if (!hunt) throw new Error(`${target.name} no está disponible para esta cuenta o todavía no está desbloqueado.`);
-      await startHunt(hunt, { favoriteFarm: true });
-      return favoriteMatchesCurrent(target);
+      if (!hunt) {
+        throw new Error(`${target.name} no tiene una hunt accesible para esta cuenta (límite actual Nv. ${fmt(favoriteAccessLevel())}).`);
+      }
+      const started = await startHunt(hunt, { favoriteFarm: true });
+      if (!started || !favoriteMatchesCurrent(target)) {
+        throw new Error(`Se localizó ${target.name}, pero esta cuenta no confirmó la entrada a su hunt.`);
+      }
+      return true;
     } catch (error) {
       console.error('[Hunt Intelligence · Farm favorito]', error);
       if (!quiet) toast(error?.message || 'No se pudo iniciar el Farm sincronizado.', 'bad');
@@ -4665,18 +4707,23 @@
     }
     if (command.type !== 'start' || !command.target?.key) return false;
     writeFavoriteFarmActive(command.target, command.id, command.at);
-    updateFavoriteButtonState();
     if (activeTab === 'favorites' && document.getElementById(PANEL_ID)?.isConnected) renderFavorites(false);
     return executeFavoriteFarmTarget(command.target);
   }
 
-  function startFavoriteFarm(key) {
+  async function startFavoriteFarm(key) {
     const target = readFavorites().find(item => item.key === norm(key));
     if (!target) { toast('Ese favorito ya no existe.', 'bad'); return false; }
-    publishFavoriteFarmCommand('start', target);
-    toast(`🎯 Farm x4 enviado: ${target.name}.`, 'ok');
+    const command = publishFavoriteFarmCommand('start', target);
+    toast(`🎯 Orden enviada a las cuentas: ${target.name}. Entrando en la hunt…`);
     if (activeTab === 'favorites') setTimeout(() => renderFavorites(false), 50);
-    return true;
+
+    // La orden local ya se ejecuta dentro de publish/handle. Esperamos el cambio
+    // de slug para no mostrar éxito únicamente porque el mensaje fue emitido.
+    const localStarted = await waitFor(() => favoriteMatchesCurrent(target), 10500, 150);
+    if (localStarted) toast(`✅ Farm sincronizado activo: ${target.name}.`, 'ok');
+    else console.warn('[Hunt Intelligence · Farm favorito] La cuenta emisora no confirmó el cambio de hunt.', command);
+    return Boolean(localStarted);
   }
 
   function stopFavoriteFarm() {
@@ -4702,8 +4749,7 @@
           try { handleFavoriteFarmCommand(JSON.parse(event.newValue)); } catch {}
         }
         if (event.key === FAVORITE_ACTIVE_KEY) {
-          updateFavoriteButtonState();
-          if (activeTab === 'favorites' && document.getElementById(PANEL_ID)?.isConnected) renderFavorites(false);
+                if (activeTab === 'favorites' && document.getElementById(PANEL_ID)?.isConnected) renderFavorites(false);
         }
       });
     }
@@ -4716,8 +4762,7 @@
     }, 6000);
 
     setTimeout(() => {
-      updateFavoriteButtonState();
-      const active = readFavoriteFarmActive();
+        const active = readFavoriteFarmActive();
       if (active?.target && !favoriteMatchesCurrent(active.target)) executeFavoriteFarmTarget(active.target, { quiet: true });
     }, 1800);
   }
@@ -4748,8 +4793,7 @@
           }).join('') || '<div class="pg-u-empty">Todavía no has guardado ningún Pokémon. Escríbelo arriba y pulsa “Añadir favorito”.</div>'}
         </div>`;
       shell(body);
-      updateFavoriteButtonState();
-    } catch (error) {
+      } catch (error) {
       renderError(error?.message || 'No se pudo cargar Favoritos.');
     }
   }
@@ -5624,13 +5668,13 @@
   }
 
   async function startHunt(hunt, options = {}) {
-    if (!hunt) return;
+    if (!hunt) return false;
     const activeFavorite = readFavoriteFarmActive();
     if (activeFavorite?.target && !options.favoriteFarm && !favoriteMatchesHunt(activeFavorite.target, hunt)) {
       toast(`🎯 Farm sincronizado activo: ${activeFavorite.target.name}. Deténlo desde Favoritos antes de cambiar de hunt.`, 'bad');
-      return;
+      return false;
     }
-    if (busy) return;
+    if (busy) return false;
     busy = true; suppressMapAutoOpenUntil = Date.now() + 25000;
     closePanel();
     const target = hunt.name || hunt.creature?.name || hunt.slug || 'objetivo';
@@ -5662,11 +5706,16 @@
         const now = currentSlug();
         return now && targetTerms.some(t => now.includes(t) || t.includes(now));
       }, 5500, 150);
-      if (confirmed) toast(`Hunt iniciada: ${target}`, 'ok');
-      else toast(`He seleccionado ${target}, pero no pude confirmar que la hunt comenzara. Revisa la pantalla.`, 'bad');
+      if (confirmed) {
+        toast(`Hunt iniciada: ${target}`, 'ok');
+        return true;
+      }
+      toast(`He seleccionado ${target}, pero no pude confirmar que la hunt comenzara. Revisa la pantalla.`, 'bad');
+      return false;
     } catch (error) {
       console.error('[Hunt Advisor · iniciar hunt]', error);
       toast(error?.message || 'No se pudo iniciar la hunt.', 'bad');
+      return false;
     } finally { busy = false; }
   }
 
@@ -5822,17 +5871,6 @@
     }
     installDraggableButton(button);
 
-    let favoriteButton = document.getElementById(FAVORITES_BUTTON_ID);
-    if (!favoriteButton) {
-      favoriteButton = document.createElement('button');
-      favoriteButton.id = FAVORITES_BUTTON_ID;
-      favoriteButton.type = 'button';
-      favoriteButton.textContent = '⭐';
-      favoriteButton.setAttribute('aria-label', 'Abrir Favoritos y Farm sincronizado');
-      favoriteButton.addEventListener('click', openFavoritesFromButton);
-      document.body.appendChild(favoriteButton);
-    }
-    updateFavoriteButtonState();
     setupFavoriteFarmSync();
 
     document.addEventListener('click', event => {
@@ -5996,7 +6034,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.29',
+    version: '1.1.30',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -6044,7 +6082,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.29',
+      version: '1.1.30',
       description: 'Ranking personal, Farm sincronizado de favoritos, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -6092,7 +6130,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.29',
+    version: '1.1.30',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -6131,5 +6169,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.29 cargado: Histórico móvil de 12 muestras y Farm sincronizado de Favoritos entre cuentas/pestañas.');
+  console.info('[Hunt Intelligence] v1.1.30 cargado: Histórico móvil de 12 muestras y Farm sincronizado de Favoritos corregido para resolver hunts directamente por catálogo y nivel.');
 })();

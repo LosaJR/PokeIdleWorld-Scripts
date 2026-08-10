@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.28
-// @description  Recomendador, No capturados, Item Finder y supervisor con histórico móvil de 12 muestras por Hunt + Pokémon.
+// @version      1.1.29
+// @description  Recomendador, Farm sincronizado de favoritos, No capturados, Item Finder y supervisor con histórico móvil de 12 muestras por Hunt + Pokémon.
 // @match        https://poke.idleworld.online/*
 // @grant        none
 // @run-at       document-idle
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1128) return;
-  window.__pgHuntIntelligenceCoreV1128 = true;
+  if (window.__pgHuntIntelligenceCoreV1129) return;
+  window.__pgHuntIntelligenceCoreV1129 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -680,8 +680,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1128) return;
-  window.__pgHuntIntelligenceItemCoreV1128 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1129) return;
+  window.__pgHuntIntelligenceItemCoreV1129 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1165,8 +1165,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1128) return;
-  window.__pgHuntIntelligenceEngineV1128 = true;
+  if (window.__pgHuntIntelligenceEngineV1129) return;
+  window.__pgHuntIntelligenceEngineV1129 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2341,14 +2341,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.28 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
+  console.info('[Hunt Intelligence] Motor v1.1.29 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1128) return;
-  window.__pgHuntIntelligenceSupervisorV1128 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1129) return;
+  window.__pgHuntIntelligenceSupervisorV1129 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -3711,13 +3711,13 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.28',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    version:'1.1.29',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.28',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.29',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.28',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.29',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   const historyRecovery = recoverHistoryIfNeeded();
@@ -3728,13 +3728,13 @@
   restartSampleCheckpoint();
   startHistoryPokemonWatcher();
   setTimeout(()=>refresh(false),1200);
-  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.28 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
+  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.29 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1128) return;
-  window.__pgHuntIntelligenceUiV1128 = true;
+  if (window.__pgHuntIntelligenceUiV1129) return;
+  window.__pgHuntIntelligenceUiV1129 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -3744,6 +3744,11 @@
   const LEGACY_ACTIVE_TAB_KEY = `${NS}:tab`;
   const BUTTON_POS_KEY = `${NS}:button-position`;
   const PANEL_LAYOUT_KEY = `${NS}:panel-layout`;
+  const FAVORITES_KEY = `${NS}:favorite-hunts-v1`;
+  const FAVORITE_ACTIVE_KEY = `${NS}:favorite-farm-active-v1`;
+  const FAVORITE_COMMAND_KEY = `${NS}:favorite-farm-command-v1`;
+  const FAVORITE_CHANNEL_NAME = 'pokegrid-favorite-farm-v1';
+  const FAVORITES_BUTTON_ID = `${NS}-favorite-button`;
   let activeTab = 'hunt';
   let panelCollapsed = false;
   let lastHuntResult = null;
@@ -3753,6 +3758,11 @@
   let pokedexCacheAt = 0;
   let busy = false;
   let suppressMapAutoOpenUntil = 0;
+  let favoriteFarmChannel = null;
+  let favoriteFarmExecutionBusy = false;
+  let favoriteFarmEnforceTimer = null;
+  const favoriteFarmSeenCommands = new Set();
+  const FAVORITE_INSTANCE_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   const BRIDGE_UI_ID = 'hunt-intelligence';
   let uiWindow = null;
   let usingBridgeUi = false;
@@ -3779,6 +3789,9 @@
       #${BUTTON_ID}{position:fixed;right:14px;bottom:48px;z-index:99980;border:1px solid #3a4556;border-radius:999px;background:#111a27;color:#fff;width:44px;height:44px;display:grid;place-items:center;padding:0;font:900 20px/1 system-ui;box-shadow:0 7px 22px #0009;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
       #${BUTTON_ID}:hover{background:#1c293b}
       #${BUTTON_ID}[data-dragging="1"]{cursor:grabbing;background:#263a55;box-shadow:0 11px 30px #000c}
+      #${FAVORITES_BUTTON_ID}{position:fixed;right:66px;bottom:48px;z-index:99980;border:1px solid #705b2b;border-radius:999px;background:#241d0f;color:#ffd76a;width:44px;height:44px;display:grid;place-items:center;padding:0;font:900 19px/1 system-ui;box-shadow:0 7px 22px #0009;cursor:pointer}
+      #${FAVORITES_BUTTON_ID}:hover{background:#332815;border-color:#a78438}
+      #${FAVORITES_BUTTON_ID}[data-active="1"]{background:#4b3510;border-color:#e3b94c;color:#fff0a7;box-shadow:0 0 0 2px #e3b94c44,0 7px 22px #0009}
       #${PANEL_ID}:not(.pg-ui-managed){position:fixed;inset:0;z-index:99990;background:transparent;pointer-events:none;font-family:system-ui;color:#e8edf5}
       #${PANEL_ID} .pg-u-card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(790px,96vw);height:min(720px,91vh);min-width:360px;min-height:220px;max-width:98vw;max-height:96vh;overflow:auto;resize:both;pointer-events:auto;background:#0d131c;border:1px solid #354052;border-radius:14px;box-shadow:0 18px 60px #000d}
       #${PANEL_ID} .pg-u-card.collapsed{width:min(390px,94vw)!important;height:auto!important;min-width:280px!important;min-height:0!important;resize:none!important;overflow:hidden!important}
@@ -3838,6 +3851,11 @@
       #${PANEL_ID} .pg-u-sub{font-size:9.5px;color:#8290a5;margin-top:2px}
       #${PANEL_ID} .pg-u-metric{text-align:right;font-variant-numeric:tabular-nums}.piw-xp{color:#72b7ff}.real-xp{color:#64d8c0}.xp{color:#72b7ff}.gold{color:#f2cc60}.loot{color:#8ce99a}.rare{color:#ff9fd5}.score{color:#d4a6ff}.rate{color:#d5a6ff}.speed{color:#72b7ff}.items{color:#8ce99a}.eff{color:#ffd36c}
       #${PANEL_ID} .pg-u-search{display:flex;gap:7px;margin-bottom:12px}.pg-u-search input{flex:1;font-size:12px}
+      #${PANEL_ID} .pg-fav-active{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;margin-bottom:11px;border:1px solid #7b622b;border-radius:10px;background:linear-gradient(90deg,#2b220e,#161923);color:#ffe7a0}
+      #${PANEL_ID} .pg-fav-active strong{display:block;font-size:14px;color:#fff1b0}.pg-fav-active small{display:block;margin-top:3px;color:#c9b77e}
+      #${PANEL_ID} .pg-fav-form{display:grid;grid-template-columns:minmax(180px,1fr) auto;gap:8px;margin-bottom:12px}.pg-fav-form input{width:100%;font-size:12px}
+      #${PANEL_ID} .pg-fav-list{display:grid;gap:8px}.pg-fav-row{display:grid;grid-template-columns:minmax(180px,1fr) auto auto;gap:8px;align-items:center;padding:10px 11px;background:#111923;border:1px solid #2e3a4d;border-radius:9px}
+      #${PANEL_ID} .pg-fav-row.active{border-color:#8f7131;background:#251f12}.pg-fav-name{font-size:12px;font-weight:850;color:#f6f8fb}.pg-fav-sub{font-size:9.5px;color:#8896a8;margin-top:3px}.pg-fav-start{color:#b8f3c6!important;border-color:#3f7750!important;background:#15301e!important}.pg-fav-remove{color:#ffaaa3!important;border-color:#6d3b3b!important;background:#291718!important}
       #${PANEL_ID} .pg-u-caught-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 11px;margin-bottom:10px;background:#101925;border:1px solid #36506d;border-radius:9px;color:#b9c8d9;font-size:11px}
       #${PANEL_ID} .pg-u-caught-summary b{color:#9fd0ff;font-size:13px}
       #${PANEL_ID} .pg-u-hero{padding:12px;border:1px solid #38593f;background:linear-gradient(90deg,#142c1a,#111720);border-radius:10px;margin-bottom:10px}
@@ -3880,7 +3898,8 @@
       #${PANEL_ID}.pg-ui-managed .pg-u-caught-summary,
       #${PANEL_ID}.pg-ui-managed .pg-hi-card,
       #${PANEL_ID}.pg-ui-managed .pg-hi-settings>div,
-      #${PANEL_ID}.pg-ui-managed .pg-hi-history-row{
+      #${PANEL_ID}.pg-ui-managed .pg-hi-history-row,
+      #${PANEL_ID}.pg-ui-managed .pg-fav-row{
         background-color:rgba(16,25,37,var(--pg-ui-card-opacity,.82))!important
       }
       #${PANEL_ID}.pg-ui-managed .pg-u-daily-menu{
@@ -3910,7 +3929,7 @@
         border-radius:7px;min-width:29px;height:27px;padding:0 7px;font:800 12px system-ui
       }
 
-      @media(max-width:700px){#${PANEL_ID} .pg-u-sourcebox{grid-template-columns:1fr}.pg-u-daily{white-space:normal;flex-wrap:wrap}#${PANEL_ID} .pg-u-table-head,#${PANEL_ID} .pg-u-row{grid-template-columns:28px 1fr 78px 78px 78px}#${PANEL_ID} .hide-mobile{display:none}#${PANEL_ID} .pg-u-settings{grid-template-columns:1fr}#${PANEL_ID} .pg-u-tabs{top:47px}#${PANEL_ID} .pg-hi-grid{grid-template-columns:1fr}#${PANEL_ID} .pg-hi-hero{grid-template-columns:1fr 1fr}#${PANEL_ID} .pg-hi-history-head{display:none}#${PANEL_ID} .pg-hi-history-row{grid-template-columns:1fr 70px 44px}#${PANEL_ID} .pg-hi-history-name{grid-column:1/-1}}
+      @media(max-width:700px){#${PANEL_ID} .pg-u-sourcebox{grid-template-columns:1fr}.pg-u-daily{white-space:normal;flex-wrap:wrap}#${PANEL_ID} .pg-u-table-head,#${PANEL_ID} .pg-u-row{grid-template-columns:28px 1fr 78px 78px 78px}#${PANEL_ID} .hide-mobile{display:none}#${PANEL_ID} .pg-u-settings{grid-template-columns:1fr}#${PANEL_ID} .pg-u-tabs{top:47px}#${PANEL_ID} .pg-hi-grid{grid-template-columns:1fr}#${PANEL_ID} .pg-hi-hero{grid-template-columns:1fr 1fr}#${PANEL_ID} .pg-hi-history-head{display:none}#${PANEL_ID} .pg-hi-history-row{grid-template-columns:1fr 70px 44px}#${PANEL_ID} .pg-hi-history-name{grid-column:1/-1}#${PANEL_ID} .pg-fav-row{grid-template-columns:1fr auto}#${PANEL_ID} .pg-fav-remove{grid-column:2}#${PANEL_ID} .pg-fav-form{grid-template-columns:1fr}#${PANEL_ID} .pg-fav-active{align-items:flex-start;flex-direction:column}}
     `;
     document.head.appendChild(style);
   }
@@ -3991,6 +4010,7 @@
       hunt: 'Hunts',
       notcaught: 'No capturados',
       item: 'Items',
+      favorites: '⭐ Favoritos',
       performance: 'Rendimiento',
       history: 'Histórico'
     })[activeTab] || 'Hunts';
@@ -4083,7 +4103,7 @@
           <button data-panel-collapse title="${panelCollapsed?'Desplegar':'Plegar'} Hunt Intelligence">${panelCollapsed?'▾':'▴'}</button>
           <button data-close>✕</button>
         </div>
-        <div class="pg-u-tabs"><button class="pg-u-tab ${activeTab === 'hunt' ? 'on' : ''}" data-tab="hunt">Hunts</button><button class="pg-u-tab ${activeTab === 'notcaught' ? 'on' : ''}" data-tab="notcaught">No capturados</button><button class="pg-u-tab ${activeTab === 'item' ? 'on' : ''}" data-tab="item">Items</button><button class="pg-u-tab ${activeTab === 'performance' ? 'on' : ''}" data-tab="performance">Rendimiento</button><button class="pg-u-tab ${activeTab === 'history' ? 'on' : ''}" data-tab="history">Histórico</button></div>
+        <div class="pg-u-tabs"><button class="pg-u-tab ${activeTab === 'hunt' ? 'on' : ''}" data-tab="hunt">Hunts</button><button class="pg-u-tab ${activeTab === 'notcaught' ? 'on' : ''}" data-tab="notcaught">No capturados</button><button class="pg-u-tab ${activeTab === 'item' ? 'on' : ''}" data-tab="item">Items</button><button class="pg-u-tab ${activeTab === 'favorites' ? 'on' : ''}" data-tab="favorites">⭐ Favoritos</button><button class="pg-u-tab ${activeTab === 'performance' ? 'on' : ''}" data-tab="performance">Rendimiento</button><button class="pg-u-tab ${activeTab === 'history' ? 'on' : ''}" data-tab="history">Histórico</button></div>
         <div class="pg-u-body">${bodyHtml}</div>
       </div>`;
 
@@ -4120,7 +4140,7 @@
 
     // El juego y PokeGrid pueden tener manejadores globales de puntero. Estos controles
     // se aíslan en fase de burbuja sin cancelar su acción predeterminada.
-    const protectedSelector = '[data-mode-value],[data-daily-toggle],[data-daily-value],[data-use-tm-button],[data-vip-button],[data-weight-delta],[data-supervisor-delta],[data-adopt-legacy-vip],[data-delete-intelligence-history],[data-clear-intelligence-history],[data-panel-collapse],[data-query],[data-item-search]';
+    const protectedSelector = '[data-mode-value],[data-daily-toggle],[data-daily-value],[data-use-tm-button],[data-vip-button],[data-weight-delta],[data-supervisor-delta],[data-adopt-legacy-vip],[data-delete-intelligence-history],[data-clear-intelligence-history],[data-panel-collapse],[data-query],[data-item-search],[data-favorite-query],[data-favorite-add],[data-favorite-start],[data-favorite-remove],[data-favorite-stop]';
     const protect = event => { if (event.target.closest?.(protectedSelector)) event.stopPropagation(); };
     overlay.querySelector('.pg-u-card')?.addEventListener('pointerdown', protect);
     overlay.querySelector('.pg-u-card')?.addEventListener('mousedown', protect);
@@ -4241,6 +4261,26 @@
       if (event.target === overlay || event.target.closest('[data-close]')) { closePanel(); return; }
       const tab = event.target.closest('[data-tab]')?.dataset.tab;
       if (tab) { switchTab(tab); return; }
+
+      const favoriteStart = event.target.closest('[data-favorite-start]');
+      if (favoriteStart) {
+        event.preventDefault(); event.stopPropagation();
+        startFavoriteFarm(favoriteStart.dataset.favoriteStart);
+        return;
+      }
+      const favoriteRemove = event.target.closest('[data-favorite-remove]');
+      if (favoriteRemove) {
+        event.preventDefault(); event.stopPropagation();
+        removeFavorite(favoriteRemove.dataset.favoriteRemove);
+        renderFavorites(false);
+        return;
+      }
+      if (event.target.closest('[data-favorite-stop]')) {
+        event.preventDefault(); event.stopPropagation();
+        stopFavoriteFarm();
+        return;
+      }
+
       const target = event.target.closest('[data-hunt-index]');
       if (target) {
         const index = Number(target.dataset.huntIndex);
@@ -4263,21 +4303,31 @@
         if (activeTab === 'hunt') loadHunt(true);
         else if (activeTab === 'notcaught') loadNotCaught(true);
         else if (activeTab === 'item') runItemSearch(overlay.querySelector('[data-query]')?.value || '', true);
+        else if (activeTab === 'favorites') renderFavorites(true);
         else if (activeTab === 'performance') renderPerformance(true);
         else renderHistory(true);
       }
     };
     overlay.__pgHuntClickHandler = clickHandler;
     overlay.addEventListener('click', clickHandler);
+    const favoriteForm = overlay.querySelector('[data-favorite-form]');
+    if (favoriteForm) {
+      favoriteForm.addEventListener('submit', event => {
+        event.preventDefault();
+        const query = favoriteForm.querySelector('[data-favorite-query]')?.value || '';
+        addFavoriteFromQuery(query);
+      });
+    }
     if (options.after) options.after(overlay);
     return overlay;
   }
 
   function switchTab(tab) {
-    activeTab = ['hunt','notcaught','item','performance','history'].includes(tab) ? tab : 'hunt';
+    activeTab = ['hunt','notcaught','item','favorites','performance','history'].includes(tab) ? tab : 'hunt';
     if (activeTab === 'hunt') loadHunt(false);
     else if (activeTab === 'notcaught') loadNotCaught(false);
     else if (activeTab === 'item') renderItemInitial();
+    else if (activeTab === 'favorites') renderFavorites(false);
     else if (activeTab === 'performance') renderPerformance(false);
     else renderHistory(false);
   }
@@ -4340,6 +4390,7 @@
       const query = lastItemResult?.item?.name || I()?.getLastItem?.() || '';
       return query ? runItemSearch(query, force) : renderItemInitial();
     }
+    if (activeTab === 'favorites') return renderFavorites(force);
     if (activeTab === 'performance') return renderPerformance(force);
     if (activeTab === 'history') return renderHistory(force);
     return loadHunt(force);
@@ -4364,6 +4415,343 @@
     if (productivity.fallback) return { text: `${parts.join(' · ')}. Se está usando una curva de emergencia porque no fue posible cargar la tabla completa.`, tone: 'bad' };
     if (productivity.stale) return { text: `${parts.join(' · ')}. Se está usando la última caché válida.`, tone: 'warn' };
     return { text: parts.join(' · '), tone: '' };
+  }
+
+
+  function readFavorites() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
+      if (!Array.isArray(parsed)) return [];
+      const seen = new Set();
+      return parsed.filter(item => {
+        const key = norm(item?.key || item?.name || item?.slug || '');
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }).map(item => ({
+        key: norm(item.key || item.name || item.slug),
+        name: String(item.name || item.slug || 'Pokémon'),
+        slug: String(item.slug || ''),
+        level: Math.max(0, finite(item.level)),
+        speciesId: item.speciesId ?? null,
+        addedAt: finite(item.addedAt, Date.now())
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  function writeFavorites(list) {
+    const safe = Array.isArray(list) ? list.slice(0, 100) : [];
+    try { localStorage.setItem(FAVORITES_KEY, JSON.stringify(safe)); } catch {}
+    updateFavoriteButtonState();
+    return safe;
+  }
+
+  function favoriteFromHunt(hunt) {
+    const name = String(hunt?.name || hunt?.creature?.name || hunt?.slug || 'Pokémon');
+    return {
+      key: norm(name),
+      name,
+      slug: String(hunt?.slug || hunt?.marker?.slug || ''),
+      level: Math.max(0, finite(hunt?.marker?.level, hunt?.marker?.lvl, hunt?.marker?.minLevel, hunt?.creature?.huntLevel)),
+      speciesId: hunt?.marker?.speciesId ?? hunt?.marker?.pokeId ?? hunt?.creature?.speciesId ?? hunt?.creature?.pokeId ?? null,
+      addedAt: Date.now()
+    };
+  }
+
+  function readFavoriteFarmActive() {
+    try {
+      const value = JSON.parse(localStorage.getItem(FAVORITE_ACTIVE_KEY) || 'null');
+      if (!value || value.type !== 'favorite-farm' || !value.target?.key) return null;
+      return value;
+    } catch {
+      return null;
+    }
+  }
+
+  function favoriteMatchesHunt(target, hunt) {
+    if (!target || !hunt) return false;
+    const targetKey = norm(target.key || target.name || target.slug || '');
+    const targetSlug = norm(target.slug || '');
+    const terms = huntTerms(hunt);
+    if (targetSlug && terms.some(term => term === targetSlug)) return true;
+    return Boolean(targetKey && terms.some(term => term === targetKey || term.includes(targetKey) || targetKey.includes(term)));
+  }
+
+  function favoriteMatchesCurrent(target) {
+    if (!target) return false;
+    const slug = currentSlug();
+    if (!slug) return false;
+    const candidates = [target.slug, target.key, target.name].map(norm).filter(Boolean);
+    return candidates.some(term => slug === term || slug.includes(term) || term.includes(slug));
+  }
+
+  async function favoriteCatalog(force = false) {
+    const data = await I()?.loadData?.(force);
+    const hunts = Array.isArray(data?.hunts) ? data.hunts : [];
+    const byKey = new Map();
+    for (const hunt of hunts) {
+      const descriptor = favoriteFromHunt(hunt);
+      if (!descriptor.key) continue;
+      const current = byKey.get(descriptor.key);
+      if (!current || (descriptor.level && (!current.level || descriptor.level < current.level))) {
+        byKey.set(descriptor.key, { descriptor, hunt });
+      }
+    }
+    return [...byKey.values()].sort((a, b) => a.descriptor.name.localeCompare(b.descriptor.name, 'es', { sensitivity: 'base' }));
+  }
+
+  async function addFavoriteFromQuery(query) {
+    const key = norm(query);
+    if (!key) { toast('Escribe el Pokémon que quieres guardar como favorito.', 'bad'); return false; }
+    try {
+      const catalog = await favoriteCatalog(false);
+      let match = catalog.find(entry => entry.descriptor.key === key || norm(entry.descriptor.slug) === key);
+      if (!match) match = catalog.find(entry => entry.descriptor.key.startsWith(key));
+      if (!match) match = catalog.find(entry => entry.descriptor.key.includes(key));
+      if (!match) {
+        toast(`No encuentro una hunt para “${query}”.`, 'bad');
+        return false;
+      }
+      const list = readFavorites();
+      if (list.some(item => item.key === match.descriptor.key)) {
+        toast(`${match.descriptor.name} ya está en Favoritos.`);
+        return false;
+      }
+      list.push(match.descriptor);
+      writeFavorites(list);
+      toast(`⭐ ${match.descriptor.name} añadido a Favoritos.`, 'ok');
+      renderFavorites(false);
+      return true;
+    } catch (error) {
+      toast(error?.message || 'No se pudo añadir el favorito.', 'bad');
+      return false;
+    }
+  }
+
+  function removeFavorite(key) {
+    const normalized = norm(key);
+    const before = readFavorites();
+    const next = before.filter(item => item.key !== normalized);
+    const removed = next.length !== before.length;
+    writeFavorites(next);
+    if (removed) {
+      const active = readFavoriteFarmActive();
+      if (active?.target && norm(active.target.key) === normalized) {
+        publishFavoriteFarmCommand('stop');
+        toast('Favorito eliminado y Farm sincronizado detenido.');
+      } else {
+        toast('Favorito eliminado.');
+      }
+    }
+    return removed;
+  }
+
+  function favoriteFarmCommandId() {
+    try { return crypto.randomUUID(); } catch {}
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  }
+
+  function rememberFavoriteCommand(id) {
+    if (!id) return false;
+    if (favoriteFarmSeenCommands.has(id)) return false;
+    favoriteFarmSeenCommands.add(id);
+    if (favoriteFarmSeenCommands.size > 80) {
+      const first = favoriteFarmSeenCommands.values().next().value;
+      if (first) favoriteFarmSeenCommands.delete(first);
+    }
+    return true;
+  }
+
+  function updateFavoriteButtonState() {
+    const button = document.getElementById(FAVORITES_BUTTON_ID);
+    if (!button) return;
+    const active = readFavoriteFarmActive();
+    button.dataset.active = active ? '1' : '0';
+    button.title = active
+      ? `Farm sincronizado activo: ${active.target?.name || 'favorito'} · clic para abrir Favoritos`
+      : 'Favoritos · clic para gestionar y lanzar Farm x4';
+  }
+
+  function writeFavoriteFarmActive(target, commandId, startedAt = Date.now()) {
+    const state = {
+      type: 'favorite-farm',
+      commandId,
+      startedAt,
+      updatedAt: Date.now(),
+      target: {
+        key: norm(target?.key || target?.name || target?.slug || ''),
+        name: String(target?.name || target?.slug || 'Pokémon'),
+        slug: String(target?.slug || ''),
+        level: Math.max(0, finite(target?.level)),
+        speciesId: target?.speciesId ?? null
+      }
+    };
+    try { localStorage.setItem(FAVORITE_ACTIVE_KEY, JSON.stringify(state)); } catch {}
+    updateFavoriteButtonState();
+    return state;
+  }
+
+  function clearFavoriteFarmActive() {
+    try { localStorage.removeItem(FAVORITE_ACTIVE_KEY); } catch {}
+    updateFavoriteButtonState();
+  }
+
+  function publishFavoriteFarmCommand(type, target = null) {
+    const command = {
+      id: favoriteFarmCommandId(),
+      type,
+      source: FAVORITE_INSTANCE_ID,
+      at: Date.now(),
+      target: target ? { ...target, key: norm(target.key || target.name || target.slug || '') } : null
+    };
+    if (type === 'start' && command.target?.key) writeFavoriteFarmActive(command.target, command.id, command.at);
+    if (type === 'stop') clearFavoriteFarmActive();
+    try { localStorage.setItem(FAVORITE_COMMAND_KEY, JSON.stringify(command)); } catch {}
+    try { favoriteFarmChannel?.postMessage?.(command); } catch {}
+    handleFavoriteFarmCommand(command);
+    return command;
+  }
+
+  async function resolveFavoriteHunt(target) {
+    if (!target?.key) return null;
+    let recommendation = null;
+    try { recommendation = await H()?.calculateRecommendations?.(false); } catch {}
+    const accessible = (recommendation?.rows || []).map(row => row?.hunt).filter(Boolean);
+    let hunt = accessible.find(candidate => favoriteMatchesHunt(target, candidate));
+    if (hunt) return hunt;
+
+    const catalog = await favoriteCatalog(false);
+    const allMatches = catalog.map(entry => entry.hunt).filter(candidate => favoriteMatchesHunt(target, candidate));
+    if (!allMatches.length) return null;
+
+    // Si la cuenta no ve el objetivo entre sus hunts accesibles no forzamos una
+    // hunt bloqueada. Cada cuenta decide su accesibilidad con su propio estado.
+    if (recommendation?.rows) return null;
+    return allMatches[0] || null;
+  }
+
+  async function executeFavoriteFarmTarget(target, { quiet = false } = {}) {
+    if (!target?.key || favoriteFarmExecutionBusy) return false;
+    if (favoriteMatchesCurrent(target)) {
+      if (!quiet) toast(`🎯 Ya estás farmeando ${target.name}.`, 'ok');
+      return true;
+    }
+    favoriteFarmExecutionBusy = true;
+    try {
+      if (busy) await waitFor(() => !busy, 9000, 120);
+      if (busy) throw new Error('Hunt Intelligence sigue ocupado y no pudo aplicar el Farm sincronizado.');
+      const hunt = await resolveFavoriteHunt(target);
+      if (!hunt) throw new Error(`${target.name} no está disponible para esta cuenta o todavía no está desbloqueado.`);
+      await startHunt(hunt, { favoriteFarm: true });
+      return favoriteMatchesCurrent(target);
+    } catch (error) {
+      console.error('[Hunt Intelligence · Farm favorito]', error);
+      if (!quiet) toast(error?.message || 'No se pudo iniciar el Farm sincronizado.', 'bad');
+      return false;
+    } finally {
+      favoriteFarmExecutionBusy = false;
+    }
+  }
+
+  async function handleFavoriteFarmCommand(command) {
+    if (!command?.id || !rememberFavoriteCommand(command.id)) return false;
+    if (command.type === 'stop') {
+      clearFavoriteFarmActive();
+      if (activeTab === 'favorites' && document.getElementById(PANEL_ID)?.isConnected) renderFavorites(false);
+      toast('⏹ Farm sincronizado detenido.');
+      return true;
+    }
+    if (command.type !== 'start' || !command.target?.key) return false;
+    writeFavoriteFarmActive(command.target, command.id, command.at);
+    updateFavoriteButtonState();
+    if (activeTab === 'favorites' && document.getElementById(PANEL_ID)?.isConnected) renderFavorites(false);
+    return executeFavoriteFarmTarget(command.target);
+  }
+
+  function startFavoriteFarm(key) {
+    const target = readFavorites().find(item => item.key === norm(key));
+    if (!target) { toast('Ese favorito ya no existe.', 'bad'); return false; }
+    publishFavoriteFarmCommand('start', target);
+    toast(`🎯 Farm x4 enviado: ${target.name}.`, 'ok');
+    if (activeTab === 'favorites') setTimeout(() => renderFavorites(false), 50);
+    return true;
+  }
+
+  function stopFavoriteFarm() {
+    publishFavoriteFarmCommand('stop');
+    if (activeTab === 'favorites') setTimeout(() => renderFavorites(false), 50);
+    return true;
+  }
+
+  function setupFavoriteFarmSync() {
+    if (!favoriteFarmChannel && typeof BroadcastChannel === 'function') {
+      try {
+        favoriteFarmChannel = new BroadcastChannel(FAVORITE_CHANNEL_NAME);
+        favoriteFarmChannel.addEventListener('message', event => handleFavoriteFarmCommand(event.data));
+      } catch {
+        favoriteFarmChannel = null;
+      }
+    }
+
+    if (!window.__pgFavoriteFarmStorageListenerV1) {
+      window.__pgFavoriteFarmStorageListenerV1 = true;
+      window.addEventListener('storage', event => {
+        if (event.key === FAVORITE_COMMAND_KEY && event.newValue) {
+          try { handleFavoriteFarmCommand(JSON.parse(event.newValue)); } catch {}
+        }
+        if (event.key === FAVORITE_ACTIVE_KEY) {
+          updateFavoriteButtonState();
+          if (activeTab === 'favorites' && document.getElementById(PANEL_ID)?.isConnected) renderFavorites(false);
+        }
+      });
+    }
+
+    clearInterval(favoriteFarmEnforceTimer);
+    favoriteFarmEnforceTimer = setInterval(() => {
+      const active = readFavoriteFarmActive();
+      if (!active?.target || favoriteFarmExecutionBusy || busy || favoriteMatchesCurrent(active.target)) return;
+      executeFavoriteFarmTarget(active.target, { quiet: true });
+    }, 6000);
+
+    setTimeout(() => {
+      updateFavoriteButtonState();
+      const active = readFavoriteFarmActive();
+      if (active?.target && !favoriteMatchesCurrent(active.target)) executeFavoriteFarmTarget(active.target, { quiet: true });
+    }, 1800);
+  }
+
+  async function renderFavorites(force = false) {
+    activeTab = 'favorites';
+    shell('<div class="pg-u-empty">Cargando catálogo de hunts y Favoritos…</div>');
+    try {
+      const [catalog, favorites] = await Promise.all([favoriteCatalog(force), Promise.resolve(readFavorites())]);
+      const active = readFavoriteFarmActive();
+      const datalistId = `${NS}-favorite-hunts`;
+      const body = `
+        <div class="pg-u-note"><b>Farm sincronizado:</b> guarda aquí únicamente Pokémon que quieras conseguir para ti. Esta lista no altera el ranking de XP/h, No capturados ni Item Finder. Al pulsar <b>Farmear x4</b>, las pestañas/cuentas abiertas en este navegador reciben el mismo objetivo y cada una usa su propio estado para entrar en esa hunt. Mientras haya un objetivo activo, Hunt Intelligence le da prioridad sobre cualquier cambio de hunt iniciado desde sus otros paneles.</div>
+        ${active ? `<div class="pg-fav-active"><div><strong>🎯 Objetivo activo: ${esc(active.target?.name || 'Favorito')}</strong><small>Farm sincronizado en curso · las cuentas que se desvíen volverán a este objetivo.</small></div><button type="button" data-favorite-stop>⏹ Detener farm</button></div>` : ''}
+        <form class="pg-fav-form" data-favorite-form>
+          <input data-favorite-query list="${esc(datalistId)}" autocomplete="off" placeholder="Pokémon que quieres farmear">
+          <datalist id="${esc(datalistId)}">${catalog.map(entry => `<option value="${esc(entry.descriptor.name)}"></option>`).join('')}</datalist>
+          <button type="submit" data-favorite-add>⭐ Añadir favorito</button>
+        </form>
+        <div class="pg-fav-list">
+          ${favorites.map(item => {
+            const isActive = Boolean(active?.target && norm(active.target.key) === item.key);
+            return `<div class="pg-fav-row ${isActive ? 'active' : ''}">
+              <div><div class="pg-fav-name">${isActive ? '🎯 ' : '⭐ '}${esc(item.name)}</div><div class="pg-fav-sub">${item.level ? `Hunt Nv. ${fmt(item.level)} · ` : ''}${item.slug ? esc(item.slug) : 'Objetivo guardado'}${isActive ? ' · activo en las cuentas' : ''}</div></div>
+              <button type="button" class="pg-fav-start" data-favorite-start="${esc(item.key)}">${isActive ? 'Reenviar x4' : 'Farmear x4'}</button>
+              <button type="button" class="pg-fav-remove" data-favorite-remove="${esc(item.key)}" title="Eliminar de Favoritos">🗑️</button>
+            </div>`;
+          }).join('') || '<div class="pg-u-empty">Todavía no has guardado ningún Pokémon. Escríbelo arriba y pulsa “Añadir favorito”.</div>'}
+        </div>`;
+      shell(body);
+      updateFavoriteButtonState();
+    } catch (error) {
+      renderError(error?.message || 'No se pudo cargar Favoritos.');
+    }
   }
 
   async function renderPerformance(force = false) {
@@ -5235,8 +5623,14 @@
     return null;
   }
 
-  async function startHunt(hunt) {
-    if (!hunt || busy) return;
+  async function startHunt(hunt, options = {}) {
+    if (!hunt) return;
+    const activeFavorite = readFavoriteFarmActive();
+    if (activeFavorite?.target && !options.favoriteFarm && !favoriteMatchesHunt(activeFavorite.target, hunt)) {
+      toast(`🎯 Farm sincronizado activo: ${activeFavorite.target.name}. Deténlo desde Favoritos antes de cambiar de hunt.`, 'bad');
+      return;
+    }
+    if (busy) return;
     busy = true; suppressMapAutoOpenUntil = Date.now() + 25000;
     closePanel();
     const target = hunt.name || hunt.creature?.name || hunt.slug || 'objetivo';
@@ -5406,6 +5800,13 @@
     loadHunt(false);
   }
 
+  function openFavoritesFromButton(){
+    panelCollapsed=false;
+    activeTab='favorites';
+    revealManagedPanel({full:true});
+    renderFavorites(false);
+  }
+
   function install() {
     ensureStyles();
     activeTab='hunt';
@@ -5420,6 +5821,19 @@
       document.body.appendChild(button);
     }
     installDraggableButton(button);
+
+    let favoriteButton = document.getElementById(FAVORITES_BUTTON_ID);
+    if (!favoriteButton) {
+      favoriteButton = document.createElement('button');
+      favoriteButton.id = FAVORITES_BUTTON_ID;
+      favoriteButton.type = 'button';
+      favoriteButton.textContent = '⭐';
+      favoriteButton.setAttribute('aria-label', 'Abrir Favoritos y Farm sincronizado');
+      favoriteButton.addEventListener('click', openFavoritesFromButton);
+      document.body.appendChild(favoriteButton);
+    }
+    updateFavoriteButtonState();
+    setupFavoriteFarmSync();
 
     document.addEventListener('click', event => {
       if (Date.now() < suppressMapAutoOpenUntil) return;
@@ -5506,7 +5920,9 @@
         ? 'Buscando el objeto solicitado.'
         : activeTab === 'notcaught'
           ? 'Consultando la Pokédex y las hunts pendientes.'
-          : 'Calculando recomendaciones de hunt.';
+          : activeTab === 'favorites'
+            ? 'Gestionando Favoritos y Farm sincronizado.'
+            : 'Calculando recomendaciones de hunt.';
     } else if (/no se pudo|error|fall[oó]/i.test(panelError)) {
       status = 'warning';
       statusText = panelError.trim().slice(0, 400);
@@ -5553,7 +5969,10 @@
         notCaughtRows: Array.isArray(lastNotCaughtResult?.rows) ? lastNotCaughtResult.rows.length : 0,
         pokedexUncaught: Number(lastNotCaughtResult?.totalUncaught) || 0,
         lastItem: lastItemResult?.item?.name || I()?.getLastItem?.() || '',
-        lastItemRows: Array.isArray(lastItemResult?.rows) ? lastItemResult.rows.length : 0
+        lastItemRows: Array.isArray(lastItemResult?.rows) ? lastItemResult.rows.length : 0,
+        favoriteCount: readFavorites().length,
+        favoriteFarmActive: Boolean(readFavoriteFarmActive()),
+        favoriteFarmTarget: readFavoriteFarmActive()?.target?.name || ''
       }
     };
   }
@@ -5569,6 +5988,7 @@
       await runItemSearch(query, force);
       return { tab: 'item', query };
     }
+    if (activeTab === 'favorites') { await renderFavorites(force); return { tab: 'favorites' }; }
     if (activeTab === 'performance') { await renderPerformance(force); return { tab: 'performance' }; }
     if (activeTab === 'history') { await renderHistory(force); return { tab: 'history' }; }
     await loadHunt(force);
@@ -5576,7 +5996,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.28',
+    version: '1.1.29',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -5591,6 +6011,7 @@
     openHunt: () => { activeTab = 'hunt'; return loadHunt(false); },
     openNotCaught: () => { activeTab = 'notcaught'; return loadNotCaught(false); },
     openItem: query => { activeTab = 'item'; return runItemSearch(query || I()?.getLastItem?.() || '', false); },
+    openFavorites: () => { activeTab = 'favorites'; return renderFavorites(false); },
     openPerformance: () => { activeTab = 'performance'; return renderPerformance(false); },
     openHistory: () => { activeTab = 'history'; return renderHistory(false); },
     refresh: () => refreshCurrentHealthTarget(true),
@@ -5623,18 +6044,20 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.28',
-      description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
+      version: '1.1.29',
+      description: 'Ranking personal, Farm sincronizado de favoritos, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
       status: 'waiting',
       statusText: 'Preparando motores de cálculo.',
       staleAfterMs: 45000,
-      capabilities: ['piwtools','hunt-ranking','pokemon-level-hunt-gate','live-stat-reranking','pokedex-not-caught','item-finder','daily-bonus','daily-auto-reset','tm-toggle','vip-toggle','personal-history','history-backup','leveling-history','personal-ranking','nearby-level-personal-mark','cross-move-personal-calibration','time-weighted-leveling-calibration','personal-xph-history','bridge-ui-core','persistent-opacity']
+      capabilities: ['piwtools','hunt-ranking','pokemon-level-hunt-gate','live-stat-reranking','pokedex-not-caught','item-finder','daily-bonus','daily-auto-reset','tm-toggle','vip-toggle','personal-history','history-backup','leveling-history','personal-ranking','nearby-level-personal-mark','cross-move-personal-calibration','time-weighted-leveling-calibration','personal-xph-history','bridge-ui-core','persistent-opacity','favorite-farm','cross-tab-favorite-farm']
     });
     healthClient.registerCommand('open-hunt', () => { activeTab='hunt'; revealManagedPanel({full:true}); loadHunt(false); return {opened:'hunt'}; }, {label:'Abrir Hunt Advisor'});
     healthClient.registerCommand('open-not-caught', () => { activeTab='notcaught'; revealManagedPanel({full:true}); loadNotCaught(false); return {opened:'notcaught'}; }, {label:'Abrir No capturados'});
     healthClient.registerCommand('open-item', args => { activeTab='item'; revealManagedPanel({full:true}); runItemSearch(args?.query || I()?.getLastItem?.() || '', false); return {opened:'item'}; }, {label:'Abrir Item Finder',args:{query:'string'}});
+    healthClient.registerCommand('open-favorites', () => { activeTab='favorites'; revealManagedPanel({full:true}); renderFavorites(false); return {opened:'favorites'}; }, {label:'Abrir Favoritos'});
+    healthClient.registerCommand('stop-favorite-farm', () => ({stopped:stopFavoriteFarm()}), {label:'Detener Farm favorito'});
     healthClient.registerCommand('open-performance', () => { activeTab='performance'; revealManagedPanel({full:true}); renderPerformance(false); return {opened:'performance'}; }, {label:'Abrir rendimiento'});
     healthClient.registerCommand('open-history', () => { activeTab='history'; revealManagedPanel({full:true}); renderHistory(false); return {opened:'history'}; }, {label:'Abrir histórico'});
     healthClient.registerCommand('refresh', () => refreshCurrentHealthTarget(true), { label: 'Actualizar datos' });
@@ -5656,11 +6079,28 @@
     publishHuntHealth();
   });
 
+  window.__PGFavoriteFarm = Object.freeze({
+    version: '1.0.0',
+    open: openFavoritesFromButton,
+    list: () => readFavorites().map(item => ({...item})),
+    add: query => addFavoriteFromQuery(query),
+    remove: key => removeFavorite(key),
+    start: key => startFavoriteFarm(key),
+    stop: stopFavoriteFarm,
+    getActive: () => readFavoriteFarmActive(),
+    isActive: () => Boolean(readFavoriteFarmActive())
+  });
+
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.28',
+    version: '1.1.29',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
+    openFavorites: () => { activeTab='favorites'; revealManagedPanel({full:true}); return renderFavorites(false); },
+    getFavorites: () => readFavorites().map(item => ({...item})),
+    startFavoriteFarm: key => startFavoriteFarm(key),
+    stopFavoriteFarm: () => stopFavoriteFarm(),
+    getFavoriteFarmState: () => readFavoriteFarmActive(),
     openPerformance: () => { activeTab='performance'; revealManagedPanel({full:true}); return renderPerformance(false); },
     openHistory: () => { activeTab='history'; revealManagedPanel({full:true}); return renderHistory(false); },
     getVip: () => Boolean(H()?.getConfig?.()?.vipActive),
@@ -5691,5 +6131,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.28 cargado: Histórico usa las 12 muestras recientes por Hunt + Pokémon y expulsa automáticamente la más antigua.');
+  console.info('[Hunt Intelligence] v1.1.29 cargado: Histórico móvil de 12 muestras y Farm sincronizado de Favoritos entre cuentas/pestañas.');
 })();
