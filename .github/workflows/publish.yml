@@ -48,44 +48,7 @@ jobs:
         run: python3 scripts/apply-release-2026-08-10.py
 
       - name: Normalizar regex temporal de Capture Log
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          q = Path('src/piw-qol-es.user.js')
-          text = q.read_text(encoding='utf-8')
-          text = text.replace('\x08IV', r'\bIV')
-          q.write_text(text, encoding='utf-8')
-          w = Path('.github/workflows/publish.yml')
-          workflow = w.read_text(encoding='utf-8')
-          block = """      - name: Normalizar regex temporal de Capture Log
-                run: |
-                  python3 - <<'PY'
-                  from pathlib import Path
-                  q = Path('src/piw-qol-es.user.js')
-                  text = q.read_text(encoding='utf-8')
-                  text = text.replace('\\x08IV', r'\\bIV')
-                  q.write_text(text, encoding='utf-8')
-                  w = Path('.github/workflows/publish.yml')
-                  workflow = w.read_text(encoding='utf-8')
-                  block = __BLOCK__
-                  if block not in workflow:
-                      raise SystemExit('No se encontró el bloque temporal de normalización')
-                  w.write_text(workflow.replace(block, ''), encoding='utf-8')
-                  PY
-
-          """
-          block = block.replace('__BLOCK__', repr(block))
-          if block not in workflow:
-              # Fallback más simple: elimina desde el nombre del step hasta el siguiente step.
-              start = workflow.find('      - name: Normalizar regex temporal de Capture Log\n')
-              end = workflow.find('      - name: Procesar bandeja incoming\n', start)
-              if start < 0 or end < 0:
-                  raise SystemExit('No se encontró el step temporal para autolimpieza')
-              workflow = workflow[:start] + workflow[end:]
-          else:
-              workflow = workflow.replace(block, '')
-          w.write_text(workflow, encoding='utf-8')
-          PY
+        run: python3 -c "from pathlib import Path; p=Path('src/piw-qol-es.user.js'); t=p.read_text(encoding='utf-8'); p.write_text(t.replace(chr(8)+'IV', r'\bIV'), encoding='utf-8')"
 
       - name: Procesar bandeja incoming
         run: node scripts/process-incoming.mjs
