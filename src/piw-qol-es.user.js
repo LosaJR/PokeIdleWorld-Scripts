@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Poke Idle World - Quality of Life (PIW-QOL ES)
 // @namespace    http://tampermonkey.net/
-// @version      9.10.31
+// @version      9.10.32
 // @description  Mejoras de calidad de vida en español, sin modificar el mapa y con candados de venta configurables.
 // @author       Desjunior (JulianoCLI)
 // @match        https://poke.idleworld.online/play
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_BUILD = '9.10.31';
+    const SCRIPT_BUILD = '9.10.32';
 
     const NativeWebSocket = window.WebSocket;
     const nativeWebSocketSend = NativeWebSocket.prototype.send;
@@ -41,7 +41,13 @@
         }
         if (message?.type === 'inventory') latestInventory = message.items || [];
         if (message?.type === 'family') latestFamily = message;
-        if (message?.type === 'catch-result') rememberCaptureResult(message);
+        if (message?.type === 'catch-result') {
+            rememberCaptureResult(message);
+            // La captura se registra en segundo plano aunque Capture Log esté cerrado.
+            // catch-result actúa como señal para pedir instantáneas frescas de `pokes`
+            // durante los siguientes segundos y detectar el ID recién incorporado.
+            scheduleBackgroundCaptureSync();
+        }
         if (message?.type === 'pokes') {
             const nextPokemon = message.list || [];
             rememberRecentPokemonAdditions(latestPokemon, nextPokemon);
@@ -194,6 +200,7 @@
     const CAPTURE_RECENT_ADDITION_MAX_AGE_MS = 90000;
     const CAPTURE_ROW_MATCH_MAX_DELTA_MS = 120000;
     const CAPTURE_LOG_SYNC_DELAYS_MS = [0, 250, 700, 1400];
+    const CAPTURE_BACKGROUND_SYNC_DELAYS_MS = [0, 180, 500, 1000, 1800];
     const STORAGE_CUSTOM_FONT = 'script_custom_font_v1';
     const STORAGE_CUSTOM_FONT_NAME = 'script_custom_font_name_v1';
     const CUSTOM_FONT_FAMILY = 'PIW Uploaded Font';
@@ -4974,6 +4981,13 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
             if (!descriptor) continue;
             recentPokemonAdditions.push({ seenAt, descriptor });
             seenIds.add(id);
+
+            // Tras la hidratación inicial, cualquier ID nuevo observado en `pokes`
+            // se persiste inmediatamente. Esto desacopla el registro de Capture Log:
+            // si la ventana está cerrada, la Quality ya queda guardada igualmente.
+            // Si después llega catch-result con una hora más precisa, la entrada con
+            // el mismo ID se actualiza en rememberCaptureQualityEntry().
+            rememberCaptureQualityEntry({ ...descriptor, capturedAt: seenAt });
         }
         purgeRecentPokemonAdditions();
     }
@@ -5063,6 +5077,21 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
             captureLogSyncPromise = null;
         });
         return captureLogSyncPromise;
+    }
+
+    function scheduleBackgroundCaptureSync() {
+        // No depende del DOM ni de que Capture Log exista. Cada señal de captura
+        // programa varias instantáneas breves porque el alta del Pokémon puede llegar
+        // unas décimas después del catch-result.
+        CAPTURE_BACKGROUND_SYNC_DELAYS_MS.forEach(delay => {
+            setTimeout(() => {
+                refreshLatestPokemon(true)
+                    .then(() => {
+                        resolvePendingCapturesFromRecentAdditions();
+                    })
+                    .catch(() => {});
+            }, delay);
+        });
     }
 
     function captureMatchScore(hint, pokemon) {
@@ -5495,5 +5524,5 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
     } else {
         initializeDOMEnhancements();
     }
-    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · Capture Log sincroniza cada fila nueva con instantáneas frescas de Pokémon y persiste su Quality.`);
+    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · Quality de capturas se registra en segundo plano aunque Capture Log esté cerrado.`);
 })();
