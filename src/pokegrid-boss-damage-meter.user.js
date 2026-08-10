@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Boss Damage Meter
 // @namespace    ivan-pokegrid-tools
-// @version      1.0.5
+// @version      1.0.6
 // @description  Medidor automático de daño por Pokémon para cada run de Boss. Top 6 en tiempo real, daño efectivo por pérdida real de HP y reset por run.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,10 +12,10 @@
 
 (() => {
   'use strict';
-  if (window.__pgBossDamageMeterV105) return;
-  window.__pgBossDamageMeterV105 = true;
+  if (window.__pgBossDamageMeterV106) return;
+  window.__pgBossDamageMeterV106 = true;
 
-  const VERSION = '1.0.5';
+  const VERSION = '1.0.6';
   const PANEL_ID = 'pg-boss-damage-meter-panel';
   const STYLE_ID = 'pg-boss-damage-meter-style';
   const LAYOUT_KEY = 'pg-boss-damage-meter-v1:layout';
@@ -25,6 +25,7 @@
   const BOSS_REFRESH_MS = 5 * 60 * 1000;
   const BOSS_BOOT_REFRESH_MS = 1500;
   const BOSS_BOOT_REFRESH_COUNT = 12;
+  const FINISH_AUTO_CLOSE_MS = 4500;
 
   let bossConfig = null;
   let bossCatalog = new Map();
@@ -36,6 +37,7 @@
   let socket = null;
   let socketListener = null;
   let panelClosedForRun = false;
+  let finishCloseTimer = null;
   let maximized = false;
   let layoutBeforeMaximize = null;
   let healthClient = null;
@@ -290,6 +292,8 @@
 
     lastFieldSeq = null;
     panelClosedForRun = false;
+    if (finishCloseTimer) clearTimeout(finishCloseTimer);
+    finishCloseTimer = null;
     ensureUi();
     openPanel(true);
     render();
@@ -303,8 +307,14 @@
     if (!run || run.outcome) return;
     run.outcome = String(outcome || 'won');
     run.finishedAt = nowMs();
+    const finishedAt = run.finishedAt;
     render();
     heartbeat();
+    if (finishCloseTimer) clearTimeout(finishCloseTimer);
+    finishCloseTimer = setTimeout(() => {
+      finishCloseTimer = null;
+      if (run?.outcome && run.finishedAt === finishedAt) closePanelForRun();
+    }, FINISH_AUTO_CLOSE_MS);
     console.info(`[Boss Damage Meter] Run finalizada: ${run.bossName} · daño ${run.totalDamage}/${run.maxBossHp}.`);
   }
 
@@ -630,7 +640,7 @@
         movable: true,
         minimizable: true,
         maximizable: true,
-        closable: false,
+        closable: true,
         rememberLayout: true,
         defaultOpacity: 86,
         bodyClass: 'pg-bdm-body'
@@ -638,6 +648,10 @@
       uiWindow.body.setAttribute('data-body', '');
       uiWindow.subtitleElement.setAttribute('data-boss-title', '');
       usingBridgeUi = true;
+      uiWindow.panel.addEventListener('click', event => {
+        const close = event.target.closest?.('.pg-ui-header .pg-ui-button');
+        if (close?.title === 'Cerrar') panelClosedForRun = true;
+      }, true);
 
       if (fallback) fallback.remove();
       if (shouldOpen) uiWindow.open();
@@ -695,6 +709,7 @@
         <span class="pg-bdm-boss" data-boss-title>Esperando Boss</span>
         <button type="button" data-minimize title="Minimizar">—</button>
         <button type="button" data-maximize title="Maximizar">□</button>
+        <button type="button" data-close title="Cerrar">×</button>
       </div>
       <div class="pg-bdm-body" data-body></div>
     `;
@@ -714,6 +729,10 @@
       event.preventDefault();
       toggleMaximize(panel);
     });
+    panel.querySelector('[data-close]')?.addEventListener('click', event => {
+      event.preventDefault();
+      closePanelForRun();
+    });
     return panel;
   }
 
@@ -723,6 +742,14 @@
     if (upgradeUiCoreIfAvailable()) return;
     ensureFallbackUi();
   }
+  function closePanelForRun() {
+    const panel = document.getElementById(PANEL_ID);
+    if (usingBridgeUi && uiWindow) uiWindow.close();
+    else if (panel) panel.hidden = true;
+    panelClosedForRun = true;
+    return true;
+  }
+
   function openPanel(force = false) {
     ensureUi();
     const panel = document.getElementById(PANEL_ID);
@@ -1031,13 +1058,7 @@
       openPanel(true);
       return state();
     },
-    close: () => {
-      const panel = document.getElementById(PANEL_ID);
-      if (usingBridgeUi && uiWindow) uiWindow.close();
-      else if (panel) panel.hidden = true;
-      panelClosedForRun = true;
-      return true;
-    },
+    close: () => closePanelForRun(),
     refreshBosses: refreshBossDefinitions,
     processPayload: payload => processSocketPayload(payload)
   };
@@ -1070,5 +1091,5 @@
   setInterval(() => refreshBossDefinitions().catch(() => {}), BOSS_REFRESH_MS);
   setInterval(heartbeat, 10000);
 
-  console.info('[Boss Damage Meter] v1.0.5 cargado · migración dinámica a Bridge UI Core aunque el Bridge cargue después.');
+  console.info('[Boss Damage Meter] v1.0.6 cargado · migración dinámica a Bridge UI Core aunque el Bridge cargue después.');
 })();

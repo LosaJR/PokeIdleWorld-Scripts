@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Poke Idle World - Quality of Life (PIW-QOL ES)
 // @namespace    http://tampermonkey.net/
-// @version      9.10.27
+// @version      9.10.28
 // @description  Mejoras de calidad de vida en español, sin modificar el mapa y con candados de venta configurables.
 // @author       Desjunior (JulianoCLI)
 // @match        https://poke.idleworld.online/play
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_BUILD = '9.10.27';
+    const SCRIPT_BUILD = '9.10.28';
 
     const NativeWebSocket = window.WebSocket;
     const nativeWebSocketSend = NativeWebSocket.prototype.send;
@@ -36,7 +36,10 @@
         if (message?.type === 'family') latestFamily = message;
         if (message?.type === 'pokes') {
             latestPokemon = message.list || [];
-            setTimeout(enhancePartyQuality, 0);
+            setTimeout(() => {
+                enhancePartyQuality();
+                enhanceCaptureLogQuality();
+            }, 0);
         }
         const waiters = gameEventWaiters.get(message?.type);
         if (waiters) {
@@ -839,6 +842,13 @@
             line-height: 1 !important;
             vertical-align: middle !important;
             white-space: nowrap !important;
+        }
+        .script-capture-quality-row { position: relative !important; padding-right: 86px !important; }
+        .script-capture-quality-row::after {
+            content: attr(data-script-capture-quality);
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            color: var(--script-capture-quality-color, #90cdf4);
+            font-size: 10px; font-weight: 900; white-space: nowrap; pointer-events: none;
         }
     `;
     function appendStyleWhenReady(styleElement) {
@@ -4730,14 +4740,45 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
         }
     }
 
-    // El Capture Log se conserva completamente nativo. Las versiones anteriores
-    // añadían o sustituían texto dentro de las filas y eso podía interferir con
-    // los filtros y ordenaciones internos por calidad e IV.
-    function removeCaptureLogEnhancements() {
-        document.querySelectorAll('.script-capture-quality-extra,.script-quality-badge')
-            .forEach(element => element.remove());
-        document.querySelectorAll('.script-capture-log-window')
-            .forEach(element => element.classList.remove('script-capture-log-window'));
+    // Capture Log: la calidad se dibuja con ::after a partir de data-attributes.
+    // No se inserta texto en los nodos nativos, por lo que filtros y ordenaciones conservan su comportamiento.
+    function enhanceCaptureLogQuality(pokemonList = latestPokemon) {
+        const owned = Array.isArray(pokemonList) ? pokemonList : [];
+        const windows = Array.from(document.querySelectorAll('[role="dialog"],.win-window,.window,[class*="window"]'))
+            .filter(element => /capture\s*log|registro\s+de\s+capturas?/i.test(String(element.textContent || '').slice(0, 1200)));
+        if (!windows.length) return;
+
+        windows.forEach(windowElement => {
+            windowElement.classList.add('script-capture-log-window');
+            const rows = Array.from(windowElement.querySelectorAll('tr,li,[class*="row"]'))
+                .filter(row => /IV\s*:?\s*\d+/i.test(row.textContent || ''));
+
+            rows.forEach(row => {
+                const ivTotal = getCaptureIvTotal(null, row);
+                const rowName = normalizePartyPokemonName(row.textContent || '');
+                const matches = owned.filter(pokemon => {
+                    const name = normalizePartyPokemonName(pokemon?.name);
+                    const iv = getCaptureIvTotal(pokemon, null);
+                    return name && rowName.includes(name) && Number(iv) === Number(ivTotal);
+                });
+
+                if (matches.length !== 1 || !Number.isFinite(Number(matches[0]?.quality))) {
+                    row.classList.remove('script-capture-quality-row');
+                    delete row.dataset.scriptCaptureQuality;
+                    row.style.removeProperty('--script-capture-quality-color');
+                    return;
+                }
+
+                const pokemon = matches[0];
+                const quality = Number(pokemon.quality);
+                const info = getPokemonQualityInfo(quality);
+                if (!info) return;
+                const potential = getPokemonPotentialPercent(quality, ivTotal, pokemon?.shiny);
+                row.dataset.scriptCaptureQuality = `Q ×${quality.toFixed(2)}${potential === null ? '' : ` · ${potential}%`}`;
+                row.style.setProperty('--script-capture-quality-color', info.color);
+                row.classList.add('script-capture-quality-row');
+            });
+        });
     }
 
     // Ventana nativa «Mercado Global» del juego (distinta de la versión portátil
@@ -4803,7 +4844,7 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
         if (document.querySelector('.ha-window:not(.ha-compare-modal)')) trackHuntAnalyzer();
         if (document.querySelector('.inv-window')) enhanceInventoryWindow();
         enhancePartyQuality();
-        removeCaptureLogEnhancements();
+        enhanceCaptureLogQuality();
         enhanceNativeGlobalMarketQuality();
     }
 
@@ -4832,5 +4873,5 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
     } else {
         initializeDOMEnhancements();
     }
-    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · selección múltiple en Familia y preset 1,70+ / IV 100+.`);
+    console.info(`[PIW-QOL ES] v${SCRIPT_BUILD} cargado · Capture Log muestra calidad sin alterar filtros nativos.`);
 })();
