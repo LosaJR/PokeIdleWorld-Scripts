@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Poke Idle World - Quality of Life (PIW-QOL ES)
 // @namespace    http://tampermonkey.net/
-// @version      9.10.32
+// @version      9.10.33
 // @description  Mejoras de calidad de vida en español, sin modificar el mapa y con candados de venta configurables.
 // @author       Desjunior (JulianoCLI)
 // @match        https://poke.idleworld.online/play
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_BUILD = '9.10.32';
+    const SCRIPT_BUILD = '9.10.33';
 
     const NativeWebSocket = window.WebSocket;
     const nativeWebSocketSend = NativeWebSocket.prototype.send;
@@ -42,11 +42,20 @@
         if (message?.type === 'inventory') latestInventory = message.items || [];
         if (message?.type === 'family') latestFamily = message;
         if (message?.type === 'catch-result') {
-            rememberCaptureResult(message);
-            // La captura se registra en segundo plano aunque Capture Log esté cerrado.
-            // catch-result actúa como señal para pedir instantáneas frescas de `pokes`
-            // durante los siguientes segundos y detectar el ID recién incorporado.
-            scheduleBackgroundCaptureSync();
+            // Solo una captura REAL puede abrir una asociación pendiente.
+            // Los intentos fallidos no deben quedar en cola porque podrían apropiarse
+            // del Pokémon de una captura posterior.
+            if (message.success === true) {
+                rememberCaptureResult(message);
+                // `poke-delta` es la fuente primaria; estas consultas quedan únicamente
+                // como respaldo por si en algún caso el servidor omite el delta.
+                scheduleBackgroundCaptureSync();
+            } else {
+                purgePendingCaptureResults();
+            }
+        }
+        if (message?.type === 'poke-delta') {
+            rememberCapturedPokemonDelta(message);
         }
         if (message?.type === 'pokes') {
             const nextPokemon = message.list || [];
@@ -194,7 +203,7 @@
     const STORAGE_MARK_QUICK_BUY = 'script_mark_quick_buy_v1';
     const STORAGE_MARK_QUALITY_PICKER = 'script_mark_quality_picker_v1';
     const STORAGE_SHOW_QUALITY_POTENTIAL = 'script_show_quality_potential_v1';
-    const STORAGE_CAPTURE_QUALITY_HISTORY = 'script_capture_quality_history_v1';
+    const STORAGE_CAPTURE_QUALITY_HISTORY = 'script_capture_quality_history_v2';
     const CAPTURE_QUALITY_HISTORY_LIMIT = 300;
     const CAPTURE_PENDING_MAX_AGE_MS = 20000;
     const CAPTURE_RECENT_ADDITION_MAX_AGE_MS = 90000;
@@ -4982,12 +4991,11 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
             recentPokemonAdditions.push({ seenAt, descriptor });
             seenIds.add(id);
 
-            // Tras la hidratación inicial, cualquier ID nuevo observado en `pokes`
-            // se persiste inmediatamente. Esto desacopla el registro de Capture Log:
-            // si la ventana está cerrada, la Quality ya queda guardada igualmente.
-            // Si después llega catch-result con una hora más precisa, la entrada con
-            // el mismo ID se actualiza en rememberCaptureQualityEntry().
-            rememberCaptureQualityEntry({ ...descriptor, capturedAt: seenAt });
+            // `pokes` solo mantiene un buffer transitorio. No persistimos cualquier
+            // ID nuevo porque también puede aparecer por depósito, breeding u otras
+            // acciones que NO son capturas. La persistencia se hace únicamente desde
+            // `poke-delta` asociado a un catch-result exitoso, o desde el fallback de
+            // reconciliación mientras exista una captura exitosa pendiente.
         }
         purgeRecentPokemonAdditions();
     }
@@ -5162,20 +5170,89 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
     function rememberCaptureResult(message) {
         purgePendingCaptureResults();
         purgeRecentPokemonAdditions();
+        if (message?.success !== true) return false;
+
         const at = captureTimestampValue(message) || Date.now();
         const descriptor = findCaptureDescriptorDeep(message, { maxDepth: 5 });
         if (descriptor) {
             descriptor.capturedAt = captureTimestampValue(message, descriptor) || at;
             rememberCaptureQualityEntry(descriptor);
         }
-        pendingCaptureResults.push({ at, descriptor });
-        // Soporta el orden inverso: algunos clientes reciben primero el `pokes`
-        // con el Pokémon nuevo y después `catch-result`.
+
+        pendingCaptureResults.push({
+            at,
+            descriptor,
+            speciesName: String(message?.speciesName || descriptor?.name || '').trim()
+        });
+        // Respaldo para clientes donde `pokes` pueda adelantarse al resultado.
         resolvePendingCapturesFromRecentAdditions();
+        return true;
+    }
+
+    // El auditor del juego confirma que, tras un catch-result exitoso, el servidor
+    // envía un `poke-delta` con el Pokémon capturado COMPLETO: ID, IV y Quality.
+    // Esta es la fuente canónica para Capture Log; no requiere abrir la ventana,
+    // comparar listas completas ni adivinar por nombre + IV.
+    function rememberCapturedPokemonDelta(message) {
+        const pokemon = message?.poke;
+        const descriptor = captureDescriptor(pokemon, Date.now());
+        if (!descriptor) return false;
+
+        purgePendingCaptureResults();
+        const descriptorName = normalizePartyPokemonName(descriptor.name);
+        const descriptorSpeciesId = String(descriptor.speciesId || '');
+
+        let pendingIndex = -1;
+        for (let index = pendingCaptureResults.length - 1; index >= 0; index -= 1) {
+            const pending = pendingCaptureResults[index];
+            const pendingName = normalizePartyPokemonName(pending?.speciesName || pending?.descriptor?.name || '');
+            const pendingSpeciesId = String(pending?.descriptor?.speciesId || '');
+            const nameMatches = !pendingName || !descriptorName || pendingName === descriptorName;
+            const speciesMatches = !pendingSpeciesId || !descriptorSpeciesId || pendingSpeciesId === descriptorSpeciesId;
+            if (nameMatches && speciesMatches) {
+                pendingIndex = index;
+                break;
+            }
+        }
+
+        // Un poke-delta también puede usarse para otros cambios de Pokémon.
+        // Sin un catch-result exitoso pendiente no lo tratamos como captura.
+        if (pendingIndex < 0) return false;
+
+        const pending = pendingCaptureResults.splice(pendingIndex, 1)[0];
+        descriptor.capturedAt = Number(pending?.at) || Date.now();
+        rememberCaptureQualityEntry(descriptor);
+
+        // Mantener el buffer reciente ayuda a pintar una ventana que ya estuviera
+        // abierta sin esperar al siguiente `pokes`.
+        purgeRecentPokemonAdditions();
+        const seenAt = Date.now();
+        const existingRecent = recentPokemonAdditions.findIndex(entry =>
+            String(entry?.descriptor?.id || '') === String(descriptor.id || '')
+        );
+        const recentEntry = { seenAt, descriptor: { ...descriptor } };
+        if (existingRecent >= 0) recentPokemonAdditions.splice(existingRecent, 1, recentEntry);
+        else recentPokemonAdditions.push(recentEntry);
+
+        // Actualizar también la instantánea local sin solicitar los ~400 Pokémon.
+        if (Array.isArray(latestPokemon)) {
+            const id = capturePokemonId(pokemon);
+            const currentIndex = latestPokemon.findIndex(current => capturePokemonId(current) === id);
+            if (currentIndex >= 0) latestPokemon[currentIndex] = pokemon;
+            else latestPokemon = [...latestPokemon, pokemon];
+            lastPokemonRefreshAt = Date.now();
+        }
+
+        setTimeout(() => {
+            enhancePartyQuality();
+            enhanceCaptureLogQuality();
+        }, 0);
+        return true;
     }
 
     function reconcileCapturedPokemon(previousList, nextList) {
         purgePendingCaptureResults();
+        // Fallback únicamente: normalmente el `poke-delta` ya habrá consumido la captura.
         if (!pendingCaptureResults.length || !Array.isArray(nextList)) return;
 
         const previousIds = new Set((Array.isArray(previousList) ? previousList : []).map(capturePokemonId).filter(Boolean));
