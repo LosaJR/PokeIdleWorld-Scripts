@@ -9,6 +9,8 @@ const generalChangelogPath = path.join(root, 'CHANGELOG.md');
 
 const SCRIPT_SUFFIXES = ['.user.js', '.user.txt'];
 const CHANGELOG_SUFFIX = '.changelog.txt';
+const UPDATE_NOTES_PREFIX = 'actualizaciones-';
+const UPDATE_NOTES_SUFFIX = '.txt';
 
 function parseMeta(content, label) {
   const match = content.match(/\/\/ ==UserScript==([\s\S]*?)\/\/ ==\/UserScript==/);
@@ -54,9 +56,20 @@ function scriptStem(name) {
 }
 
 function changelogStem(name) {
-  return name.endsWith(CHANGELOG_SUFFIX)
-    ? name.slice(0, -CHANGELOG_SUFFIX.length)
-    : null;
+  if (name.endsWith(CHANGELOG_SUFFIX)) {
+    return name.slice(0, -CHANGELOG_SUFFIX.length);
+  }
+  if (name.startsWith(UPDATE_NOTES_PREFIX) && name.endsWith(UPDATE_NOTES_SUFFIX)) {
+    return name.slice(UPDATE_NOTES_PREFIX.length, -UPDATE_NOTES_SUFFIX.length);
+  }
+  return null;
+}
+
+function pairingStem(stem) {
+  return String(stem || '')
+    .replace(/^actualizaciones-/, '')
+    .replace(/^pokegrid-/, '')
+    .replace(/-v(?=\d+(?:\.\d+)*$)/, '-');
 }
 
 function canonicalSlug(targetName) {
@@ -132,7 +145,7 @@ async function main() {
 
   const scriptByStem = new Map();
   for (const name of scriptFiles) {
-    const stem = scriptStem(name);
+    const stem = pairingStem(scriptStem(name));
     if (scriptByStem.has(stem)) {
       throw new Error(`incoming/: hay más de un userscript para la actualización "${stem}".`);
     }
@@ -141,7 +154,7 @@ async function main() {
 
   const changelogByStem = new Map();
   for (const name of changelogFiles) {
-    const stem = changelogStem(name);
+    const stem = pairingStem(changelogStem(name));
     if (changelogByStem.has(stem)) {
       throw new Error(`incoming/: hay más de un changelog para la actualización "${stem}".`);
     }
