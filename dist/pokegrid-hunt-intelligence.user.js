@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.34
+// @version      1.1.35
 // @description  Recomendador, No capturados, Item Finder, supervisor y gestor compacto de Favoritos por cuenta con histórico móvil de 12 muestras.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1134) return;
-  window.__pgHuntIntelligenceCoreV1134 = true;
+  if (window.__pgHuntIntelligenceCoreV1135) return;
+  window.__pgHuntIntelligenceCoreV1135 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -666,6 +666,11 @@
   window.__PGUnifiedHuntCore = {
     calculateRecommendations,
     looksLikeMapButton,
+    getData: force => loadData(Boolean(force)),
+    getLeadPokemon: () => getLeadPokemon(),
+    getCharacter: () => getCharacter(),
+    huntRequiredLevel: hunt => huntRequiredLevel(hunt),
+    isUnlocked: (hunt, lead) => isUnlocked(hunt, lead),
     getConfig: () => Object.assign({}, config),
     setMode: value => { config.mode = value === 'general' ? 'general' : 'xp'; saveState(); },
     setWeight: (key, value) => {
@@ -680,8 +685,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1134) return;
-  window.__pgHuntIntelligenceItemCoreV1134 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1135) return;
+  window.__pgHuntIntelligenceItemCoreV1135 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1165,8 +1170,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1134) return;
-  window.__pgHuntIntelligenceEngineV1134 = true;
+  if (window.__pgHuntIntelligenceEngineV1135) return;
+  window.__pgHuntIntelligenceEngineV1135 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2341,14 +2346,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.34 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
+  console.info('[Hunt Intelligence] Motor v1.1.35 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1134) return;
-  window.__pgHuntIntelligenceSupervisorV1134 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1135) return;
+  window.__pgHuntIntelligenceSupervisorV1135 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -3711,13 +3716,13 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.34',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    version:'1.1.35',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.34',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.35',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.34',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.35',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   const historyRecovery = recoverHistoryIfNeeded();
@@ -3728,13 +3733,13 @@
   restartSampleCheckpoint();
   startHistoryPokemonWatcher();
   setTimeout(()=>refresh(false),1200);
-  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.34 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
+  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.35 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1134) return;
-  window.__pgHuntIntelligenceUiV1134 = true;
+  if (window.__pgHuntIntelligenceUiV1135) return;
+  window.__pgHuntIntelligenceUiV1135 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -5588,7 +5593,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.34',
+    version: '1.1.35',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -5691,7 +5696,7 @@
   }
 
   function favoriteCurrentAccount() {
-    const character = getCharacter?.() || window.__poke?.api?.['/api/characters/me']?.character || {};
+    const character = H()?.getCharacter?.() || window.__poke?.api?.['/api/characters/me']?.character || {};
     const rawId = character.id || character.characterId || window.__poke?.accountId || character.name || '';
     const id = String(rawId || '').trim();
     if (!id) return null;
@@ -5869,14 +5874,14 @@
 
   async function favoriteLoadChoices() {
     if (Array.isArray(favoritesChoices) && favoritesChoices.length) return favoritesChoices;
-    const data = await loadData(false);
+    const data = await H()?.getData?.(false);
     const map = new Map();
     for (const hunt of data?.hunts || []) {
       const slug = String(hunt?.slug || hunt?.marker?.slug || hunt?.marker?.hunt || '').trim();
       if (!slug) continue;
       const name = String(hunt?.name || hunt?.creature?.name || slug).trim();
       const speciesId = String(hunt?.creature?.speciesId || hunt?.creature?.pokeId || hunt?.marker?.speciesId || hunt?.marker?.pokeId || '');
-      const choice = { slug, name, speciesId, requiredLevel: huntRequiredLevel(hunt) };
+      const choice = { slug, name, speciesId, requiredLevel: H()?.huntRequiredLevel?.(hunt) || 1 };
       if (!map.has(slug)) map.set(slug, choice);
     }
     favoritesChoices = [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }) || a.requiredLevel - b.requiredLevel);
@@ -6104,19 +6109,19 @@
       favoriteUpdateAccountStatus(account.id, `Preparando ${target.name || target.slug}…`);
 
       try {
-        const data = await loadData(false);
+        const data = await H()?.getData?.(false);
         const hunt = favoriteResolveHunt(target, data);
         if (!hunt) {
           favoriteUpdateAccountStatus(account.id, `No encuentro la hunt de ${target.name || target.slug}`, { running: false });
           return false;
         }
-        const lead = getLeadPokemon();
+        const lead = H()?.getLeadPokemon?.();
         if (!lead) {
           favoriteUpdateAccountStatus(account.id, 'Esperando Pokémon activo');
           return false;
         }
-        if (!isUnlocked(hunt, lead)) {
-          favoriteUpdateAccountStatus(account.id, `Bloqueada: requiere Nv.${fmt(huntRequiredLevel(hunt))}`, { running: false });
+        if (!H()?.isUnlocked?.(hunt, lead)) {
+          favoriteUpdateAccountStatus(account.id, `Bloqueada: requiere Nv.${fmt(H()?.huntRequiredLevel?.(hunt) || 1)}`, { running: false });
           return false;
         }
         if (favoriteHuntLive(hunt)) {
@@ -6162,7 +6167,7 @@
     if (!row?.enabled || !row.running || !row.favorites[0]) return;
     if (favoritesExecution || Date.now() - favoritesLastAttemptAt < FAVORITES_RETRY_MS) return;
     favoriteLoadChoices().catch(() => {});
-    loadData(false).then(data => {
+    Promise.resolve(H()?.getData?.(false)).then(data => {
       const hunt = favoriteResolveHunt(row.favorites[0], data);
       if (hunt && favoriteHuntLive(hunt)) {
         if (!/^Cazando /.test(row.lastStatus || '')) favoriteUpdateAccountStatus(account.id, `Cazando ${hunt.name || row.favorites[0].name}`);
@@ -6202,6 +6207,14 @@
     } catch {}
   }
 
+  function favoriteInstallMessageBridge() {
+    window.addEventListener('message', event => {
+      const message = event?.data;
+      if (!message || message.source !== 'pokegrid-topbar' || message.type !== 'open-favorites-manager') return;
+      favoriteOpenManager();
+    });
+  }
+
   function favoriteConnectChannel() {
     if (favoritesChannel || typeof BroadcastChannel !== 'function') return;
     try {
@@ -6221,12 +6234,22 @@
     }
   });
 
-  favoriteConnectChannel();
-  favoriteInstallButtonHook();
-  favoriteRegisterCurrentAccount();
-  setTimeout(() => { favoriteRegisterCurrentAccount(); favoriteWatchdog(); }, 2500);
-  setInterval(() => { favoriteRegisterCurrentAccount(); favoriteRenderManager(); }, 10000);
-  setInterval(favoriteWatchdog, 7000);
+  function favoriteInitializeSafely() {
+    try {
+      favoriteConnectChannel();
+      favoriteInstallButtonHook();
+      favoriteInstallMessageBridge();
+      favoriteRegisterCurrentAccount();
+      setTimeout(() => { favoriteRegisterCurrentAccount(); favoriteWatchdog(); }, 2500);
+      setInterval(() => { favoriteRegisterCurrentAccount(); favoriteRenderManager(); }, 10000);
+      setInterval(favoriteWatchdog, 7000);
+      return true;
+    } catch (error) {
+      console.error('[Hunt Intelligence · Favoritos] El módulo no pudo inicializarse; Hunt Intelligence principal seguirá disponible.', error);
+      return false;
+    }
+  }
+  favoriteInitializeSafely();
 
 
   function publishHuntHealth() {
@@ -6245,7 +6268,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.34',
+      version: '1.1.35',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -6282,7 +6305,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.34',
+    version: '1.1.35',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -6320,5 +6343,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.34 cargado: gestor compacto de Favoritos enlazado a #favoritesBtn, reanudación por cuenta e histórico móvil de 12 muestras.');
+  console.info('[Hunt Intelligence] v1.1.35 cargado: gestor compacto de Favoritos con puente postMessage, aislamiento de errores y histórico móvil de 12 muestras.');
 })();

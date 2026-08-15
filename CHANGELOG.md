@@ -1,5 +1,129 @@
 # Poke Idle World Scripts — Changelog
 
+## PokeGrid - Hunt Intelligence 1.1.35 — 2026-08-15
+
+POKE IDLE WORLD — HUNT INTELLIGENCE
+ACTUALIZACIONES DE LA VERSIÓN 1.1.35
+Fecha: 2026-08-15
+
+VERSIÓN
+=======
+Anterior: 1.1.34
+Nueva:    1.1.35
+
+CORRECCIÓN CRÍTICA — HUNT INTELLIGENCE NO ARRANCABA
+===================================================
+La 1.1.34 podía detener toda su ejecución antes de llegar a install(), por lo que:
+- desaparecía el botón 🧠;
+- no se montaba la interfaz principal;
+- Map tampoco podía abrir Hunt Intelligence;
+- el gestor Favoritos tampoco llegaba a estar disponible.
+
+CAUSA REAL
+==========
+El nuevo módulo Favoritos estaba dentro del bloque de interfaz de Hunt Intelligence,
+pero llamaba directamente a funciones que pertenecían a otros bloques internos
+(IIFE) del mismo userscript.
+
+El primer error fatal confirmado era:
+
+ReferenceError: getCharacter is not defined
+
+Además se detectaron otras referencias incorrectas que habrían fallado después:
+- getLeadPokemon()
+- loadData()
+- huntRequiredLevel()
+- isUnlocked()
+
+Esas funciones existen en Hunt Intelligence, pero no comparten ámbito JavaScript
+con el módulo Favoritos.
+
+CORREGIDO
+=========
+El núcleo público window.__PGUnifiedHuntCore expone ahora de forma controlada:
+- getData(force)
+- getLeadPokemon()
+- getCharacter()
+- huntRequiredLevel(hunt)
+- isUnlocked(hunt, lead)
+
+Favoritos utiliza exclusivamente esa API pública mediante H().
+
+Esto evita dependencias entre ámbitos internos del userscript.
+
+AISLAMIENTO DE ERRORES
+======================
+Se añade favoriteInitializeSafely().
+
+Si el módulo Favoritos vuelve a sufrir un error durante su inicialización:
+- el error se registra en consola;
+- no debe propagarse sin control;
+- la interfaz principal de Hunt Intelligence queda desacoplada del fallo.
+
+PUENTE PARA EL BOTÓN FAVORITOS DE POKEGRID
+==========================================
+Se añade un receptor explícito mediante window.postMessage.
+
+Hunt Intelligence escucha mensajes con este contrato:
+
+source: "pokegrid-topbar"
+type:   "open-favorites-manager"
+
+Al recibirlo, ejecuta:
+favoriteOpenManager()
+
+Este mecanismo está pensado para que el botón #favoritesBtn del topbar de
+PokeGrid pueda comunicarse con Hunt Intelligence aunque esté en otro iframe o
+window.
+
+IMPORTANTE
+==========
+Esta versión prepara el RECEPTOR dentro del juego.
+
+El EMISOR pertenece al código de PokeGrid/topbar y debe implementarlo Codex en
+runFavoritesScript(), apuntando al iframe activo del juego.
+
+Hasta que esa parte del topbar se conecte, #favoritesBtn puede seguir sin abrir
+la ventana aunque Hunt Intelligence ya cargue correctamente.
+
+CONSERVADO
+==========
+- Gestor compacto de 4 cuentas.
+- Slider enabled independiente de running.
+- Máximo 3 Pokémon por cuenta.
+- Prioridad por posición #1.
+- Botón Iniciar / Detener.
+- Persistencia por character.id.
+- BroadcastChannel + storage para sincronización entre cuentas.
+- Reanudación tras refresh solo si enabled=true y running=true.
+- Cinco pestañas normales:
+  Hunts / No capturados / Items / Rendimiento / Histórico.
+- Ranking, PIWTools, histórico móvil, Item Finder, No capturados y Bridge.
+
+VALIDACIÓN
+==========
+- JavaScript validado correctamente con node --check.
+- @version: 1.1.35.
+- Guards actualizados a V1135.
+- Confirmada eliminación de la llamada cruzada getCharacter() del módulo.
+- Confirmadas llamadas a helpers a través de window.__PGUnifiedHuntCore.
+- Confirmado listener postMessage para:
+  source="pokegrid-topbar"
+  type="open-favorites-manager"
+- Confirmado aislamiento de inicialización de Favoritos.
+
+SHA-256
+=======
+f921c6bc29c8bf63c3ffccdae4232fe89425f05a404a92d78e197d8da28994ae
+
+ARCHIVOS
+========
+Script:
+pokegrid-hunt-intelligence-1.1.35.txt
+
+Registro de cambios:
+actualizaciones-hunt-intelligence-1.1.35.txt
+
 ## PokeGrid - Hunt Intelligence 1.1.34 — 2026-08-15
 
 POKE IDLE WORLD — HUNT INTELLIGENCE

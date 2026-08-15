@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.33
-// @description  Recomendador, No capturados, Item Finder y supervisor con histórico móvil de 12 muestras por Hunt + Pokémon.
+// @version      1.1.34
+// @description  Recomendador, No capturados, Item Finder, supervisor y gestor compacto de Favoritos por cuenta con histórico móvil de 12 muestras.
 // @match        https://poke.idleworld.online/*
 // @grant        none
 // @run-at       document-idle
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1133) return;
-  window.__pgHuntIntelligenceCoreV1133 = true;
+  if (window.__pgHuntIntelligenceCoreV1134) return;
+  window.__pgHuntIntelligenceCoreV1134 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -680,8 +680,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1133) return;
-  window.__pgHuntIntelligenceItemCoreV1133 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1134) return;
+  window.__pgHuntIntelligenceItemCoreV1134 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1165,8 +1165,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1133) return;
-  window.__pgHuntIntelligenceEngineV1133 = true;
+  if (window.__pgHuntIntelligenceEngineV1134) return;
+  window.__pgHuntIntelligenceEngineV1134 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2341,14 +2341,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.33 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
+  console.info('[Hunt Intelligence] Motor v1.1.34 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1133) return;
-  window.__pgHuntIntelligenceSupervisorV1133 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1134) return;
+  window.__pgHuntIntelligenceSupervisorV1134 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -3711,13 +3711,13 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.33',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    version:'1.1.34',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.33',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.34',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.33',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.34',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   const historyRecovery = recoverHistoryIfNeeded();
@@ -3728,13 +3728,13 @@
   restartSampleCheckpoint();
   startHistoryPokemonWatcher();
   setTimeout(()=>refresh(false),1200);
-  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.33 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
+  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.34 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1133) return;
-  window.__pgHuntIntelligenceUiV1133 = true;
+  if (window.__pgHuntIntelligenceUiV1134) return;
+  window.__pgHuntIntelligenceUiV1134 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -5236,13 +5236,16 @@
   }
 
   async function startHunt(hunt) {
-    if (!hunt || busy) return;
+    if (!hunt || busy) return false;
     busy = true; suppressMapAutoOpenUntil = Date.now() + 25000;
     closePanel();
     const target = hunt.name || hunt.creature?.name || hunt.slug || 'objetivo';
     toast(`Abriendo mapa para cazar ${target}…`);
+    let success = false;
     try {
       const before = currentSlug();
+      const beforeKey = String(window.__poke?.ws?.['field-init']?.huntKey || '');
+      const beforeFieldNow = Number(window.__poke?.ws?.field?.serverNow) || 0;
       let marker = findHuntMarker(hunt);
       if (!marker) {
         const mapButton = findMapButton();
@@ -5256,24 +5259,32 @@
       marker.click();
 
       const targetTerms = huntTerms(hunt);
-      const changed = await waitFor(() => {
-        const now = currentSlug();
-        return now && now !== before && targetTerms.some(t => now.includes(t) || t.includes(now));
-      }, 1300, 100);
-      if (!changed) {
+      const transitioned = await waitFor(() => {
+        const nowSlug = currentSlug();
+        const nowKey = String(window.__poke?.ws?.['field-init']?.huntKey || '');
+        const matches = nowSlug && targetTerms.some(t => nowSlug.includes(t) || t.includes(nowSlug));
+        return matches && ((nowSlug !== before) || (nowKey && nowKey !== beforeKey));
+      }, 1500, 100);
+      if (!transitioned) {
         const start = await waitFor(() => findStartButton(hunt), 3000, 100);
-        if (start) { start.click(); }
+        if (start) start.click();
       }
       const confirmed = await waitFor(() => {
-        const now = currentSlug();
-        return now && targetTerms.some(t => now.includes(t) || t.includes(now));
-      }, 5500, 150);
-      if (confirmed) toast(`Hunt iniciada: ${target}`, 'ok');
+        const nowSlug = currentSlug();
+        if (!nowSlug || !targetTerms.some(t => nowSlug.includes(t) || t.includes(nowSlug))) return false;
+        const fieldNow = Number(window.__poke?.ws?.field?.serverNow) || 0;
+        const nowKey = String(window.__poke?.ws?.['field-init']?.huntKey || '');
+        return (nowKey && nowKey !== beforeKey) || (fieldNow > beforeFieldNow && Math.abs(Date.now() - fieldNow) < 8000);
+      }, 6000, 150);
+      success = Boolean(confirmed);
+      if (success) toast(`Hunt iniciada: ${target}`, 'ok');
       else toast(`He seleccionado ${target}, pero no pude confirmar que la hunt comenzara. Revisa la pantalla.`, 'bad');
     } catch (error) {
       console.error('[Hunt Advisor · iniciar hunt]', error);
       toast(error?.message || 'No se pudo iniciar la hunt.', 'bad');
+      success = false;
     } finally { busy = false; }
+    return success;
   }
 
   function looksLikeMapButton(element) {
@@ -5553,7 +5564,8 @@
         notCaughtRows: Array.isArray(lastNotCaughtResult?.rows) ? lastNotCaughtResult.rows.length : 0,
         pokedexUncaught: Number(lastNotCaughtResult?.totalUncaught) || 0,
         lastItem: lastItemResult?.item?.name || I()?.getLastItem?.() || '',
-        lastItemRows: Array.isArray(lastItemResult?.rows) ? lastItemResult.rows.length : 0
+        lastItemRows: Array.isArray(lastItemResult?.rows) ? lastItemResult.rows.length : 0,
+        favorites: (() => { const state=favoriteReadStore(); const rows=state.order.map(id=>favoriteNormalizeEntry(id,state.accounts[id])); return { knownAccounts:rows.length, enabled:rows.filter(row=>row.enabled).length, running:rows.filter(row=>row.running).length, panelOpen:favoriteManagerIsOpen() }; })()
       }
     };
   }
@@ -5576,7 +5588,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.33',
+    version: '1.1.34',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -5607,6 +5619,616 @@
     }
   });
 
+  // ===== Gestor compacto de Favoritos (botón externo #favoritesBtn) =====
+  const FAVORITES_NS = 'pg-hunt-favorites-manager-v1';
+  const FAVORITES_STORE_KEY = `${FAVORITES_NS}:state`;
+  const FAVORITES_COMMAND_KEY = `${FAVORITES_NS}:command`;
+  const FAVORITES_CHANNEL_NAME = `${FAVORITES_NS}:channel`;
+  const FAVORITES_PANEL_ID = 'pg-hunt-favorites-manager';
+  const FAVORITES_STYLE_ID = 'pg-hunt-favorites-manager-style';
+  const FAVORITES_UI_ID = 'hunt-favorites-manager';
+  const FAVORITES_MAX_ACCOUNTS = 4;
+  const FAVORITES_MAX_TARGETS = 3;
+  const FAVORITES_ONLINE_MS = 30000;
+  const FAVORITES_RETRY_MS = 20000;
+
+  let favoritesUiWindow = null;
+  let favoritesChannel = null;
+  let favoritesSettingsAccountId = '';
+  let favoritesChoices = null;
+  let favoritesExecution = null;
+  let favoritesLastAttemptAt = 0;
+  const favoritesSeenCommands = new Set();
+
+  function favoriteEmptyStore() {
+    return { version: 1, order: [], accounts: {} };
+  }
+
+  function favoriteReadStore() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(FAVORITES_STORE_KEY) || 'null');
+      if (!raw || typeof raw !== 'object') return favoriteEmptyStore();
+      const order = Array.isArray(raw.order) ? raw.order.map(String).filter(Boolean).slice(0, FAVORITES_MAX_ACCOUNTS) : [];
+      const accounts = raw.accounts && typeof raw.accounts === 'object' ? raw.accounts : {};
+      return { version: 1, order, accounts };
+    } catch {
+      return favoriteEmptyStore();
+    }
+  }
+
+  function favoriteNormalizeEntry(id, row = {}) {
+    const favorites = Array.isArray(row.favorites)
+      ? row.favorites.filter(item => item && typeof item === 'object' && (item.slug || item.name)).slice(0, FAVORITES_MAX_TARGETS)
+      : [];
+    return {
+      id: String(id || row.id || ''),
+      name: String(row.name || id || 'Cuenta'),
+      enabled: Boolean(row.enabled),
+      running: Boolean(row.running),
+      favorites,
+      lastSeen: Number(row.lastSeen) || 0,
+      lastStatus: String(row.lastStatus || ''),
+      lastStatusAt: Number(row.lastStatusAt) || 0
+    };
+  }
+
+  function favoriteWriteStore(store, { announce = true } = {}) {
+    try {
+      const clean = favoriteEmptyStore();
+      clean.order = (Array.isArray(store?.order) ? store.order : []).map(String).filter(Boolean).slice(0, FAVORITES_MAX_ACCOUNTS);
+      for (const id of clean.order) clean.accounts[id] = favoriteNormalizeEntry(id, store?.accounts?.[id]);
+      for (const [id, row] of Object.entries(store?.accounts || {})) {
+        if (!id || clean.accounts[id]) continue;
+        clean.accounts[id] = favoriteNormalizeEntry(id, row);
+      }
+      localStorage.setItem(FAVORITES_STORE_KEY, JSON.stringify(clean));
+      if (announce) favoriteAnnounceState();
+      return clean;
+    } catch (error) {
+      console.warn('[Hunt Intelligence · Favoritos] No se pudo guardar el estado:', error);
+      return favoriteReadStore();
+    }
+  }
+
+  function favoriteCurrentAccount() {
+    const character = getCharacter?.() || window.__poke?.api?.['/api/characters/me']?.character || {};
+    const rawId = character.id || character.characterId || window.__poke?.accountId || character.name || '';
+    const id = String(rawId || '').trim();
+    if (!id) return null;
+    return {
+      id,
+      name: String(character.name || character.nickname || character.username || `Cuenta ${id.slice(-4)}`)
+    };
+  }
+
+  function favoriteRegisterCurrentAccount() {
+    const account = favoriteCurrentAccount();
+    if (!account) return null;
+    const store = favoriteReadStore();
+    const existing = favoriteNormalizeEntry(account.id, store.accounts[account.id]);
+    existing.name = account.name;
+    existing.lastSeen = Date.now();
+    store.accounts[account.id] = existing;
+    if (!store.order.includes(account.id)) {
+      if (store.order.length < FAVORITES_MAX_ACCOUNTS) store.order.push(account.id);
+      else {
+        const staleId = store.order
+          .map(id => ({ id, seen: Number(store.accounts[id]?.lastSeen) || 0 }))
+          .sort((a, b) => a.seen - b.seen)[0]?.id;
+        if (staleId && Date.now() - (Number(store.accounts[staleId]?.lastSeen) || 0) > 12 * 60 * 60 * 1000) {
+          store.order = store.order.filter(id => id !== staleId);
+          store.order.push(account.id);
+        }
+      }
+    }
+    favoriteWriteStore(store, { announce: false });
+    return account;
+  }
+
+  function favoriteEnsureStyles() {
+    if (document.getElementById(FAVORITES_STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = FAVORITES_STYLE_ID;
+    style.textContent = `
+      #${FAVORITES_PANEL_ID}.pg-ui-window{max-width:520px!important;}
+      #${FAVORITES_PANEL_ID} .pg-ui-header{padding:7px 8px;}
+      #${FAVORITES_PANEL_ID} .pg-ui-opacity{display:none!important;}
+      #${FAVORITES_PANEL_ID} .pg-ui-body{overflow:auto;}
+      .pg-fav-wrap{padding:9px;font:12px system-ui;color:#eaf1f8;}
+      .pg-fav-toolbar{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
+      .pg-fav-toolbar .pg-fav-summary{flex:1;min-width:0;color:#aebbc9;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .pg-fav-btn{border:1px solid #48617a;background:#17283a;color:#eef7ff;border-radius:7px;padding:6px 9px;font:800 11px system-ui;cursor:pointer;}
+      .pg-fav-btn:hover{background:#21384e;}
+      .pg-fav-btn.primary{border-color:#3e7e5d;background:#173b2b;color:#dffff0;}
+      .pg-fav-btn.stop{border-color:#77505a;background:#351d24;color:#ffdce3;padding-inline:8px;}
+      .pg-fav-list{display:flex;flex-direction:column;gap:6px;}
+      .pg-fav-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;padding:8px 9px;border:1px solid rgba(74,94,119,.62);border-radius:9px;background:rgba(14,24,36,.70);}
+      .pg-fav-row.missing{opacity:.55;grid-template-columns:1fr;}
+      .pg-fav-name{font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+      .pg-fav-sub{display:block;color:#93a3b6;font-size:9px;font-weight:600;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+      .pg-fav-online{display:inline-block;width:6px;height:6px;border-radius:50%;background:#5bd18a;margin-right:5px;vertical-align:1px;}
+      .pg-fav-offline{background:#66717e;}
+      .pg-fav-switch{position:relative;width:34px;height:18px;display:inline-block;}
+      .pg-fav-switch input{opacity:0;width:0;height:0;}
+      .pg-fav-slider{position:absolute;inset:0;background:#4d5967;border-radius:999px;cursor:pointer;transition:.16s;}
+      .pg-fav-slider:before{content:'';position:absolute;width:14px;height:14px;left:2px;top:2px;background:#f4f7fa;border-radius:50%;transition:.16s;}
+      .pg-fav-switch input:checked + .pg-fav-slider{background:#2c8b5b;}
+      .pg-fav-switch input:checked + .pg-fav-slider:before{transform:translateX(16px);}
+      .pg-fav-tools{border:1px solid #465b70;background:#172330;color:#eaf3fc;border-radius:7px;width:29px;height:27px;cursor:pointer;font-size:13px;}
+      .pg-fav-settings-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+      .pg-fav-settings-head b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+      .pg-fav-slot{display:grid;grid-template-columns:22px minmax(0,1fr) 28px 28px;gap:5px;align-items:center;margin-bottom:6px;}
+      .pg-fav-slot-num{font-weight:900;text-align:center;color:#f1c75b;}
+      .pg-fav-select{width:100%;min-width:0;border:1px solid #3f5369;background:#101b28;color:#edf5fc;border-radius:7px;padding:6px;font:700 10px system-ui;}
+      .pg-fav-move{border:1px solid #465b70;background:#162331;color:#dce9f6;border-radius:6px;height:27px;cursor:pointer;font-weight:900;}
+      .pg-fav-note{margin-top:7px;color:#8fa0b4;font-size:9px;line-height:1.35;}
+      .pg-fav-status{margin:0 0 7px;padding:6px 8px;border-radius:7px;background:rgba(25,38,52,.72);color:#aebed0;font-size:9px;}
+      .pg-fav-status.running{color:#caffdd;border:1px solid rgba(65,145,94,.45);}
+    `;
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  function favoriteManagerIsOpen() {
+    return Boolean(favoritesUiWindow?.panel?.isConnected && favoritesUiWindow.isOpen?.());
+  }
+
+  function favoriteEnsureWindow() {
+    favoriteEnsureStyles();
+    const bridgeUi = window.__pokeGridScripts?.ui;
+    if (!bridgeUi?.createWindow || !document.body) {
+      toast('El gestor Favoritos necesita Script Bridge & Health Agent para abrir su ventana.', 'bad');
+      return null;
+    }
+    if (!favoritesUiWindow?.panel?.isConnected) {
+      favoritesUiWindow = bridgeUi.createWindow({
+        id: FAVORITES_UI_ID,
+        domId: FAVORITES_PANEL_ID,
+        title: '⭐ Favoritos',
+        subtitle: 'AutoHunt por cuenta',
+        width: 470,
+        minWidth: 360,
+        minHeight: 170,
+        movable: true,
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        closable: true,
+        rememberLayout: true,
+        defaultOpacity: 96,
+        bodyClass: 'pg-hunt-favorites-ui-body'
+      });
+    }
+    favoritesUiWindow.open();
+    return favoritesUiWindow;
+  }
+
+  function favoriteAccountRows(store = favoriteReadStore()) {
+    const rows = store.order.slice(0, FAVORITES_MAX_ACCOUNTS).map(id => favoriteNormalizeEntry(id, store.accounts[id]));
+    while (rows.length < FAVORITES_MAX_ACCOUNTS) rows.push(null);
+    return rows;
+  }
+
+  function favoriteTargetLabel(row) {
+    const first = row?.favorites?.[0];
+    if (!first) return 'Sin objetivo #1';
+    return `#1 ${first.name || first.slug}`;
+  }
+
+  function favoriteRenderManager() {
+    if (!favoriteManagerIsOpen()) return;
+    const store = favoriteReadStore();
+    const body = favoritesUiWindow.body;
+    if (!body) return;
+
+    if (favoritesSettingsAccountId) {
+      favoriteRenderSettings(favoritesSettingsAccountId);
+      return;
+    }
+
+    const rows = favoriteAccountRows(store);
+    const enabled = rows.filter(Boolean).filter(row => row.enabled).length;
+    const running = rows.filter(Boolean).filter(row => row.running).length;
+    body.innerHTML = `
+      <div class="pg-fav-wrap">
+        <div class="pg-fav-toolbar">
+          <span class="pg-fav-summary">${enabled}/4 activas · ${running ? `${running} ejecutando` : 'esperando inicio'}</span>
+          <button class="pg-fav-btn primary" type="button" data-fav-start>▶ Iniciar</button>
+          <button class="pg-fav-btn stop" type="button" data-fav-stop title="Detener reanudación automática de todas">■</button>
+        </div>
+        <div class="pg-fav-status${running ? ' running' : ''}">${running ? 'La reanudación automática está activa en las cuentas marcadas como ejecutando.' : 'Los sliders solo preparan cuentas. Nada empieza hasta pulsar ▶ Iniciar.'}</div>
+        <div class="pg-fav-list">
+          ${rows.map((row, index) => {
+            if (!row) return `<div class="pg-fav-row missing"><div><b>Cuenta ${index + 1}</b><span class="pg-fav-sub">Esperando que esta cuenta cargue Hunt Intelligence…</span></div></div>`;
+            const online = Date.now() - row.lastSeen <= FAVORITES_ONLINE_MS;
+            const status = row.lastStatus || (row.running ? 'Pendiente de confirmar hunt' : row.enabled ? 'Preparada' : 'Desactivada');
+            return `<div class="pg-fav-row" data-fav-account="${esc(row.id)}">
+              <div>
+                <div class="pg-fav-name"><span class="pg-fav-online${online ? '' : ' pg-fav-offline'}"></span>${esc(row.name)}</div>
+                <span class="pg-fav-sub">${esc(favoriteTargetLabel(row))} · ${esc(status)}</span>
+              </div>
+              <label class="pg-fav-switch" title="Incluir esta cuenta cuando pulses Iniciar">
+                <input type="checkbox" data-fav-toggle="${esc(row.id)}" ${row.enabled ? 'checked' : ''}>
+                <span class="pg-fav-slider"></span>
+              </label>
+              <button class="pg-fav-tools" type="button" data-fav-settings="${esc(row.id)}" title="Configurar hasta 3 Pokémon">🛠</button>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+
+    body.querySelector('[data-fav-start]')?.addEventListener('click', favoriteStartEnabledAccounts);
+    body.querySelector('[data-fav-stop]')?.addEventListener('click', favoriteStopAllAccounts);
+    body.querySelectorAll('[data-fav-toggle]').forEach(input => input.addEventListener('change', event => {
+      favoriteSetEnabled(event.currentTarget.dataset.favToggle, event.currentTarget.checked);
+    }));
+    body.querySelectorAll('[data-fav-settings]').forEach(button => button.addEventListener('click', () => {
+      favoritesSettingsAccountId = button.dataset.favSettings || '';
+      favoriteRenderSettings(favoritesSettingsAccountId);
+    }));
+  }
+
+  async function favoriteLoadChoices() {
+    if (Array.isArray(favoritesChoices) && favoritesChoices.length) return favoritesChoices;
+    const data = await loadData(false);
+    const map = new Map();
+    for (const hunt of data?.hunts || []) {
+      const slug = String(hunt?.slug || hunt?.marker?.slug || hunt?.marker?.hunt || '').trim();
+      if (!slug) continue;
+      const name = String(hunt?.name || hunt?.creature?.name || slug).trim();
+      const speciesId = String(hunt?.creature?.speciesId || hunt?.creature?.pokeId || hunt?.marker?.speciesId || hunt?.marker?.pokeId || '');
+      const choice = { slug, name, speciesId, requiredLevel: huntRequiredLevel(hunt) };
+      if (!map.has(slug)) map.set(slug, choice);
+    }
+    favoritesChoices = [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }) || a.requiredLevel - b.requiredLevel);
+    return favoritesChoices;
+  }
+
+  function favoriteRenderSettings(accountId) {
+    if (!favoriteManagerIsOpen()) return;
+    const body = favoritesUiWindow.body;
+    const store = favoriteReadStore();
+    const row = store.accounts[accountId] ? favoriteNormalizeEntry(accountId, store.accounts[accountId]) : null;
+    if (!row) {
+      favoritesSettingsAccountId = '';
+      favoriteRenderManager();
+      return;
+    }
+    if (!Array.isArray(favoritesChoices)) {
+      body.innerHTML = `<div class="pg-fav-wrap"><div class="pg-fav-settings-head"><button class="pg-fav-btn" type="button" data-fav-back>←</button><b>${esc(row.name)}</b></div><div class="pg-fav-status">Cargando Pokémon disponibles…</div></div>`;
+      body.querySelector('[data-fav-back]')?.addEventListener('click', () => { favoritesSettingsAccountId = ''; favoriteRenderManager(); });
+      favoriteLoadChoices().then(() => favoriteRenderSettings(accountId)).catch(error => {
+        console.error('[Hunt Intelligence · Favoritos] No se pudo cargar el catálogo:', error);
+        if (favoriteManagerIsOpen()) favoritesUiWindow.body.querySelector('.pg-fav-status').textContent = 'No se pudo cargar el catálogo de hunts.';
+      });
+      return;
+    }
+
+    const selected = Array.from({ length: FAVORITES_MAX_TARGETS }, (_, index) => row.favorites[index] || null);
+    const options = (currentSlugValue = '') => [`<option value="">— Vacío —</option>`, ...favoritesChoices.map(choice =>
+      `<option value="${esc(choice.slug)}" ${choice.slug === currentSlugValue ? 'selected' : ''}>${esc(choice.name)} · Nv.${fmt(choice.requiredLevel)}</option>`
+    )].join('');
+
+    body.innerHTML = `
+      <div class="pg-fav-wrap">
+        <div class="pg-fav-settings-head">
+          <button class="pg-fav-btn" type="button" data-fav-back>←</button>
+          <b>🛠 ${esc(row.name)}</b>
+        </div>
+        <div class="pg-fav-status">La posición 1 es el Pokémon que usará AutoHunt cuando esta cuenta esté activa y pulses ▶ Iniciar.</div>
+        ${selected.map((item, index) => `<div class="pg-fav-slot">
+          <span class="pg-fav-slot-num">${index + 1}</span>
+          <select class="pg-fav-select" data-fav-slot="${index}">${options(item?.slug || '')}</select>
+          <button class="pg-fav-move" type="button" data-fav-up="${index}" title="Subir" ${index === 0 ? 'disabled' : ''}>↑</button>
+          <button class="pg-fav-move" type="button" data-fav-down="${index}" title="Bajar" ${index === FAVORITES_MAX_TARGETS - 1 ? 'disabled' : ''}>↓</button>
+        </div>`).join('')}
+        <div class="pg-fav-note">Máximo 3 Pokémon por cuenta. Si esta cuenta ya está ejecutando, cambiar la posición 1 aplica automáticamente el nuevo objetivo; si no, esperará a ▶ Iniciar.</div>
+      </div>`;
+
+    body.querySelector('[data-fav-back]')?.addEventListener('click', () => { favoritesSettingsAccountId = ''; favoriteRenderManager(); });
+    body.querySelectorAll('[data-fav-slot]').forEach(select => select.addEventListener('change', () => {
+      favoriteSetTargetSlot(accountId, Number(select.dataset.favSlot), select.value);
+    }));
+    body.querySelectorAll('[data-fav-up]').forEach(button => button.addEventListener('click', () => favoriteMoveTarget(accountId, Number(button.dataset.favUp), -1)));
+    body.querySelectorAll('[data-fav-down]').forEach(button => button.addEventListener('click', () => favoriteMoveTarget(accountId, Number(button.dataset.favDown), 1)));
+  }
+
+  function favoriteSetEnabled(accountId, enabled) {
+    const store = favoriteReadStore();
+    if (!store.accounts[accountId]) return false;
+    const row = favoriteNormalizeEntry(accountId, store.accounts[accountId]);
+    row.enabled = Boolean(enabled);
+    if (!row.enabled) {
+      row.running = false;
+      row.lastStatus = 'Desactivada';
+      row.lastStatusAt = Date.now();
+    } else {
+      row.lastStatus = 'Preparada; pulsa Iniciar';
+      row.lastStatusAt = Date.now();
+    }
+    store.accounts[accountId] = row;
+    favoriteWriteStore(store);
+    favoriteRenderManager();
+    return true;
+  }
+
+  function favoriteSetTargetSlot(accountId, index, slug) {
+    const store = favoriteReadStore();
+    if (!store.accounts[accountId] || index < 0 || index >= FAVORITES_MAX_TARGETS) return false;
+    const row = favoriteNormalizeEntry(accountId, store.accounts[accountId]);
+    const slots = Array.from({ length: FAVORITES_MAX_TARGETS }, (_, slot) => row.favorites[slot] || null);
+    const choice = favoritesChoices?.find(item => item.slug === slug) || null;
+    if (choice) {
+      for (let i = 0; i < slots.length; i++) if (i !== index && slots[i]?.slug === choice.slug) slots[i] = null;
+      slots[index] = { ...choice };
+    } else slots[index] = null;
+    row.favorites = slots.filter(Boolean).slice(0, FAVORITES_MAX_TARGETS);
+    const keepRunning = Boolean(row.enabled && row.running && row.favorites[0]);
+    row.running = keepRunning;
+    row.lastStatus = keepRunning ? 'Objetivo actualizado; aplicando #1…' : 'Configuración cambiada; pulsa Iniciar';
+    row.lastStatusAt = Date.now();
+    store.accounts[accountId] = row;
+    favoriteWriteStore(store);
+    if (keepRunning) favoriteBroadcastCommand('refresh-running');
+    favoriteRenderSettings(accountId);
+    return true;
+  }
+
+  function favoriteMoveTarget(accountId, index, direction) {
+    const target = index + direction;
+    if (target < 0 || target >= FAVORITES_MAX_TARGETS) return false;
+    const store = favoriteReadStore();
+    if (!store.accounts[accountId]) return false;
+    const row = favoriteNormalizeEntry(accountId, store.accounts[accountId]);
+    const slots = Array.from({ length: FAVORITES_MAX_TARGETS }, (_, slot) => row.favorites[slot] || null);
+    [slots[index], slots[target]] = [slots[target], slots[index]];
+    row.favorites = slots.filter(Boolean).slice(0, FAVORITES_MAX_TARGETS);
+    const keepRunning = Boolean(row.enabled && row.running && row.favorites[0]);
+    row.running = keepRunning;
+    row.lastStatus = keepRunning ? 'Prioridad #1 actualizada; aplicando…' : 'Orden cambiado; pulsa Iniciar';
+    row.lastStatusAt = Date.now();
+    store.accounts[accountId] = row;
+    favoriteWriteStore(store);
+    if (keepRunning) favoriteBroadcastCommand('refresh-running');
+    favoriteRenderSettings(accountId);
+    return true;
+  }
+
+  function favoriteUpdateAccountStatus(accountId, status, { running = null } = {}) {
+    const store = favoriteReadStore();
+    if (!store.accounts[accountId]) return false;
+    const row = favoriteNormalizeEntry(accountId, store.accounts[accountId]);
+    row.lastStatus = String(status || '');
+    row.lastStatusAt = Date.now();
+    if (running !== null) row.running = Boolean(running);
+    store.accounts[accountId] = row;
+    favoriteWriteStore(store);
+    favoriteRenderManager();
+    return true;
+  }
+
+  function favoriteAnnounceState() {
+    try { favoritesChannel?.postMessage?.({ type: 'state', at: Date.now() }); } catch {}
+  }
+
+  function favoriteCommandId() {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  function favoriteBroadcastCommand(type) {
+    const command = { id: favoriteCommandId(), type, at: Date.now() };
+    try { localStorage.setItem(FAVORITES_COMMAND_KEY, JSON.stringify(command)); } catch {}
+    try { favoritesChannel?.postMessage?.({ type: 'command', command }); } catch {}
+    favoriteProcessCommand(command);
+    return command;
+  }
+
+  function favoriteRememberCommand(id) {
+    if (!id || favoritesSeenCommands.has(id)) return false;
+    favoritesSeenCommands.add(id);
+    if (favoritesSeenCommands.size > 80) {
+      const first = favoritesSeenCommands.values().next().value;
+      favoritesSeenCommands.delete(first);
+    }
+    return true;
+  }
+
+  function favoriteStartEnabledAccounts() {
+    const store = favoriteReadStore();
+    let count = 0;
+    for (const id of store.order) {
+      const row = favoriteNormalizeEntry(id, store.accounts[id]);
+      if (row.enabled && row.favorites[0]) {
+        row.running = true;
+        row.lastStatus = `Orden enviada: ${row.favorites[0].name || row.favorites[0].slug}`;
+        row.lastStatusAt = Date.now();
+        count++;
+      } else {
+        row.running = false;
+        if (row.enabled && !row.favorites[0]) row.lastStatus = 'Sin objetivo #1';
+      }
+      store.accounts[id] = row;
+    }
+    favoriteWriteStore(store);
+    favoriteBroadcastCommand('start-enabled');
+    favoriteRenderManager();
+    toast(count ? `Favoritos: iniciando ${count} cuenta${count === 1 ? '' : 's'}.` : 'Favoritos: no hay cuentas activas con objetivo #1.', count ? 'ok' : 'bad');
+    return count;
+  }
+
+  function favoriteStopAllAccounts() {
+    const store = favoriteReadStore();
+    for (const id of store.order) {
+      const row = favoriteNormalizeEntry(id, store.accounts[id]);
+      row.running = false;
+      row.lastStatus = row.enabled ? 'Preparada; pulsa Iniciar' : 'Desactivada';
+      row.lastStatusAt = Date.now();
+      store.accounts[id] = row;
+    }
+    favoriteWriteStore(store);
+    favoriteBroadcastCommand('stop-all');
+    favoriteRenderManager();
+    toast('Favoritos: reanudación automática detenida.', 'ok');
+    return true;
+  }
+
+  function favoriteResolveHunt(target, data) {
+    if (!target || !data?.hunts) return null;
+    const slug = String(target.slug || '');
+    const speciesId = String(target.speciesId || '');
+    const name = norm(target.name || '');
+    return data.hunts.find(hunt => String(hunt?.slug || hunt?.marker?.slug || hunt?.marker?.hunt || '') === slug)
+      || (speciesId ? data.hunts.find(hunt => String(hunt?.creature?.speciesId || hunt?.creature?.pokeId || hunt?.marker?.speciesId || hunt?.marker?.pokeId || '') === speciesId) : null)
+      || data.hunts.find(hunt => norm(hunt?.name || hunt?.creature?.name || '') === name)
+      || null;
+  }
+
+  function favoriteHuntLive(hunt) {
+    if (!hunt) return false;
+    const terms = huntTerms(hunt);
+    const slug = currentSlug();
+    if (!slug || !terms.some(term => slug.includes(term) || term.includes(slug))) return false;
+    const fieldNow = Number(window.__poke?.ws?.field?.serverNow) || 0;
+    return fieldNow > 0 && Math.abs(Date.now() - fieldNow) < 8000;
+  }
+
+  async function favoriteExecuteCurrentAccount(reason = 'command') {
+    if (favoritesExecution) return favoritesExecution;
+    favoritesExecution = (async () => {
+      const account = favoriteRegisterCurrentAccount();
+      if (!account) return false;
+      const store = favoriteReadStore();
+      const row = store.accounts[account.id] ? favoriteNormalizeEntry(account.id, store.accounts[account.id]) : null;
+      if (!row?.enabled || !row.running || !row.favorites[0]) return false;
+      const target = row.favorites[0];
+      favoritesLastAttemptAt = Date.now();
+      favoriteUpdateAccountStatus(account.id, `Preparando ${target.name || target.slug}…`);
+
+      try {
+        const data = await loadData(false);
+        const hunt = favoriteResolveHunt(target, data);
+        if (!hunt) {
+          favoriteUpdateAccountStatus(account.id, `No encuentro la hunt de ${target.name || target.slug}`, { running: false });
+          return false;
+        }
+        const lead = getLeadPokemon();
+        if (!lead) {
+          favoriteUpdateAccountStatus(account.id, 'Esperando Pokémon activo');
+          return false;
+        }
+        if (!isUnlocked(hunt, lead)) {
+          favoriteUpdateAccountStatus(account.id, `Bloqueada: requiere Nv.${fmt(huntRequiredLevel(hunt))}`, { running: false });
+          return false;
+        }
+        if (favoriteHuntLive(hunt)) {
+          favoriteUpdateAccountStatus(account.id, `Cazando ${hunt.name || target.name}`, { running: true });
+          return true;
+        }
+
+        const busyDeadline = Date.now() + 12000;
+        while (busy && Date.now() < busyDeadline) await sleep(250);
+        if (busy) {
+          favoriteUpdateAccountStatus(account.id, 'Hunt Intelligence ocupado; reintentará');
+          return false;
+        }
+
+        favoriteUpdateAccountStatus(account.id, `Entrando a ${hunt.name || target.name}…`);
+        const started = await startHunt(hunt);
+        await sleep(500);
+        const confirmed = favoriteHuntLive(hunt) || started === true;
+        favoriteUpdateAccountStatus(account.id, confirmed ? `Cazando ${hunt.name || target.name}` : `No se confirmó ${hunt.name || target.name}; reintentará`, { running: true });
+        return confirmed;
+      } catch (error) {
+        console.error('[Hunt Intelligence · Favoritos] Error al ejecutar objetivo:', error);
+        favoriteUpdateAccountStatus(account.id, `Error: ${error?.message || String(error)}`);
+        return false;
+      }
+    })();
+    try { return await favoritesExecution; }
+    finally { favoritesExecution = null; }
+  }
+
+  function favoriteProcessCommand(command) {
+    if (!command || !favoriteRememberCommand(String(command.id || ''))) return;
+    if (command.type === 'start-enabled' || command.type === 'refresh-running') {
+      setTimeout(() => favoriteExecuteCurrentAccount(command.type), 50);
+    }
+  }
+
+  function favoriteWatchdog() {
+    const account = favoriteRegisterCurrentAccount();
+    if (!account) return;
+    const store = favoriteReadStore();
+    const row = store.accounts[account.id] ? favoriteNormalizeEntry(account.id, store.accounts[account.id]) : null;
+    if (!row?.enabled || !row.running || !row.favorites[0]) return;
+    if (favoritesExecution || Date.now() - favoritesLastAttemptAt < FAVORITES_RETRY_MS) return;
+    favoriteLoadChoices().catch(() => {});
+    loadData(false).then(data => {
+      const hunt = favoriteResolveHunt(row.favorites[0], data);
+      if (hunt && favoriteHuntLive(hunt)) {
+        if (!/^Cazando /.test(row.lastStatus || '')) favoriteUpdateAccountStatus(account.id, `Cazando ${hunt.name || row.favorites[0].name}`);
+        return;
+      }
+      favoriteExecuteCurrentAccount('resume/watchdog');
+    }).catch(() => {});
+  }
+
+  function favoriteOpenManager() {
+    favoriteRegisterCurrentAccount();
+    const win = favoriteEnsureWindow();
+    if (!win) return false;
+    favoritesSettingsAccountId = '';
+    favoriteRenderManager();
+    return true;
+  }
+
+  function favoriteInstallButtonHook() {
+    const handler = event => {
+      const button = event.target?.closest?.('#favoritesBtn');
+      if (!button) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      favoriteOpenManager();
+    };
+    const docs = [document];
+    try {
+      if (window.top?.document && window.top.document !== document) docs.push(window.top.document);
+    } catch {}
+    for (const doc of [...new Set(docs)]) {
+      try { doc.addEventListener('click', handler, true); } catch {}
+    }
+    try { window.runFavoritesScript = () => favoriteOpenManager(); } catch {}
+    try {
+      if (window.top && window.top !== window) window.top.runFavoritesScript = () => favoriteOpenManager();
+    } catch {}
+  }
+
+  function favoriteConnectChannel() {
+    if (favoritesChannel || typeof BroadcastChannel !== 'function') return;
+    try {
+      favoritesChannel = new BroadcastChannel(FAVORITES_CHANNEL_NAME);
+      favoritesChannel.addEventListener('message', event => {
+        const message = event?.data;
+        if (message?.type === 'command') favoriteProcessCommand(message.command);
+        if (message?.type === 'state') favoriteRenderManager();
+      });
+    } catch { favoritesChannel = null; }
+  }
+
+  window.addEventListener('storage', event => {
+    if (event.key === FAVORITES_STORE_KEY) favoriteRenderManager();
+    if (event.key === FAVORITES_COMMAND_KEY && event.newValue) {
+      try { favoriteProcessCommand(JSON.parse(event.newValue)); } catch {}
+    }
+  });
+
+  favoriteConnectChannel();
+  favoriteInstallButtonHook();
+  favoriteRegisterCurrentAccount();
+  setTimeout(() => { favoriteRegisterCurrentAccount(); favoriteWatchdog(); }, 2500);
+  setInterval(() => { favoriteRegisterCurrentAccount(); favoriteRenderManager(); }, 10000);
+  setInterval(favoriteWatchdog, 7000);
+
+
   function publishHuntHealth() {
     if (!healthClient) return;
     try {
@@ -5623,20 +6245,23 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.33',
+      version: '1.1.34',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
       status: 'waiting',
       statusText: 'Preparando motores de cálculo.',
       staleAfterMs: 45000,
-      capabilities: ['piwtools','hunt-ranking','pokemon-level-hunt-gate','live-stat-reranking','pokedex-not-caught','item-finder','daily-bonus','daily-auto-reset','tm-toggle','vip-toggle','personal-history','history-backup','leveling-history','personal-ranking','nearby-level-personal-mark','cross-move-personal-calibration','time-weighted-leveling-calibration','personal-xph-history','bridge-ui-core','persistent-opacity']
+      capabilities: ['piwtools','hunt-ranking','pokemon-level-hunt-gate','live-stat-reranking','pokedex-not-caught','item-finder','daily-bonus','daily-auto-reset','tm-toggle','vip-toggle','personal-history','history-backup','leveling-history','personal-ranking','nearby-level-personal-mark','cross-move-personal-calibration','time-weighted-leveling-calibration','personal-xph-history','bridge-ui-core','persistent-opacity','favorites-manager','per-account-favorites','cross-tab-favorite-autohunt','favorites-resume']
     });
     healthClient.registerCommand('open-hunt', () => { activeTab='hunt'; revealManagedPanel({full:true}); loadHunt(false); return {opened:'hunt'}; }, {label:'Abrir Hunt Advisor'});
     healthClient.registerCommand('open-not-caught', () => { activeTab='notcaught'; revealManagedPanel({full:true}); loadNotCaught(false); return {opened:'notcaught'}; }, {label:'Abrir No capturados'});
     healthClient.registerCommand('open-item', args => { activeTab='item'; revealManagedPanel({full:true}); runItemSearch(args?.query || I()?.getLastItem?.() || '', false); return {opened:'item'}; }, {label:'Abrir Item Finder',args:{query:'string'}});
     healthClient.registerCommand('open-performance', () => { activeTab='performance'; revealManagedPanel({full:true}); renderPerformance(false); return {opened:'performance'}; }, {label:'Abrir rendimiento'});
     healthClient.registerCommand('open-history', () => { activeTab='history'; revealManagedPanel({full:true}); renderHistory(false); return {opened:'history'}; }, {label:'Abrir histórico'});
+    healthClient.registerCommand('open-favorites-manager', () => ({ opened: favoriteOpenManager() }), {label:'Abrir Favoritos'});
+    healthClient.registerCommand('start-favorites', () => ({ startedAccounts: favoriteStartEnabledAccounts() }), {label:'Iniciar Favoritos'});
+    healthClient.registerCommand('stop-favorites', () => ({ stopped: favoriteStopAllAccounts() }), {label:'Detener Favoritos'});
     healthClient.registerCommand('refresh', () => refreshCurrentHealthTarget(true), { label: 'Actualizar datos' });
     healthClient.registerCommand('clear-piwtools-cache', () => window.__PGHuntAdvisor.clearPiwToolsCache(), { label: 'Limpiar caché PIWTools', dangerous: true });
     healthClient.registerTest?.(() => window.__PGHuntAdvisor.selfTest(), { label: 'Probar ranking, Item Finder y ciclo diario' });
@@ -5657,12 +6282,16 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.33',
+    version: '1.1.34',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
     openPerformance: () => { activeTab='performance'; revealManagedPanel({full:true}); return renderPerformance(false); },
     openHistory: () => { activeTab='history'; revealManagedPanel({full:true}); return renderHistory(false); },
+    openFavoritesManager: () => favoriteOpenManager(),
+    startFavorites: () => favoriteStartEnabledAccounts(),
+    stopFavorites: () => favoriteStopAllAccounts(),
+    getFavoritesState: () => favoriteReadStore(),
     getVip: () => Boolean(H()?.getConfig?.()?.vipActive),
     setVip: value => H()?.setVip?.(Boolean(value)),
     getPokedexDebug: () => window.__PGHuntAdvisor?.getPokedexDebug?.() || null,
@@ -5691,5 +6320,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.33 cargado: histórico móvil de 12 muestras y panel estable restaurado.');
+  console.info('[Hunt Intelligence] v1.1.34 cargado: gestor compacto de Favoritos enlazado a #favoritesBtn, reanudación por cuenta e histórico móvil de 12 muestras.');
 })();
