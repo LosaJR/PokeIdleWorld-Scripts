@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.37
+// @version      1.1.38
 // @description  Recomendador, No capturados, Item Finder, supervisor y gestor compacto de Favoritos por cuenta con histórico móvil de 12 muestras.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1137) return;
-  window.__pgHuntIntelligenceCoreV1137 = true;
+  if (window.__pgHuntIntelligenceCoreV1138) return;
+  window.__pgHuntIntelligenceCoreV1138 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -713,8 +713,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1137) return;
-  window.__pgHuntIntelligenceItemCoreV1137 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1138) return;
+  window.__pgHuntIntelligenceItemCoreV1138 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1198,8 +1198,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1137) return;
-  window.__pgHuntIntelligenceEngineV1137 = true;
+  if (window.__pgHuntIntelligenceEngineV1138) return;
+  window.__pgHuntIntelligenceEngineV1138 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2374,14 +2374,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.37 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
+  console.info('[Hunt Intelligence] Motor v1.1.38 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1137) return;
-  window.__pgHuntIntelligenceSupervisorV1137 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1138) return;
+  window.__pgHuntIntelligenceSupervisorV1138 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -3744,13 +3744,13 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.37',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    version:'1.1.38',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.37',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.38',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.37',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.38',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   const historyRecovery = recoverHistoryIfNeeded();
@@ -3761,13 +3761,13 @@
   restartSampleCheckpoint();
   startHistoryPokemonWatcher();
   setTimeout(()=>refresh(false),1200);
-  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.37 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
+  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.38 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1137) return;
-  window.__pgHuntIntelligenceUiV1137 = true;
+  if (window.__pgHuntIntelligenceUiV1138) return;
+  window.__pgHuntIntelligenceUiV1138 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -5621,7 +5621,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.37',
+    version: '1.1.38',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -5664,6 +5664,7 @@
   const FAVORITES_MAX_TARGETS = 3;
   const FAVORITES_ONLINE_MS = 30000;
   const FAVORITES_RETRY_MS = 20000;
+  const FAVORITES_OPACITY_MIGRATION_KEY = `${FAVORITES_NS}:opacity-v2`;
 
   let favoritesUiWindow = null;
   let favoritesChannel = null;
@@ -5763,9 +5764,18 @@
     const style = document.createElement('style');
     style.id = FAVORITES_STYLE_ID;
     style.textContent = `
-      #${FAVORITES_PANEL_ID}.pg-ui-window{max-width:520px!important;}
+      #${FAVORITES_PANEL_ID}.pg-ui-window{
+        max-width:520px!important;
+        background:rgba(12,19,29,var(--pg-ui-opacity,.92))!important;
+        border-color:rgba(84,105,132,.88)!important;
+        box-shadow:0 16px 46px rgba(0,0,0,.68)!important;
+        backdrop-filter:blur(4px)!important;
+        -webkit-backdrop-filter:blur(4px)!important;
+      }
       #${FAVORITES_PANEL_ID} .pg-ui-header{padding:7px 8px;}
-      #${FAVORITES_PANEL_ID} .pg-ui-opacity{display:none!important;}
+      #${FAVORITES_PANEL_ID} .pg-ui-opacity{display:flex!important;min-width:94px!important;gap:4px!important;font-size:8px!important;}
+      #${FAVORITES_PANEL_ID} .pg-ui-opacity input[type="range"]{width:52px!important;}
+      #${FAVORITES_PANEL_ID} .pg-ui-opacity-value{width:28px!important;}
       #${FAVORITES_PANEL_ID} .pg-ui-body{overflow:auto;}
       .pg-fav-wrap{padding:9px;font:12px system-ui;color:#eaf1f8;}
       .pg-fav-toolbar{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
@@ -5827,9 +5837,20 @@
         maximizable: false,
         closable: true,
         rememberLayout: true,
-        defaultOpacity: 96,
+        defaultOpacity: 92,
         bodyClass: 'pg-hunt-favorites-ui-body'
       });
+
+      // 1.1.38: la 1.1.38 ocultaba el medidor y podía heredar una opacidad
+      // prácticamente nula del UI Core. Se migra una sola vez a un valor visible.
+      try {
+        const migrated = localStorage.getItem(FAVORITES_OPACITY_MIGRATION_KEY) === '1';
+        const currentOpacity = Number(favoritesUiWindow?.getOpacity?.());
+        if (!migrated || !Number.isFinite(currentOpacity) || currentOpacity < 55) {
+          favoritesUiWindow?.setOpacity?.(92);
+          localStorage.setItem(FAVORITES_OPACITY_MIGRATION_KEY, '1');
+        }
+      } catch {}
     }
     favoritesUiWindow.open();
     return favoritesUiWindow;
@@ -6308,7 +6329,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.37',
+      version: '1.1.38',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -6345,7 +6366,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.37',
+    version: '1.1.38',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -6355,6 +6376,10 @@
     startFavorites: () => favoriteStartEnabledAccounts(),
     stopFavorites: () => favoriteStopAllAccounts(),
     getFavoritesState: () => favoriteReadStore(),
+    getFavoriteChoices: async () => (await favoriteLoadChoices()).map(choice => ({ ...choice })),
+    setFavoriteEnabled: (accountId, enabled) => { favoriteSetEnabled(String(accountId || ''), Boolean(enabled)); return favoriteReadStore(); },
+    setFavoriteTarget: async (accountId, slot, slug) => { await favoriteLoadChoices(); favoriteSetTargetSlot(String(accountId || ''), Number(slot), String(slug || '')); return favoriteReadStore(); },
+    moveFavoriteTarget: (accountId, slot, direction) => { favoriteMoveTarget(String(accountId || ''), Number(slot), Number(direction)); return favoriteReadStore(); },
     getVip: () => Boolean(H()?.getConfig?.()?.vipActive),
     setVip: value => H()?.setVip?.(Boolean(value)),
     getPokedexDebug: () => window.__PGHuntAdvisor?.getPokedexDebug?.() || null,
@@ -6383,5 +6408,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.37 cargado: gestor compacto de Favoritos conectado al webview de PokeGrid por postMessage y histórico móvil de 12 muestras.');
+  console.info('[Hunt Intelligence] v1.1.38 cargado: gestor compacto de Favoritos conectado al webview de PokeGrid por postMessage y histórico móvil de 12 muestras.');
 })();

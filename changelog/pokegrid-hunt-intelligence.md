@@ -1,5 +1,117 @@
 # PokeGrid - Hunt Intelligence
 
+## 1.1.38 — 2026-08-16
+
+POKE IDLE WORLD — HUNT INTELLIGENCE
+ACTUALIZACIONES DE LA VERSIÓN 1.1.38
+Fecha: 2026-08-15
+
+VERSIÓN
+=======
+Anterior: 1.1.37
+Nueva:    1.1.38
+
+1. OPACIDAD DEL GESTOR FAVORITOS
+================================
+Problema:
+La ventana podía aparecer prácticamente transparente y en 1.1.37 el propio
+CSS ocultaba el medidor de opacidad del Bridge UI.
+
+Corregido:
+- Vuelve a mostrarse el control de opacidad en la cabecera.
+- Se mantiene compacto para no agrandar demasiado la interfaz.
+- Ancho reducido del slider para conservar el diseño ligero.
+- Opacidad inicial del gestor: 92%.
+- Se añade una migración única:
+  si existe un valor antiguo sin migrar o una opacidad heredada inferior al 55%,
+  se restablece automáticamente a 92%.
+- Después de esa migración el usuario puede ajustar y conservar libremente su
+  valor mediante el slider.
+- Fondo, borde, sombra y blur del gestor se refuerzan para que el contenido sea
+  claramente legible.
+
+2. MOVIMIENTO POR TODA LA VENTANA DE POKEGRID
+==============================================
+Diagnóstico:
+PokeGrid utiliza webviews de Electron para las cuatro cuentas.
+
+El gestor actual se crea dentro del DOM del webview activo. Un elemento DOM
+dentro de un webview está físicamente recortado por los límites de ese webview.
+Por tanto no existe un cambio de CSS/position dentro del userscript que permita
+arrastrarlo sobre las otras tres zonas del programa.
+
+Para poder moverlo por toda la ventana de PokeGrid, la carcasa visual debe ser
+creada en el documento principal de PokeGrid (el mismo contexto donde existe el
+topbar), mientras Hunt Intelligence continúa siendo el motor de datos y AutoHunt.
+
+PREPARACIÓN PARA EL HOST DE POKEGRID
+====================================
+1.1.38 añade APIs públicas para que el shell de PokeGrid pueda construir una
+interfaz global sin duplicar la lógica de Hunt Intelligence:
+
+window.__PGHuntIntelligence.getFavoritesState()
+window.__PGHuntIntelligence.getFavoriteChoices()
+window.__PGHuntIntelligence.setFavoriteEnabled(accountId, enabled)
+window.__PGHuntIntelligence.setFavoriteTarget(accountId, slot, slug)
+window.__PGHuntIntelligence.moveFavoriteTarget(accountId, slot, direction)
+window.__PGHuntIntelligence.startFavorites()
+window.__PGHuntIntelligence.stopFavorites()
+
+Estas APIs permiten que PokeGrid:
+- renderice la ventana en su documento principal;
+- la mueva libremente por toda la aplicación;
+- lea las cuatro cuentas;
+- consulte el catálogo;
+- cambie sliders;
+- configure los tres Pokémon;
+- cambie prioridades;
+- inicie/detenga Favoritos;
+sin trasladar la lógica real de AutoHunt fuera de Hunt Intelligence.
+
+IMPORTANTE
+==========
+La 1.1.38 corrige completamente la visibilidad/opacidad.
+
+El movimiento fuera de los límites del webview requiere una modificación en el
+shell de PokeGrid/Electron. No es técnicamente posible resolver ese recorte desde
+el userscript ejecutado dentro del webview.
+
+SE CONSERVA
+===========
+- Botón externo #favoritesBtn mediante postMessage.
+- Gestor Favoritos actual dentro del webview como fallback.
+- 4 cuentas.
+- Sliders enabled.
+- running independiente.
+- Hasta 3 Pokémon por cuenta.
+- Buscador de Pokémon.
+- Prioridad #1.
+- Iniciar / Detener.
+- Persistencia.
+- Reanudación automática.
+- Botón 🧠.
+- Hunts / No capturados / Items / Rendimiento / Histórico.
+- Resto de Hunt Intelligence sin cambios funcionales.
+
+VALIDACIÓN
+==========
+- JavaScript validado correctamente con node --check.
+- @version: 1.1.38.
+- Guards internos actualizados a V1138.
+- 0 referencias restantes a 1.1.37/V1137.
+- Control de opacidad visible confirmado.
+- Migración de opacidad confirmada.
+- APIs públicas para host global confirmadas.
+
+SHA-256
+=======
+a7b7d25ee05f471ce20c40fb5031fceb5ad669c426cc5e21dc67d51d0967f876
+
+ARCHIVOS
+========
+pokegrid-hunt-intelligence-1.1.38.txt
+actualizaciones-hunt-intelligence-1.1.38.txt
+
 ## 1.1.37 — 2026-08-16
 
 POKE IDLE WORLD — HUNT INTELLIGENCE
