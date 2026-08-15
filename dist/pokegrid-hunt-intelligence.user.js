@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.36
+// @version      1.1.37
 // @description  Recomendador, No capturados, Item Finder, supervisor y gestor compacto de Favoritos por cuenta con histórico móvil de 12 muestras.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1136) return;
-  window.__pgHuntIntelligenceCoreV1136 = true;
+  if (window.__pgHuntIntelligenceCoreV1137) return;
+  window.__pgHuntIntelligenceCoreV1137 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -170,6 +170,34 @@
       ballId: id || null,
       ballPrice: finite(ball?.priceGold, ball?.price, itemsById?.[id]?.npcPrice, 0)
     };
+  }
+
+  function huntRequiredLevel(hunt) {
+    return Math.max(1, finite(
+      hunt?.marker?.level,
+      hunt?.marker?.lvl,
+      hunt?.marker?.minLevel,
+      hunt?.creature?.huntLevel,
+      hunt?.creature?.level,
+      1
+    ));
+  }
+
+  function huntAccessLevel(lead = null) {
+    const pokemonLevel = Math.max(1, finite(lead?.level, 1));
+    const character = getCharacter();
+    const trainerLevel = finite(
+      character?.level,
+      character?.lvl,
+      character?.trainerLevel,
+      character?.characterLevel,
+      0
+    );
+    return trainerLevel > 0 ? Math.min(pokemonLevel, Math.max(1, trainerLevel)) : pokemonLevel;
+  }
+
+  function isUnlocked(hunt, lead = null) {
+    return huntRequiredLevel(hunt) <= huntAccessLevel(lead);
   }
 
   async function loadData(force = false) {
@@ -685,8 +713,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceItemCoreV1136) return;
-  window.__pgHuntIntelligenceItemCoreV1136 = true;
+  if (window.__pgHuntIntelligenceItemCoreV1137) return;
+  window.__pgHuntIntelligenceItemCoreV1137 = true;
 
   const NS = 'pg-item-finder-v1';
   const PANEL_ID = `${NS}-panel`;
@@ -1170,8 +1198,8 @@
 /* ========================================================================== */
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceEngineV1136) return;
-  window.__pgHuntIntelligenceEngineV1136 = true;
+  if (window.__pgHuntIntelligenceEngineV1137) return;
+  window.__pgHuntIntelligenceEngineV1137 = true;
 
   const HuntCore = window.__PGUnifiedHuntCore;
   const ItemCore = window.__PGUnifiedItemCore;
@@ -2346,14 +2374,14 @@
   // de ciclo aunque el botón todavía no se haya instalado.
   startDailyWatcher();
 
-  console.info('[Hunt Intelligence] Motor v1.1.36 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
+  console.info('[Hunt Intelligence] Motor v1.1.37 cargado: histórico móvil de 12 muestras por Hunt + Pokémon y calibración reciente separada de kills/h y XP/h.');
 })();
 
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceSupervisorV1136) return;
-  window.__pgHuntIntelligenceSupervisorV1136 = true;
+  if (window.__pgHuntIntelligenceSupervisorV1137) return;
+  window.__pgHuntIntelligenceSupervisorV1137 = true;
 
   const NS = 'pg-hunt-intelligence-v1';
   const SEGMENTS_KEY = `${NS}:segments`;
@@ -3716,13 +3744,13 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.36',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    version:'1.1.37',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.36',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.37',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.36',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.37',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon y normaliza VIP y bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   const historyRecovery = recoverHistoryIfNeeded();
@@ -3733,13 +3761,13 @@
   restartSampleCheckpoint();
   startHistoryPokemonWatcher();
   setTimeout(()=>refresh(false),1200);
-  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.36 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
+  console.info(`[Hunt Intelligence] Supervisor unificado v1.1.37 cargado: ventana móvil ${HISTORY_WINDOW_SAMPLES} por Hunt + Pokémon; recuperación ${historyRecovery.source}:${historyRecovery.recovered}; ${invalidatedLootRows} muestra(s) 0/0 invalidadas.`);
 })();
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceUiV1136) return;
-  window.__pgHuntIntelligenceUiV1136 = true;
+  if (window.__pgHuntIntelligenceUiV1137) return;
+  window.__pgHuntIntelligenceUiV1137 = true;
 
   const NS = 'pg-hunt-item-unified-v2';
   const PANEL_ID = `${NS}-panel`;
@@ -5593,7 +5621,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.36',
+    version: '1.1.37',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -5872,19 +5900,40 @@
     }));
   }
 
-  async function favoriteLoadChoices() {
-    if (Array.isArray(favoritesChoices) && favoritesChoices.length) return favoritesChoices;
-    const data = await H()?.getData?.(false);
+  function favoriteChoiceLabel(choice) {
+    if (!choice) return '';
+    return `${choice.name} · Nv.${fmt(choice.requiredLevel)} · ${choice.slug}`;
+  }
+
+  function favoriteResolveChoiceInput(value) {
+    const raw = String(value || '').trim();
+    if (!raw || !Array.isArray(favoritesChoices)) return null;
+    const normalized = norm(raw);
+    const exactLabel = favoritesChoices.find(choice => favoriteChoiceLabel(choice) === raw);
+    if (exactLabel) return exactLabel;
+    const exactSlug = favoritesChoices.find(choice => norm(choice.slug) === normalized);
+    if (exactSlug) return exactSlug;
+    const exactName = favoritesChoices.filter(choice => norm(choice.name) === normalized);
+    return exactName.length === 1 ? exactName[0] : null;
+  }
+
+  async function favoriteLoadChoices(force = false) {
+    if (!force && Array.isArray(favoritesChoices) && favoritesChoices.length) return favoritesChoices;
+    let data = await H()?.getData?.(Boolean(force));
+    if ((!data || !Array.isArray(data.hunts) || !data.hunts.length) && !force) {
+      data = await H()?.getData?.(true);
+    }
     const map = new Map();
     for (const hunt of data?.hunts || []) {
       const slug = String(hunt?.slug || hunt?.marker?.slug || hunt?.marker?.hunt || '').trim();
       if (!slug) continue;
-      const name = String(hunt?.name || hunt?.creature?.name || slug).trim();
+      const name = String(hunt?.creature?.name || hunt?.name || slug).trim();
       const speciesId = String(hunt?.creature?.speciesId || hunt?.creature?.pokeId || hunt?.marker?.speciesId || hunt?.marker?.pokeId || '');
       const choice = { slug, name, speciesId, requiredLevel: H()?.huntRequiredLevel?.(hunt) || 1 };
       if (!map.has(slug)) map.set(slug, choice);
     }
     favoritesChoices = [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }) || a.requiredLevel - b.requiredLevel);
+    if (!favoritesChoices.length) throw new Error('El catálogo oficial de hunts está vacío o todavía no está disponible.');
     return favoritesChoices;
   }
 
@@ -5903,15 +5952,13 @@
       body.querySelector('[data-fav-back]')?.addEventListener('click', () => { favoritesSettingsAccountId = ''; favoriteRenderManager(); });
       favoriteLoadChoices().then(() => favoriteRenderSettings(accountId)).catch(error => {
         console.error('[Hunt Intelligence · Favoritos] No se pudo cargar el catálogo:', error);
-        if (favoriteManagerIsOpen()) favoritesUiWindow.body.querySelector('.pg-fav-status').textContent = 'No se pudo cargar el catálogo de hunts.';
+        if (favoriteManagerIsOpen()) favoritesUiWindow.body.querySelector('.pg-fav-status').textContent = `No se pudo cargar el catálogo de hunts: ${error?.message || error}`;
       });
       return;
     }
 
     const selected = Array.from({ length: FAVORITES_MAX_TARGETS }, (_, index) => row.favorites[index] || null);
-    const options = (currentSlugValue = '') => [`<option value="">— Vacío —</option>`, ...favoritesChoices.map(choice =>
-      `<option value="${esc(choice.slug)}" ${choice.slug === currentSlugValue ? 'selected' : ''}>${esc(choice.name)} · Nv.${fmt(choice.requiredLevel)}</option>`
-    )].join('');
+    const datalistId = `${FAVORITES_PANEL_ID}-choices`;
 
     body.innerHTML = `
       <div class="pg-fav-wrap">
@@ -5919,19 +5966,32 @@
           <button class="pg-fav-btn" type="button" data-fav-back>←</button>
           <b>🛠 ${esc(row.name)}</b>
         </div>
-        <div class="pg-fav-status">La posición 1 es el Pokémon que usará AutoHunt cuando esta cuenta esté activa y pulses ▶ Iniciar.</div>
+        <div class="pg-fav-status">La posición 1 es el Pokémon que usará AutoHunt cuando esta cuenta esté activa y pulses ▶ Iniciar. Escribe el nombre para buscar.</div>
+        <datalist id="${esc(datalistId)}">${favoritesChoices.map(choice => `<option value="${esc(favoriteChoiceLabel(choice))}">${esc(choice.name)}</option>`).join('')}</datalist>
         ${selected.map((item, index) => `<div class="pg-fav-slot">
           <span class="pg-fav-slot-num">${index + 1}</span>
-          <select class="pg-fav-select" data-fav-slot="${index}">${options(item?.slug || '')}</select>
+          <input class="pg-fav-select" type="search" list="${esc(datalistId)}" data-fav-slot="${index}" value="${esc(item ? favoriteChoiceLabel(item) : '')}" placeholder="Buscar Pokémon…" autocomplete="off">
           <button class="pg-fav-move" type="button" data-fav-up="${index}" title="Subir" ${index === 0 ? 'disabled' : ''}>↑</button>
           <button class="pg-fav-move" type="button" data-fav-down="${index}" title="Bajar" ${index === FAVORITES_MAX_TARGETS - 1 ? 'disabled' : ''}>↓</button>
         </div>`).join('')}
-        <div class="pg-fav-note">Máximo 3 Pokémon por cuenta. Si esta cuenta ya está ejecutando, cambiar la posición 1 aplica automáticamente el nuevo objetivo; si no, esperará a ▶ Iniciar.</div>
+        <div class="pg-fav-note">Máximo 3 Pokémon por cuenta. Puedes escribir el nombre y elegir una sugerencia. Vacía el campo para borrar una posición.</div>
       </div>`;
 
     body.querySelector('[data-fav-back]')?.addEventListener('click', () => { favoritesSettingsAccountId = ''; favoriteRenderManager(); });
-    body.querySelectorAll('[data-fav-slot]').forEach(select => select.addEventListener('change', () => {
-      favoriteSetTargetSlot(accountId, Number(select.dataset.favSlot), select.value);
+    body.querySelectorAll('[data-fav-slot]').forEach(input => input.addEventListener('change', () => {
+      const raw = input.value.trim();
+      if (!raw) {
+        favoriteSetTargetSlot(accountId, Number(input.dataset.favSlot), '');
+        return;
+      }
+      const choice = favoriteResolveChoiceInput(raw);
+      if (!choice) {
+        const status = body.querySelector('.pg-fav-status');
+        if (status) status.textContent = 'Selecciona un Pokémon de las sugerencias del buscador.';
+        input.focus();
+        return;
+      }
+      favoriteSetTargetSlot(accountId, Number(input.dataset.favSlot), choice.slug);
     }));
     body.querySelectorAll('[data-fav-up]').forEach(button => button.addEventListener('click', () => favoriteMoveTarget(accountId, Number(button.dataset.favUp), -1)));
     body.querySelectorAll('[data-fav-down]').forEach(button => button.addEventListener('click', () => favoriteMoveTarget(accountId, Number(button.dataset.favDown), 1)));
@@ -6248,7 +6308,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.36',
+      version: '1.1.37',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -6285,7 +6345,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.36',
+    version: '1.1.37',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -6323,5 +6383,5 @@
   });
 
   install();
-  console.info('[Hunt Intelligence] v1.1.36 cargado: gestor compacto de Favoritos conectado al webview de PokeGrid por postMessage y histórico móvil de 12 muestras.');
+  console.info('[Hunt Intelligence] v1.1.37 cargado: gestor compacto de Favoritos conectado al webview de PokeGrid por postMessage y histórico móvil de 12 muestras.');
 })();
