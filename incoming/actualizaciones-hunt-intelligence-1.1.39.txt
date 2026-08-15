@@ -1,0 +1,143 @@
+POKE IDLE WORLD — HUNT INTELLIGENCE
+ACTUALIZACIONES DE LA VERSIÓN 1.1.39
+Fecha: 2026-08-16
+
+VERSIÓN
+=======
+Anterior: 1.1.38
+Nueva:    1.1.39
+
+PROBLEMA DETECTADO
+==================
+Después de mover la interfaz de Favoritos al documento principal de PokeGrid,
+al reiniciar la aplicación el panel podía mostrar únicamente una cuenta
+(por ejemplo, "Cuenta 3") y parecer que entraba directamente en sus ajustes.
+
+CAUSA ARQUITECTÓNICA
+====================
+PokeGrid estaba utilizando getActiveGameWebview() como fuente del estado global.
+
+Después de reiniciar, el webview activo puede conocer únicamente su propia cuenta
+en el almacenamiento de Hunt Intelligence. Por tanto:
+
+- getFavoritesState() del webview activo no es una fuente fiable para construir
+  las cuatro filas globales;
+- modificar Cuenta 1 desde el webview activo de Cuenta 3 puede enviar la orden al
+  contexto equivocado;
+- startFavorites() ejecutado únicamente en el webview activo tampoco es el mecanismo
+  correcto para garantizar las cuatro cuentas.
+
+SOLUCIÓN
+========
+Se añaden APIs locales por webview.
+
+Cada webview puede responder de forma explícita por SU cuenta actual, sin depender
+de que el estado se comparta entre los cuatro contextos.
+
+NUEVAS APIs
+===========
+window.__PGHuntIntelligence.getFavoriteLocalAccountState()
+
+Devuelve únicamente la cuenta perteneciente al webview actual:
+- id
+- name
+- enabled
+- running
+- favorites
+- lastSeen
+- lastStatus
+- lastStatusAt
+- current
+- online
+
+window.__PGHuntIntelligence.setFavoriteLocalEnabled(enabled)
+
+Modifica únicamente el slider de la cuenta del webview actual.
+
+window.__PGHuntIntelligence.setFavoriteLocalTarget(slot, slug)
+
+Configura una de las tres posiciones únicamente para la cuenta del webview actual.
+
+window.__PGHuntIntelligence.moveFavoriteLocalTarget(slot, direction)
+
+Reordena las posiciones únicamente de la cuenta actual.
+
+window.__PGHuntIntelligence.startFavoriteLocalAccount()
+
+Inicia únicamente la cuenta del webview actual:
+- si está desactivada, no inicia;
+- si no tiene objetivo #1, no inicia;
+- si está activada y tiene #1, marca running y ejecuta su hunt.
+
+window.__PGHuntIntelligence.stopFavoriteLocalAccount()
+
+Detiene únicamente la cuenta del webview actual sin borrar slider ni favoritos.
+
+ARQUITECTURA RECOMENDADA PARA POKEGRID
+======================================
+El panel global de PokeGrid debe:
+
+1. Enumerar los cuatro webviews de juego.
+2. Ejecutar en CADA webview:
+   window.__PGHuntIntelligence.getFavoriteLocalAccountState()
+3. Agregar los cuatro resultados.
+4. Renderizar SIEMPRE la vista principal con las cuatro filas al abrir Favoritos.
+5. No seleccionar ninguna cuenta automáticamente.
+6. Entrar en ajustes únicamente cuando el usuario pulse 🛠 de una fila.
+7. Guardar la relación:
+   accountId -> webview
+8. Cuando se cambia un slider, llamar setFavoriteLocalEnabled() en el webview
+   de ESA cuenta.
+9. Cuando se configura un Pokémon, llamar setFavoriteLocalTarget() en el webview
+   de ESA cuenta.
+10. Cuando se reordena, llamar moveFavoriteLocalTarget() en el webview de ESA cuenta.
+11. Al pulsar Iniciar, recorrer los cuatro webviews y llamar:
+    startFavoriteLocalAccount()
+12. Al pulsar Detener, recorrer los cuatro webviews y llamar:
+    stopFavoriteLocalAccount()
+
+CATÁLOGO
+========
+getFavoriteChoices() se mantiene.
+
+PokeGrid puede obtener el catálogo desde cualquier webview que tenga Hunt Intelligence
+listo. Si el primero todavía no está preparado, puede probar con el siguiente.
+
+COMPATIBILIDAD
+==============
+Las APIs anteriores se mantienen para no romper código existente:
+- getFavoritesState()
+- setFavoriteEnabled(accountId, enabled)
+- setFavoriteTarget(accountId, slot, slug)
+- moveFavoriteTarget(accountId, slot, direction)
+- startFavorites()
+- stopFavorites()
+
+Sin embargo, para el panel global de Electron se recomiendan las nuevas APIs locales.
+
+IMPORTANTE PARA LA INTERFAZ
+===========================
+Al abrir #favoritesPanel:
+- selectedAccountId debe empezar en null;
+- la primera vista debe ser siempre el listado de cuatro cuentas;
+- la vista de ajustes solo debe abrirse tras pulsar 🛠;
+- el botón ← debe volver al listado sin perder estado.
+
+VALIDACIÓN
+==========
+- JavaScript validado correctamente con node --check.
+- @version: 1.1.39.
+- Guard interno: V1139.
+- Nuevas APIs locales confirmadas.
+- Se conserva el gestor de ejecución y watchdog de cada webview.
+- Se conserva getFavoriteChoices().
+- Las APIs antiguas siguen disponibles.
+
+SHA-256
+=======
+6d69493314560c11f567ed872d98e5041f9400af37c2a96b43ef9d73bdf5c8a9
+
+ARCHIVOS
+========
+pokegrid-hunt-intelligence-1.1.39.txt
+actualizaciones-hunt-intelligence-1.1.39.txt
