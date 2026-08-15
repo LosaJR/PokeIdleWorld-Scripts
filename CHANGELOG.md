@@ -1,5 +1,211 @@
 # Poke Idle World Scripts — Changelog
 
+## PokeGrid - Script Bridge & Health Agent 1.1.8 — 2026-08-15
+
+POKE IDLE WORLD — SCRIPT BRIDGE & HEALTH AGENT
+ACTUALIZACIONES DE LA VERSIÓN 1.1.8
+Fecha: 2026-08-15
+
+VERSIÓN
+=======
+Anterior: 1.1.7
+Nueva:    1.1.8
+
+OBJETIVO
+========
+Eliminar completamente los cuadros flotantes automáticos que aparecían encima
+del juego cuando un script publicaba un warning o un error.
+
+ELIMINADO
+=========
+- Contenedor visual automático pg-bridge-auto-diagnostic-container.
+- Tarjetas flotantes de advertencia.
+- Tarjetas flotantes de error.
+- Botón "Copiar diagnóstico" de esas tarjetas.
+- Botón X de esas tarjetas.
+- Temporizadores que hacían aparecer warnings.
+- Temporizador de desaparición visual de warnings.
+- Mapa interno de tarjetas visibles.
+- Código encargado de crear, insertar, animar y retirar esas tarjetas.
+- Límite visual de tres tarjetas simultáneas.
+- Supresión especial de warnings visuales del Detector, ya innecesaria.
+
+NUEVO COMPORTAMIENTO
+====================
+Cuando un script entra en warning/error:
+- el estado sigue registrándose;
+- las dependencias siguen registrándose;
+- el último error sigue registrándose;
+- el historial de errores sigue registrándose;
+- Health sigue recibiendo la actualización;
+- el icono/indicador de peligro puede reflejar el problema;
+- el usuario puede entrar manualmente al panel de Salud;
+- el último diagnóstico interno se sigue construyendo silenciosamente.
+
+Lo único que desaparece es el popup automático encima del juego.
+
+CONSERVADO
+==========
+- window.__pokeGridScripts.
+- API version 1.0.0.
+- register / update / heartbeat.
+- setStatus / setMetric / setDependency.
+- reportError / clearError.
+- comandos entre scripts.
+- pruebas funcionales.
+- snapshots de salud.
+- globalErrors.
+- Agente de datos del juego.
+- detección de inventory, balls, pokes y field.
+- heartbeat del Bridge.
+- evento pokegrid-script-health-update.
+- evento pokegrid-health-bridge-ready.
+- cola __pokeGridHealthQueue.
+- UI Core compartido.
+- createWindow().
+- minimizar/maximizar/cerrar ventanas.
+- movimiento y redimensionado.
+- opacidad persistente.
+- layout persistente.
+- las funciones usadas por los demás scripts para integrarse con el Bridge.
+
+CAPABILITIES
+============
+Se elimina:
+- auto-health-diagnostics
+- self-managed-warning-suppression
+
+Se añade:
+- silent-health-diagnostics
+
+VALIDACIÓN
+==========
+- JavaScript validado con node --check: CORRECTO.
+- @version comprobada: 1.1.8.
+- Guard interno comprobado: __pgScriptBridgeV118.
+- BRIDGE_VERSION comprobado: 1.1.8.
+- 0 referencias a pg-bridge-auto-diagnostic-container.
+- 0 referencias a ensureDiagnosticContainer().
+- 0 referencias a showAutoDiagnostic().
+- 0 mapas diagnosticCards/pendingWarningTimers.
+- Confirmada la API pública principal del Bridge.
+- Confirmado UI Core y sus controladores de ventana.
+
+SHA-256
+=======
+e9329f4f0156c46893485b38a321eef8c65cdeda430f928b5d1d488c263c92d2
+
+ARCHIVOS
+========
+Script:
+pokegrid-script-bridge-health-agent-1.1.8.txt
+
+Registro de cambios:
+actualizaciones-script-bridge-health-agent-1.1.8.txt
+
+## PokeGrid - Hunt Intelligence 1.1.33 — 2026-08-15
+
+POKE IDLE WORLD — HUNT INTELLIGENCE
+ACTUALIZACIONES DE LA VERSIÓN 1.1.33
+Fecha: 2026-08-15
+
+VERSIÓN
+=======
+Anterior: 1.1.32
+Nueva:    1.1.33
+
+OBJETIVO
+========
+Eliminar completamente del script toda la función experimental de Favoritos y
+dejar Hunt Intelligence preparado para rediseñar esa idea desde cero más adelante.
+
+ESTRATEGIA UTILIZADA
+====================
+Las versiones 1.1.29, 1.1.30, 1.1.31 y 1.1.32 estuvieron dedicadas a añadir y
+parchear el sistema de Favoritos/Farm x4.
+
+Para evitar dejar listeners, estados, comandos o código huérfano, 1.1.33 se ha
+reconstruido sobre la base estable de Hunt Intelligence 1.1.28, que ya contenía
+el histórico móvil de 12 muestras y todas las funciones anteriores al experimento.
+
+ELIMINADO COMPLETAMENTE
+=======================
+- Pestaña Favoritos.
+- Buscador y lista persistente de favoritos.
+- Botones de añadir, eliminar, Farmear x4, Reenviar x4 y Detener farm.
+- Objetivo activo compartido.
+- Sincronización entre pestañas/cuentas.
+- BroadcastChannel usado por esa función.
+- Respaldo mediante eventos de localStorage.
+- Watchdog del objetivo x4.
+- Prioridad que bloqueaba otros cambios de hunt.
+- Resolución especial de hunts para Favoritos.
+- Intentos de entrada directa mediante hunt-config introducidos para Favoritos.
+- Comprobaciones especiales de field-init/hunt viva introducidas para Favoritos.
+- Métricas de Health relacionadas con Favoritos.
+- Capabilities del Bridge relacionadas con Favoritos.
+- Comandos Health para abrir/detener Favoritos.
+- API window.__PGFavoriteFarm.
+- Métodos de window.__PGHuntIntelligence asociados a Favoritos.
+- Textos, estilos CSS, botones y estados visuales relacionados.
+- La supresión provisional de popups del Bridge añadida al final de 1.1.32.
+  Esa responsabilidad pasa al propio Bridge 1.1.8.
+
+INTERFAZ RESULTANTE
+===================
+Hunt Intelligence vuelve a tener únicamente:
+- Hunts
+- No capturados
+- Items
+- Rendimiento
+- Histórico
+
+CONSERVADO
+==========
+- Ranking de Hunts.
+- Solo XP/h y Mejor general.
+- No capturados.
+- Item Finder.
+- Rendimiento real.
+- Histórico móvil de 12 muestras por Hunt + Pokémon.
+- Calibración personal separada de kills/h y XP/h.
+- Normalización VIP.
+- Bonus diario.
+- Seguimiento de leveling.
+- Integración con PIWTools.
+- Integración con Script Bridge / Health.
+- Ventana gestionada por Bridge UI.
+- Posición, tamaño y opacidad persistentes.
+- Botón principal 🧠.
+- Apertura minimizada al usar Map.
+- Todas las funciones existentes antes de introducir Favoritos.
+
+VALIDACIÓN
+==========
+- JavaScript validado con node --check: CORRECTO.
+- @version comprobada: 1.1.33.
+- Guards internos comprobados: V1133.
+- No quedan referencias a 1.1.28/V1128.
+- Búsqueda completa del script:
+  * 0 referencias a favorito/favorite.
+  * 0 referencias a favorite-farm.
+  * 0 referencias a Farm sincronizado.
+  * 0 referencias a BroadcastChannel.
+- Confirmadas las cinco pestañas esperadas.
+- Confirmadas las capabilities normales sin las capabilities de Favoritos.
+
+SHA-256
+=======
+312bd677ac1e84d72a9ac8e4311297ff6807be538b92b475d6f15936608c0dea
+
+ARCHIVOS
+========
+Script:
+pokegrid-hunt-intelligence-1.1.33.txt
+
+Registro de cambios:
+actualizaciones-hunt-intelligence-1.1.33.txt
+
 ## PokeGrid - Hunt Intelligence 1.1.32 — 2026-08-10
 
 POKE IDLE WORLD — HUNT INTELLIGENCE

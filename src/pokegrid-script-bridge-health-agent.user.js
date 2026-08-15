@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Script Bridge & Health Agent
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.7
+// @version      1.1.8
 // @description  Puente local para que los scripts publiquen estado, métricas, errores y comandos a la interfaz principal de PokeGrid.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,38 +12,31 @@
 
 (() => {
   'use strict';
-  if (window.__pgScriptBridgeV117) return;
-  window.__pgScriptBridgeV117 = true;
+  if (window.__pgScriptBridgeV118) return;
+  window.__pgScriptBridgeV118 = true;
 
-  const BRIDGE_VERSION = '1.1.7';
-  const API_VERSION = '1.0.0'; // Contrato base compatible; las pruebas son campos aditivos.
+  const BRIDGE_VERSION = '1.1.8';
+  const API_VERSION = '1.0.0';
   const EVENT_NAME = 'pokegrid-script-health-update';
   const READY_EVENT = 'pokegrid-health-bridge-ready';
   const DEFAULT_STALE_MS = 45000;
   const MAX_ERRORS = 40;
   const MAX_STRING = 1800;
-  const scripts = new Map();
-  const commandHandlers = new Map();
-  const testHandlers = new Map();
-  let testsRunning = false;
-  let lastTestRunAt = 0;
-  const globalErrors = [];
-  let revision = 0;
-  let lastEmitAt = 0;
-  let emitTimer = null;
-  const DIAG_CONTAINER_ID = 'pg-bridge-auto-diagnostic-container';
   const UI_CORE_VERSION = '1.0.0';
   const UI_STYLE_ID = 'pg-bridge-ui-core-style';
   const UI_STORAGE_PREFIX = 'pokegrid-ui-core-v1';
+
+  const scripts = new Map();
+  const commandHandlers = new Map();
+  const testHandlers = new Map();
   const uiWindows = new Map();
-  const alertedFailures = new Map();
-  const diagnosticCards = new Map();
-  const pendingWarningTimers = new Map();
-  const WARNING_STABLE_MS = 1800;
-  const WARNING_VISIBLE_MS = 10000;
-  const SELF_MANAGED_WARNING_SCRIPTS = new Set([
-    'decision-detector'
-  ]);
+  const globalErrors = [];
+
+  let testsRunning = false;
+  let lastTestRunAt = 0;
+  let revision = 0;
+  let lastEmitAt = 0;
+  let emitTimer = null;
   let lastAutoDiagnostic = null;
 
   const now = () => Date.now();
@@ -64,12 +57,17 @@
     if (depth >= 7) return '[profundidad limitada]';
     if (typeof value !== 'object') return truncate(value);
     if (seen.has(value)) return '[referencia circular]';
+
     seen.add(value);
     if (Array.isArray(value)) {
-      const output = value.slice(0, 100).map(item => sanitize(item, depth + 1, seen)).filter(item => item !== undefined);
+      const output = value
+        .slice(0, 100)
+        .map(item => sanitize(item, depth + 1, seen))
+        .filter(item => item !== undefined);
       seen.delete(value);
       return output;
     }
+
     const output = {};
     for (const [key, item] of Object.entries(value).slice(0, 150)) {
       if (/password|passwd|authorization|cookie|access.?token|refresh.?token|secret/i.test(key)) {
@@ -84,7 +82,9 @@
   }
 
   function safeError(error, context = '') {
-    const source = error instanceof Error ? error : new Error(typeof error === 'string' ? error : JSON.stringify(sanitize(error)));
+    const source = error instanceof Error
+      ? error
+      : new Error(typeof error === 'string' ? error : JSON.stringify(sanitize(error)));
     return {
       at: now(),
       name: truncate(source.name || 'Error', 120),
@@ -96,7 +96,9 @@
 
   function normalizeStatus(status) {
     const value = String(status || '').toLowerCase();
-    return ['ok', 'warning', 'error', 'waiting', 'stopped', 'unknown'].includes(value) ? value : 'unknown';
+    return ['ok', 'warning', 'error', 'waiting', 'stopped', 'unknown'].includes(value)
+      ? value
+      : 'unknown';
   }
 
   function defaultEntry(meta) {
@@ -138,6 +140,7 @@
         }));
       } catch {}
     };
+
     if (immediate || now() - lastEmitAt > 250) dispatch();
     else if (!emitTimer) emitTimer = setTimeout(dispatch, 260);
   }
@@ -154,227 +157,25 @@
   }
 
   function buildAutoDiagnostic(entry) {
-    const script = publicEntry(entry);
     return sanitize({
       bridgeVersion: BRIDGE_VERSION,
       generatedAt: now(),
       account: accountInfo(),
       environment: environmentInfo(),
-      script,
+      script: publicEntry(entry),
       failedDependencies: failedDependencies(entry)
     });
   }
 
-  async function copyDiagnosticText(value) {
-    const text = JSON.stringify(value, null, 2);
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-        return true;
-      }
-    } catch {}
-    try {
-      const area = document.createElement('textarea');
-      area.value = text;
-      area.style.cssText = 'position:fixed;left:-10000px;top:-10000px;opacity:0;';
-      document.body.appendChild(area);
-      area.focus();
-      area.select();
-      const ok = document.execCommand('copy');
-      area.remove();
-      return Boolean(ok);
-    } catch {
-      return false;
-    }
-  }
-
-  function ensureDiagnosticContainer() {
-    if (!document.body) return null;
-    let container = document.getElementById(DIAG_CONTAINER_ID);
-    if (container) return container;
-    container = document.createElement('div');
-    container.id = DIAG_CONTAINER_ID;
-    container.style.cssText = [
-      'position:fixed',
-      'right:14px',
-      'top:14px',
-      'z-index:100500',
-      'width:min(430px,calc(100vw - 28px))',
-      'display:flex',
-      'flex-direction:column',
-      'gap:8px',
-      'pointer-events:none',
-      'font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'
-    ].join(';');
-    document.body.appendChild(container);
-    return container;
-  }
-
-  function dismissAutoDiagnostic(id, { recovered = false } = {}) {
-    const key = String(id || '');
-    const pending = pendingWarningTimers.get(key);
-    if (pending) clearTimeout(pending);
-    pendingWarningTimers.delete(key);
-    const card = diagnosticCards.get(key);
-    diagnosticCards.delete(key);
-    if (!card?.isConnected) return false;
-
-    if (recovered) {
-      card.style.transition = 'opacity .22s ease, transform .22s ease';
-      card.style.opacity = '0';
-      card.style.transform = 'translateY(-6px)';
-      setTimeout(() => {
-        try { card.remove(); } catch {}
-        const container = document.getElementById(DIAG_CONTAINER_ID);
-        if (container && !container.children.length) container.remove();
-      }, 240);
-    } else {
-      card.remove();
-      const container = document.getElementById(DIAG_CONTAINER_ID);
-      if (container && !container.children.length) container.remove();
-    }
-    return true;
-  }
-
-  function showAutoDiagnostic(entry) {
-    if (!entry || !['warning', 'error'].includes(entry.status)) return;
-    if (!document.body) {
-      setTimeout(() => {
-        const current = scripts.get(entry.id);
-        if (current && ['warning', 'error'].includes(current.status)) showAutoDiagnostic(current);
-      }, 250);
-      return;
-    }
-
-    dismissAutoDiagnostic(entry.id);
-    const diagnostic = buildAutoDiagnostic(entry);
-    lastAutoDiagnostic = diagnostic;
-    const failed = diagnostic.failedDependencies || [];
-    const error = entry.lastError;
-    const isError = entry.status === 'error';
-    const container = ensureDiagnosticContainer();
-    if (!container) return;
-
-    const card = document.createElement('section');
-    card.style.cssText = [
-      'pointer-events:auto',
-      isError ? 'background:rgba(30,14,18,.94)' : 'background:rgba(35,27,10,.94)',
-      'color:#f5edf0',
-      isError ? 'border:1px solid rgba(255,116,126,.55)' : 'border:1px solid rgba(238,190,87,.58)',
-      'border-radius:11px',
-      'box-shadow:0 12px 36px rgba(0,0,0,.55)',
-      'padding:10px 11px',
-      'backdrop-filter:blur(3px)'
-    ].join(';');
-
-    const dependencyText = failed.length
-      ? failed.map(row => row.key).join(', ')
-      : 'ninguna dependencia marcada como fallida';
-
-    card.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        <strong style="font-size:13px;flex:1;">${isError ? '⛔' : '⚠️'} ${truncate(entry.name || entry.id, 120)} · ${isError ? 'error' : 'advertencia'}</strong>
-        <button type="button" data-copy style="border:1px solid ${isError ? '#70434a' : '#76602c'};background:${isError ? '#321b20' : '#342a12'};color:${isError ? '#ffd7dc' : '#ffe7a2'};border-radius:7px;padding:5px 8px;cursor:pointer;font:700 11px system-ui;">Copiar diagnóstico</button>
-        <button type="button" data-close style="border:0;background:transparent;color:${isError ? '#d9aeb4' : '#e0c682'};font-size:18px;cursor:pointer;line-height:1;">×</button>
-      </div>
-      <div style="font-size:11px;line-height:1.45;color:#f0d8dc;">
-        <div><b>Versión:</b> ${truncate(entry.version || '—', 80)}</div>
-        <div><b>Estado:</b> ${truncate(entry.statusText || 'Error sin descripción', 360)}</div>
-        <div><b>Dependencias:</b> ${truncate(dependencyText, 360)}</div>
-        <div><b>Último heartbeat:</b> ${Math.max(0, Math.round((now() - entry.lastHeartbeat) / 1000))} s</div>
-        ${error ? `<div><b>Último error:</b> ${truncate(error.context ? `${error.context}: ${error.message}` : error.message, 420)}</div>` : ''}
-      </div>
-    `;
-
-    card.querySelector('[data-close]')?.addEventListener('click', () => dismissAutoDiagnostic(entry.id));
-    card.querySelector('[data-copy]')?.addEventListener('click', async event => {
-      const button = event.currentTarget;
-      const copied = await copyDiagnosticText(diagnostic);
-      button.textContent = copied ? 'Copiado ✓' : 'No se pudo copiar';
-      setTimeout(() => {
-        if (button.isConnected) button.textContent = 'Copiar diagnóstico';
-      }, 1800);
-    });
-
-    container.prepend(card);
-    diagnosticCards.set(String(entry.id), card);
-
-    if (!isError) {
-      setTimeout(() => {
-        const currentCard = diagnosticCards.get(String(entry.id));
-        if (currentCard === card) dismissAutoDiagnostic(entry.id);
-      }, WARNING_VISIBLE_MS);
-    }
-
-    while (container.children.length > 3) {
-      const removed = container.lastElementChild;
-      const removedId = [...diagnosticCards.entries()].find(([, node]) => node === removed)?.[0];
-      if (removedId) diagnosticCards.delete(removedId);
-      removed?.remove();
-    }
-  }
-
+  /*
+   * 1.1.8: los diagnósticos siguen registrándose, pero ya NO generan tarjetas,
+   * popups, contenedores ni ningún otro elemento visual sobre el juego.
+   */
   function evaluateAutoDiagnostic(entry) {
-    if (!entry) return;
-    const key = String(entry.id);
-
-    if (entry.status === 'warning' && SELF_MANAGED_WARNING_SCRIPTS.has(key)) {
-      alertedFailures.delete(key);
-      dismissAutoDiagnostic(key, { recovered: true });
-      return;
-    }
-
-    if (!['warning', 'error'].includes(entry.status)) {
-      alertedFailures.delete(key);
-      dismissAutoDiagnostic(key, { recovered: true });
-      return;
-    }
-
-    const failed = failedDependencies(entry).map(row => row.key).sort().join(',');
-    const fingerprint = [
-      entry.status,
-      entry.statusText,
-      entry.lastError?.message || '',
-      entry.lastError?.context || '',
-      failed
-    ].join('|');
-
-    if (alertedFailures.get(key) === fingerprint) return;
-
-    if (entry.status === 'error') {
-      const pending = pendingWarningTimers.get(key);
-      if (pending) clearTimeout(pending);
-      pendingWarningTimers.delete(key);
-      alertedFailures.set(key, fingerprint);
-      showAutoDiagnostic(entry);
-      return;
-    }
-
-    // Las advertencias se muestran solo si siguen activas un instante.
-    // Evita parpadeos de arranque, pero una advertencia real y persistente sí aparece.
-    const pending = pendingWarningTimers.get(key);
-    if (pending) clearTimeout(pending);
-
-    const timer = setTimeout(() => {
-      pendingWarningTimers.delete(key);
-      const current = scripts.get(key);
-      if (!current || current.status !== 'warning') return;
-
-      const currentFailed = failedDependencies(current).map(row => row.key).sort().join(',');
-      const currentFingerprint = [
-        current.status,
-        current.statusText,
-        current.lastError?.message || '',
-        current.lastError?.context || '',
-        currentFailed
-      ].join('|');
-
-      alertedFailures.set(key, currentFingerprint);
-      showAutoDiagnostic(current);
-    }, WARNING_STABLE_MS);
-
-    pendingWarningTimers.set(key, timer);
+    if (!entry || !['warning', 'error'].includes(entry.status)) return;
+    lastAutoDiagnostic = buildAutoDiagnostic(entry);
   }
+
   function makeClient(id) {
     return Object.freeze({
       id,
@@ -394,7 +195,10 @@
 
   function register(meta = {}) {
     const id = String(meta.id || '').trim();
-    if (!/^[a-z0-9][a-z0-9._-]{1,80}$/i.test(id)) throw new Error('El script necesita un id estable válido.');
+    if (!/^[a-z0-9][a-z0-9._-]{1,80}$/i.test(id)) {
+      throw new Error('El script necesita un id estable válido.');
+    }
+
     const existing = scripts.get(id);
     if (!existing) scripts.set(id, defaultEntry({ ...meta, id }));
     else {
@@ -409,6 +213,7 @@
       existing.updatedAt = now();
       existing.lastHeartbeat = now();
     }
+
     emitUpdate(`register:${id}`, true);
     return makeClient(id);
   }
@@ -416,19 +221,27 @@
   function update(id, patch = {}) {
     const entry = scripts.get(String(id));
     if (!entry) throw new Error(`Script no registrado: ${id}`);
+
     const time = now();
     if (patch.status !== undefined) entry.status = normalizeStatus(patch.status);
     if (patch.statusText !== undefined) entry.statusText = truncate(patch.statusText, 500);
     if (patch.version !== undefined) entry.version = truncate(patch.version, 80);
-    if (patch.dependencies && isObject(patch.dependencies)) entry.dependencies = { ...entry.dependencies, ...sanitize(patch.dependencies) };
-    if (patch.metrics && isObject(patch.metrics)) entry.metrics = { ...entry.metrics, ...sanitize(patch.metrics) };
-    if (patch.details && isObject(patch.details)) entry.details = { ...entry.details, ...sanitize(patch.details) };
+    if (patch.dependencies && isObject(patch.dependencies)) {
+      entry.dependencies = { ...entry.dependencies, ...sanitize(patch.dependencies) };
+    }
+    if (patch.metrics && isObject(patch.metrics)) {
+      entry.metrics = { ...entry.metrics, ...sanitize(patch.metrics) };
+    }
+    if (patch.details && isObject(patch.details)) {
+      entry.details = { ...entry.details, ...sanitize(patch.details) };
+    }
     if (patch.capabilities) entry.capabilities = sanitize(patch.capabilities);
     if (patch.lastSuccessAt !== undefined) entry.lastSuccessAt = Number(patch.lastSuccessAt) || 0;
     if (patch.clearError) entry.lastError = null;
     if (patch.heartbeat !== false) entry.lastHeartbeat = time;
     entry.updatedAt = time;
     if (entry.status === 'ok') entry.lastSuccessAt = time;
+
     emitUpdate(`update:${id}`);
     evaluateAutoDiagnostic(entry);
     return makeClient(entry.id);
@@ -461,16 +274,19 @@
   function reportError(id, error, context = '', options = {}) {
     const entry = scripts.get(String(id));
     if (!entry) throw new Error(`Script no registrado: ${id}`);
+
     const item = safeError(error, context);
     entry.lastError = item;
     entry.errors.push(item);
     entry.errors = entry.errors.slice(-12);
     entry.updatedAt = now();
     entry.lastHeartbeat = now();
+
     if (!options.keepStatus) {
       entry.status = normalizeStatus(options.status || 'error');
       entry.statusText = truncate(options.statusText || item.message, 500);
     }
+
     emitUpdate(`error:${id}`, true);
     evaluateAutoDiagnostic(entry);
     return sanitize(item);
@@ -481,9 +297,7 @@
     if (!entry) return false;
     entry.lastError = null;
     entry.updatedAt = now();
-    alertedFailures.delete(entry.id);
     emitUpdate(`clear-error:${id}`);
-    evaluateAutoDiagnostic(entry);
     return true;
   }
 
@@ -491,8 +305,12 @@
     const entry = scripts.get(String(id));
     if (!entry) throw new Error(`Script no registrado: ${id}`);
     if (typeof handler !== 'function') throw new Error('El comando necesita una función.');
+
     const command = String(name || '').trim();
-    if (!/^[a-z0-9][a-z0-9._-]{1,60}$/i.test(command)) throw new Error('Nombre de comando inválido.');
+    if (!/^[a-z0-9][a-z0-9._-]{1,60}$/i.test(command)) {
+      throw new Error('Nombre de comando inválido.');
+    }
+
     commandHandlers.set(`${id}:${command}`, handler);
     entry.commands[command] = {
       name: command,
@@ -510,6 +328,7 @@
     const entry = scripts.get(String(id));
     if (!entry) throw new Error(`Script no registrado: ${id}`);
     if (typeof handler !== 'function') throw new Error('La prueba necesita una función.');
+
     testHandlers.set(String(id), { handler, meta: sanitize(meta || {}) });
     entry.selfTest = {
       registered: true,
@@ -529,41 +348,82 @@
     const ids = targetId ? [String(targetId)] : [...testHandlers.keys()];
     if (!targetId) testsRunning = true;
     const results = {};
+
     try {
       for (const id of ids) {
         const record = testHandlers.get(id);
         const entry = scripts.get(id);
-        if (!record || !entry) { results[id] = { ok: false, error: 'Prueba no registrada.' }; continue; }
+        if (!record || !entry) {
+          results[id] = { ok: false, error: 'Prueba no registrada.' };
+          continue;
+        }
+
         const startedAt = now();
         try {
           const raw = await Promise.race([
             Promise.resolve().then(() => record.handler()),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Tiempo de espera agotado (8 s).')), 8000))
+            new Promise((_, reject) => setTimeout(
+              () => reject(new Error('Tiempo de espera agotado (8 s).')),
+              8000
+            ))
           ]);
           const result = sanitize(raw ?? { ok: true });
           const ok = isObject(result) && 'ok' in result ? Boolean(result.ok) : raw !== false;
-          entry.selfTest = { registered: true, label: truncate(record.meta?.label || 'Prueba funcional', 120), lastRunAt: now(), durationMs: now()-startedAt, ok, result, error: null };
-          entry.metrics = { ...entry.metrics, selfTestAt: entry.selfTest.lastRunAt, selfTestOk: ok };
+          entry.selfTest = {
+            registered: true,
+            label: truncate(record.meta?.label || 'Prueba funcional', 120),
+            lastRunAt: now(),
+            durationMs: now() - startedAt,
+            ok,
+            result,
+            error: null
+          };
+          entry.metrics = {
+            ...entry.metrics,
+            selfTestAt: entry.selfTest.lastRunAt,
+            selfTestOk: ok
+          };
           results[id] = { ok, result };
         } catch (error) {
           const safe = safeError(error, 'self-test');
-          entry.selfTest = { registered: true, label: truncate(record.meta?.label || 'Prueba funcional', 120), lastRunAt: now(), durationMs: now()-startedAt, ok: false, result: null, error: safe };
-          entry.metrics = { ...entry.metrics, selfTestAt: entry.selfTest.lastRunAt, selfTestOk: false };
+          entry.selfTest = {
+            registered: true,
+            label: truncate(record.meta?.label || 'Prueba funcional', 120),
+            lastRunAt: now(),
+            durationMs: now() - startedAt,
+            ok: false,
+            result: null,
+            error: safe
+          };
+          entry.metrics = {
+            ...entry.metrics,
+            selfTestAt: entry.selfTest.lastRunAt,
+            selfTestOk: false
+          };
           results[id] = { ok: false, error: safe.message };
         }
+
         entry.updatedAt = now();
         entry.lastHeartbeat = now();
       }
+
       lastTestRunAt = now();
       emitUpdate(targetId ? `test:${targetId}` : 'tests:all', true);
-      return { ok: Object.values(results).every(item => item.ok), results: sanitize(results), at: lastTestRunAt };
-    } finally { if (!targetId) testsRunning = false; }
+      return {
+        ok: Object.values(results).every(item => item.ok),
+        results: sanitize(results),
+        at: lastTestRunAt
+      };
+    } finally {
+      if (!targetId) testsRunning = false;
+    }
   }
 
   async function runCommand(id, name, args = null) {
     const key = `${id}:${name}`;
     const handler = commandHandlers.get(key);
     if (!handler) return { ok: false, error: `Comando no disponible: ${key}` };
+
     try {
       const result = await handler(sanitize(args));
       update(id, { metrics: { lastCommand: name, lastCommandAt: now() } });
@@ -595,6 +455,7 @@
     const balls = ws?.balls;
     const pokes = ws?.pokes?.list;
     const session = poke?.sess;
+
     return sanitize({
       poke: Boolean(poke),
       ws: Boolean(ws),
@@ -602,7 +463,9 @@
       inventory: Array.isArray(inventoryItems),
       inventoryItems: Array.isArray(inventoryItems) ? inventoryItems.length : 0,
       balls: Boolean(balls?.counts && balls?.catalog),
-      ballTypes: balls?.counts && typeof balls.counts === 'object' ? Object.keys(balls.counts).length : 0,
+      ballTypes: balls?.counts && typeof balls.counts === 'object'
+        ? Object.keys(balls.counts).length
+        : 0,
       pokes: Array.isArray(pokes),
       pokemonCount: Array.isArray(pokes) ? pokes.length : 0,
       field: Boolean(ws?.['field-init']),
@@ -620,6 +483,7 @@
     const output = sanitize(entry);
     output.stale = stale;
     output.heartbeatAgeMs = elapsed;
+
     if (stale && output.status === 'ok') {
       output.effectiveStatus = 'warning';
       output.effectiveStatusText = `Sin actualización durante ${Math.round(elapsed / 1000)} s.`;
@@ -674,7 +538,9 @@
   function uiReadOpacity(id, fallback = 90) {
     try {
       const stored = Number(localStorage.getItem(uiStorageKey(id, 'opacity')));
-      return Number.isFinite(stored) ? uiClamp(stored, 0, 100) : uiClamp(fallback, 0, 100);
+      return Number.isFinite(stored)
+        ? uiClamp(stored, 0, 100)
+        : uiClamp(fallback, 0, 100);
     } catch {
       return uiClamp(fallback, 0, 100);
     }
@@ -754,7 +620,10 @@
     if (!document.body) throw new Error('UI Core todavía no dispone de document.body.');
 
     const id = String(options.id || '').trim();
-    if (!/^[a-z0-9][a-z0-9._-]{1,80}$/i.test(id)) throw new Error('UI Core necesita un id estable válido.');
+    if (!/^[a-z0-9][a-z0-9._-]{1,80}$/i.test(id)) {
+      throw new Error('UI Core necesita un id estable válido.');
+    }
+
     const existing = uiWindows.get(id);
     if (existing && existing.panel?.isConnected) return existing;
 
@@ -766,7 +635,9 @@
     const minWidth = Math.max(220, Number(options.minWidth) || 320);
     const minHeight = Math.max(80, Number(options.minHeight) || 150);
     const width = Math.max(minWidth, Number(options.width) || 460);
-    const height = options.height == null ? null : Math.max(minHeight, Number(options.height) || minHeight);
+    const height = options.height == null
+      ? null
+      : Math.max(minHeight, Number(options.height) || minHeight);
     const movable = options.movable !== false;
     const resizable = options.resizable !== false;
     const minimizable = options.minimizable !== false;
@@ -784,7 +655,9 @@
     panel.style.maxWidth = '96vw';
     panel.style.maxHeight = '92vh';
     panel.style.resize = resizable ? 'both' : 'none';
-    panel.style.left = options.left != null ? `${Number(options.left)}px` : `calc(100vw - ${width + 30}px)`;
+    panel.style.left = options.left != null
+      ? `${Number(options.left)}px`
+      : `calc(100vw - ${width + 30}px)`;
     panel.style.top = options.top != null ? `${Number(options.top)}px` : '72px';
     if (height != null) panel.style.height = `${height}px`;
 
@@ -802,11 +675,13 @@
     const opacityWrap = document.createElement('label');
     opacityWrap.className = 'pg-ui-opacity';
     opacityWrap.title = 'Opacidad del fondo de esta ventana';
+
     const opacitySlider = document.createElement('input');
     opacitySlider.type = 'range';
     opacitySlider.min = '0';
     opacitySlider.max = '100';
     opacitySlider.step = '1';
+
     const opacityValue = document.createElement('span');
     opacityValue.className = 'pg-ui-opacity-value';
 
@@ -872,7 +747,9 @@
     };
 
     const saveLayout = () => {
-      if (!rememberLayout || panel.hidden || maximized || panel.classList.contains('pg-ui-minimized')) return false;
+      if (!rememberLayout || panel.hidden || maximized || panel.classList.contains('pg-ui-minimized')) {
+        return false;
+      }
       const rect = panel.getBoundingClientRect();
       return uiWriteJson(layoutKey, {
         left: rect.left,
@@ -885,7 +762,9 @@
     const restoreLayout = () => {
       if (!rememberLayout) return false;
       const layout = uiReadJson(layoutKey, null);
-      if (!layout || !['left','top','width','height'].every(key => Number.isFinite(Number(layout[key])))) return false;
+      if (!layout || !['left', 'top', 'width', 'height'].every(key => Number.isFinite(Number(layout[key])))) {
+        return false;
+      }
       panel.style.left = `${Number(layout.left)}px`;
       panel.style.top = `${Number(layout.top)}px`;
       panel.style.width = `${Math.max(minWidth, Number(layout.width))}px`;
@@ -908,7 +787,12 @@
       maximized = !maximized;
       if (maximized) {
         const rect = panel.getBoundingClientRect();
-        layoutBeforeMaximize = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+        layoutBeforeMaximize = {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height
+        };
         panel.classList.add('pg-ui-maximized');
         setMinimized(false);
         if (maximizeButton) {
@@ -951,8 +835,16 @@
 
       header.addEventListener('pointermove', event => {
         if (!drag || event.pointerId !== drag.id) return;
-        panel.style.left = `${uiClamp(drag.left + event.clientX - drag.startX, 4, Math.max(4, innerWidth - panel.offsetWidth - 4))}px`;
-        panel.style.top = `${uiClamp(drag.top + event.clientY - drag.startY, 4, Math.max(4, innerHeight - panel.offsetHeight - 4))}px`;
+        panel.style.left = `${uiClamp(
+          drag.left + event.clientX - drag.startX,
+          4,
+          Math.max(4, innerWidth - panel.offsetWidth - 4)
+        )}px`;
+        panel.style.top = `${uiClamp(
+          drag.top + event.clientY - drag.startY,
+          4,
+          Math.max(4, innerHeight - panel.offsetHeight - 4)
+        )}px`;
         event.preventDefault();
       });
 
@@ -967,7 +859,9 @@
     }
 
     opacitySlider.addEventListener('input', () => applyOpacity(opacitySlider.value));
-    minimizeButton?.addEventListener('click', () => setMinimized(!panel.classList.contains('pg-ui-minimized')));
+    minimizeButton?.addEventListener('click', () => {
+      setMinimized(!panel.classList.contains('pg-ui-minimized'));
+    });
     maximizeButton?.addEventListener('click', toggleMaximize);
     closeButton?.addEventListener('click', () => { panel.hidden = true; });
 
@@ -976,6 +870,7 @@
       observer.observe(panel);
       panel.__pgUiResizeObserver = observer;
     }
+
     const onResize = () => clampPanel();
     window.addEventListener('resize', onResize);
 
@@ -1040,7 +935,9 @@
     getOpacity: id => uiReadOpacity(String(id), 90),
     setOpacity: (id, value) => {
       const controller = getUiWindow(id);
-      return controller ? controller.setOpacity(value) : (uiWriteOpacity(String(id), value), uiClamp(value, 0, 100));
+      return controller
+        ? controller.setOpacity(value)
+        : (uiWriteOpacity(String(id), value), uiClamp(value, 0, 100));
     }
   });
 
@@ -1100,7 +997,16 @@
     status: 'ok',
     statusText: 'Puente local disponible.',
     staleAfterMs: 60000,
-    capabilities: ['health', 'metrics', 'errors', 'commands', 'snapshot', 'functional-tests', 'auto-health-diagnostics', 'self-managed-warning-suppression', 'ui-core']
+    capabilities: [
+      'health',
+      'metrics',
+      'errors',
+      'commands',
+      'snapshot',
+      'functional-tests',
+      'silent-health-diagnostics',
+      'ui-core'
+    ]
   });
 
   const gameClient = register({
@@ -1122,14 +1028,18 @@
       const gameplayReady = env.inventory && env.balls && env.pokes && env.field;
       let status = 'waiting';
       let text = 'Esperando que el juego envíe sus datos iniciales.';
+
       if (requiredReady && gameplayReady) {
         status = 'ok';
-        text = env.currentHunt ? `Datos completos; hunt actual: ${env.currentHunt}.` : 'Datos completos; sin hunt activa.';
+        text = env.currentHunt
+          ? `Datos completos; hunt actual: ${env.currentHunt}.`
+          : 'Datos completos; sin hunt activa.';
       } else if (requiredReady) {
         status = 'warning';
         const missing = ['inventory', 'balls', 'pokes', 'field'].filter(key => !env[key]);
         text = `Datos parciales; faltan: ${missing.join(', ')}.`;
       }
+
       gameClient.heartbeat({
         status,
         statusText: text,
@@ -1144,11 +1054,22 @@
         },
         metrics: env
       });
+
       const testEntries = [...scripts.values()].filter(entry => entry.selfTest?.lastRunAt);
-      bridgeClient.heartbeat({ status: 'ok', statusText: 'Puente local disponible.', metrics: {
-        registeredScripts: scripts.size, revision, lastTestRunAt,
-        functionalTests: { total: testHandlers.size, passed: testEntries.filter(entry => entry.selfTest?.ok).length, failed: testEntries.filter(entry => entry.selfTest?.ok === false).length }
-      } });
+      bridgeClient.heartbeat({
+        status: 'ok',
+        statusText: 'Puente local disponible.',
+        metrics: {
+          registeredScripts: scripts.size,
+          revision,
+          lastTestRunAt,
+          functionalTests: {
+            total: testHandlers.size,
+            passed: testEntries.filter(entry => entry.selfTest?.ok).length,
+            failed: testEntries.filter(entry => entry.selfTest?.ok === false).length
+          }
+        }
+      });
     } catch (error) {
       gameClient.reportError(error, 'update-game-agent');
     }
@@ -1158,9 +1079,10 @@
     label: 'Obtener diagnóstico',
     description: 'Devuelve el snapshot completo de esta cuenta.'
   });
+
   registerCommand('script-bridge', 'get-last-auto-diagnostic', () => lastAutoDiagnostic || null, {
     label: 'Último diagnóstico automático',
-    description: 'Devuelve el último diagnóstico mostrado al detectar un script en error.'
+    description: 'Devuelve el último diagnóstico silencioso detectado por el Bridge.'
   });
 
   registerCommand('script-bridge', 'clear-global-errors', () => {
@@ -1173,28 +1095,42 @@
     label: 'Probar funciones',
     description: 'Ejecuta las comprobaciones no invasivas registradas por todos los scripts.'
   });
+
   registerCommand('script-bridge', 'get-self-tests', () => {
     const output = {};
-    for (const [id, entry] of scripts) if (entry.selfTest) output[id] = entry.selfTest;
+    for (const [id, entry] of scripts) {
+      if (entry.selfTest) output[id] = entry.selfTest;
+    }
     return { lastTestRunAt, tests: output };
   }, { label: 'Obtener pruebas funcionales' });
 
   registerTest('script-bridge', () => ({
-    ok: Boolean(window.__pokeGridScripts?.getSnapshot && window.__pokeGridScripts?.ui?.createWindow && scripts.size >= 2),
+    ok: Boolean(
+      window.__pokeGridScripts?.getSnapshot
+      && window.__pokeGridScripts?.ui?.createWindow
+      && scripts.size >= 2
+    ),
     registeredScripts: scripts.size,
     commandHandlers: commandHandlers.size,
     testHandlers: testHandlers.size
   }), { label: 'Probar puente local' });
+
   registerTest('game-data-agent', () => {
     const env = environmentInfo();
-    return { ok: Boolean(env.poke && env.ws && env.api && env.inventory && env.balls && env.pokes), ...env };
+    return {
+      ok: Boolean(env.poke && env.ws && env.api && env.inventory && env.balls && env.pokes),
+      ...env
+    };
   }, { label: 'Probar datos del juego' });
 
   window.addEventListener('error', event => {
     if (event?.error) recordGlobalError(event.error, 'window.error');
     else if (event?.message) recordGlobalError(event.message, 'window.error');
   });
-  window.addEventListener('unhandledrejection', event => recordGlobalError(event?.reason || 'Promesa rechazada', 'unhandledrejection'));
+
+  window.addEventListener('unhandledrejection', event => {
+    recordGlobalError(event?.reason || 'Promesa rechazada', 'unhandledrejection');
+  });
 
   updateGameAgent();
   setInterval(updateGameAgent, 10000);
@@ -1202,12 +1138,23 @@
   setInterval(() => runTests().catch(() => {}), 60000);
 
   try {
-    const queued = Array.isArray(window.__pokeGridHealthQueue) ? window.__pokeGridHealthQueue.splice(0) : [];
+    const queued = Array.isArray(window.__pokeGridHealthQueue)
+      ? window.__pokeGridHealthQueue.splice(0)
+      : [];
     for (const task of queued) {
-      try { if (typeof task === 'function') task(api); } catch (error) { recordGlobalError(error, 'health-queue'); }
+      try {
+        if (typeof task === 'function') task(api);
+      } catch (error) {
+        recordGlobalError(error, 'health-queue');
+      }
     }
   } catch {}
 
-  try { window.dispatchEvent(new CustomEvent(READY_EVENT, { detail: { apiVersion: API_VERSION, bridgeVersion: BRIDGE_VERSION } })); } catch {}
-  console.info('[PokeGrid Script Bridge] v1.1.7 cargado: warnings propios del Detector no se duplican; sus errores reales sí se muestran.');
+  try {
+    window.dispatchEvent(new CustomEvent(READY_EVENT, {
+      detail: { apiVersion: API_VERSION, bridgeVersion: BRIDGE_VERSION }
+    }));
+  } catch {}
+
+  console.info('[PokeGrid Script Bridge] v1.1.8 cargado: salud y diagnósticos internos activos; popups automáticos eliminados.');
 })();
