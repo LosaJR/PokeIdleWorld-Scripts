@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.40
+// @version      1.1.41
 // @description  Recomendador, No capturados, Item Finder, supervisor y gestor compacto de Favoritos por cuenta con histórico móvil de 12 muestras.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1140) return;
-  window.__pgHuntIntelligenceCoreV1140 = true;
+  if (window.__pgHuntIntelligenceCoreV1141) return;
+  window.__pgHuntIntelligenceCoreV1141 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -5621,7 +5621,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.40',
+    version: '1.1.41',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -6059,14 +6059,34 @@
     return true;
   }
 
+  function favoriteNormalizeMoveDirection(direction) {
+    if (direction === -1 || direction === '-1') return -1;
+    if (direction === 1 || direction === '+1' || direction === '1') return 1;
+    const text = String(direction ?? '').trim().toLowerCase();
+    if (['up', 'arriba', 'subir', 'prev', 'previous'].includes(text)) return -1;
+    if (['down', 'abajo', 'bajar', 'next'].includes(text)) return 1;
+    return 0;
+  }
+
   function favoriteMoveTarget(accountId, index, direction) {
-    const target = index + direction;
+    const source = Number(index);
+    const step = favoriteNormalizeMoveDirection(direction);
+
+    // Una orden inválida jamás debe tocar la configuración.
+    if (!Number.isInteger(source) || source < 0 || source >= FAVORITES_MAX_TARGETS || !step) return false;
+
+    const target = source + step;
     if (target < 0 || target >= FAVORITES_MAX_TARGETS) return false;
+
     const store = favoriteReadStore();
     if (!store.accounts[accountId]) return false;
     const row = favoriteNormalizeEntry(accountId, store.accounts[accountId]);
     const slots = Array.from({ length: FAVORITES_MAX_TARGETS }, (_, slot) => row.favorites[slot] || null);
-    [slots[index], slots[target]] = [slots[target], slots[index]];
+
+    // Si el slot origen está vacío, no hay nada que mover.
+    if (!slots[source]) return false;
+
+    [slots[source], slots[target]] = [slots[target], slots[source]];
     row.favorites = slots.filter(Boolean).slice(0, FAVORITES_MAX_TARGETS);
     const keepRunning = Boolean(row.enabled && row.running && row.favorites[0]);
     row.running = keepRunning;
@@ -6282,7 +6302,7 @@
           ok: Boolean(ok),
           result: result ?? null,
           error: error ? String(error) : '',
-          version: '1.1.40',
+          version: '1.1.41',
           at: Date.now()
         }, ORIGIN);
       } catch (postError) {
@@ -6294,7 +6314,7 @@
       const list = Array.isArray(args) ? args : [];
       switch (String(action || '')) {
         case 'ping':
-          return { ready: true, version: '1.1.40', account: favoriteGetLocalAccountState() };
+          return { ready: true, version: '1.1.41', account: favoriteGetLocalAccountState() };
         case 'getLocalAccountState':
           return favoriteGetLocalAccountState();
         case 'getChoices':
@@ -6304,7 +6324,7 @@
         case 'setLocalTarget':
           return favoriteSetLocalTarget(Number(list[0]), String(list[1] || ''));
         case 'moveLocalTarget':
-          return favoriteMoveLocalTarget(Number(list[0]), Number(list[1]));
+          return favoriteMoveLocalTarget(list[0], list[1]);
         case 'startLocalAccount':
           return favoriteStartLocalAccount();
         case 'stopLocalAccount':
@@ -6345,7 +6365,7 @@
         window.postMessage({
           source: 'hunt-intelligence',
           type: 'favorites-rpc-ready',
-          version: '1.1.40',
+          version: '1.1.41',
           at: Date.now()
         }, ORIGIN);
       } catch {}
@@ -6421,8 +6441,12 @@
   function favoriteMoveLocalTarget(slot, direction) {
     const account = favoriteRegisterCurrentAccount();
     if (!account) return { ok: false, error: 'Cuenta actual no disponible.' };
-    const ok = favoriteMoveTarget(account.id, Number(slot), Number(direction));
-    return { ok, account: favoriteGetLocalAccountState() };
+    const ok = favoriteMoveTarget(account.id, slot, direction);
+    return {
+      ok,
+      error: ok ? '' : 'Movimiento de favorito no válido.',
+      account: favoriteGetLocalAccountState()
+    };
   }
 
   async function favoriteStartLocalAccount() {
@@ -6493,7 +6517,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.40',
+      version: '1.1.41',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -6530,7 +6554,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.40',
+    version: '1.1.41',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
@@ -6544,7 +6568,7 @@
     getFavoriteChoices: async () => (await favoriteLoadChoices()).map(choice => ({ ...choice })),
     setFavoriteEnabled: (accountId, enabled) => { favoriteSetEnabled(String(accountId || ''), Boolean(enabled)); return favoriteReadStore(); },
     setFavoriteTarget: async (accountId, slot, slug) => { await favoriteLoadChoices(); favoriteSetTargetSlot(String(accountId || ''), Number(slot), String(slug || '')); return favoriteReadStore(); },
-    moveFavoriteTarget: (accountId, slot, direction) => { favoriteMoveTarget(String(accountId || ''), Number(slot), Number(direction)); return favoriteReadStore(); },
+    moveFavoriteTarget: (accountId, slot, direction) => { favoriteMoveTarget(String(accountId || ''), slot, direction); return favoriteReadStore(); },
     setFavoriteLocalEnabled: enabled => favoriteSetLocalEnabled(enabled),
     setFavoriteLocalTarget: (slot, slug) => favoriteSetLocalTarget(slot, slug),
     moveFavoriteLocalTarget: (slot, direction) => favoriteMoveLocalTarget(slot, direction),
