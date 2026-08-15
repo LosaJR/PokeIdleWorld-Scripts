@@ -1,0 +1,105 @@
+POKE IDLE WORLD — HUNT INTELLIGENCE
+ACTUALIZACIONES DE LA VERSIÓN 1.1.36
+Fecha: 2026-08-15
+
+VERSIÓN
+=======
+Anterior: 1.1.35
+Nueva:    1.1.36
+
+OBJETIVO
+========
+Ajustar el enlace del gestor de Favoritos al mecanismo real utilizado por
+PokeGrid/Electron, según la implementación confirmada por Codex.
+
+ARQUITECTURA CONFIRMADA
+=======================
+PokeGrid no utiliza iframes para las cuentas.
+
+Utiliza webviews de Electron y dispone de:
+- botón: #favoritesBtn
+- handler: runFavoritesScript()
+- helper de cuenta activa: getActiveGameWebview()
+
+Codex envía dentro del webview activo:
+
+window.postMessage(
+  {
+    source: 'pokegrid-topbar',
+    type: 'open-favorites-manager'
+  },
+  'https://poke.idleworld.online'
+)
+
+CAMBIO PRINCIPAL
+================
+Hunt Intelligence queda como receptor puro dentro del window del juego.
+
+El listener valida exactamente:
+- event.origin === 'https://poke.idleworld.online'
+- event.data.source === 'pokegrid-topbar'
+- event.data.type === 'open-favorites-manager'
+
+Si todo coincide, abre directamente el gestor compacto mediante:
+favoriteOpenManager()
+
+ELIMINADO
+=========
+Se elimina del userscript el intento anterior de controlar directamente el
+topbar de PokeGrid.
+
+Ya no intenta:
+- buscar #favoritesBtn en el document del juego;
+- interceptar clicks del topbar;
+- acceder a window.top.document;
+- escribir runFavoritesScript() en window;
+- escribir runFavoritesScript() en window.top.
+
+Todo eso pertenece ahora exclusivamente al código de PokeGrid.
+
+VENTAJAS
+========
+- Compatible con Electron/webviews.
+- Sin dependencia del DOM del topbar.
+- Sin acceso cross-window.
+- PokeGrid decide cuál es la cuenta activa.
+- Solo el webview activo recibe la orden.
+- Hunt Intelligence únicamente abre su interfaz al recibir el mensaje válido.
+
+SE CONSERVA
+===========
+- Gestor compacto de Favoritos.
+- 4 cuentas.
+- Sliders enabled.
+- Estado running separado.
+- Máximo 3 Pokémon por cuenta.
+- Prioridad #1.
+- Iniciar / Detener.
+- Persistencia.
+- Sincronización entre cuentas.
+- Reanudación tras refresh.
+- Watchdog.
+- Botón 🧠 e interfaz principal.
+- Hunts / No capturados / Items / Rendimiento / Histórico.
+
+VALIDACIÓN
+==========
+- JavaScript validado correctamente con node --check mediante copia .js.
+- @version: 1.1.36.
+- Guards internos: V1136.
+- Listener postMessage confirmado.
+- Filtro event.origin confirmado.
+- source pokegrid-topbar confirmado.
+- type open-favorites-manager confirmado.
+- 0 referencias a favoriteInstallButtonHook().
+- 0 referencias a window.top.
+- 0 referencias a runFavoritesScript dentro de Hunt Intelligence.
+
+SHA-256
+=======
+e57ad1da4717bea72b31b59db6f9a386fd8701268105a63a02736d46648eb543
+
+ARCHIVOS
+========
+pokegrid-hunt-intelligence-1.1.36.txt
+actualizaciones-hunt-intelligence-1.1.36.txt
