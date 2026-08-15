@@ -1,0 +1,100 @@
+POKE IDLE WORLD — HUNT INTELLIGENCE
+ACTUALIZACIONES DE LA VERSIÓN 1.1.33
+Fecha: 2026-08-15
+
+VERSIÓN
+=======
+Anterior: 1.1.32
+Nueva:    1.1.33
+
+OBJETIVO
+========
+Eliminar completamente del script toda la función experimental de Favoritos y
+dejar Hunt Intelligence preparado para rediseñar esa idea desde cero más adelante.
+
+ESTRATEGIA UTILIZADA
+====================
+Las versiones 1.1.29, 1.1.30, 1.1.31 y 1.1.32 estuvieron dedicadas a añadir y
+parchear el sistema de Favoritos/Farm x4.
+
+Para evitar dejar listeners, estados, comandos o código huérfano, 1.1.33 se ha
+reconstruido sobre la base estable de Hunt Intelligence 1.1.28, que ya contenía
+el histórico móvil de 12 muestras y todas las funciones anteriores al experimento.
+
+ELIMINADO COMPLETAMENTE
+=======================
+- Pestaña Favoritos.
+- Buscador y lista persistente de favoritos.
+- Botones de añadir, eliminar, Farmear x4, Reenviar x4 y Detener farm.
+- Objetivo activo compartido.
+- Sincronización entre pestañas/cuentas.
+- BroadcastChannel usado por esa función.
+- Respaldo mediante eventos de localStorage.
+- Watchdog del objetivo x4.
+- Prioridad que bloqueaba otros cambios de hunt.
+- Resolución especial de hunts para Favoritos.
+- Intentos de entrada directa mediante hunt-config introducidos para Favoritos.
+- Comprobaciones especiales de field-init/hunt viva introducidas para Favoritos.
+- Métricas de Health relacionadas con Favoritos.
+- Capabilities del Bridge relacionadas con Favoritos.
+- Comandos Health para abrir/detener Favoritos.
+- API window.__PGFavoriteFarm.
+- Métodos de window.__PGHuntIntelligence asociados a Favoritos.
+- Textos, estilos CSS, botones y estados visuales relacionados.
+- La supresión provisional de popups del Bridge añadida al final de 1.1.32.
+  Esa responsabilidad pasa al propio Bridge 1.1.8.
+
+INTERFAZ RESULTANTE
+===================
+Hunt Intelligence vuelve a tener únicamente:
+- Hunts
+- No capturados
+- Items
+- Rendimiento
+- Histórico
+
+CONSERVADO
+==========
+- Ranking de Hunts.
+- Solo XP/h y Mejor general.
+- No capturados.
+- Item Finder.
+- Rendimiento real.
+- Histórico móvil de 12 muestras por Hunt + Pokémon.
+- Calibración personal separada de kills/h y XP/h.
+- Normalización VIP.
+- Bonus diario.
+- Seguimiento de leveling.
+- Integración con PIWTools.
+- Integración con Script Bridge / Health.
+- Ventana gestionada por Bridge UI.
+- Posición, tamaño y opacidad persistentes.
+- Botón principal 🧠.
+- Apertura minimizada al usar Map.
+- Todas las funciones existentes antes de introducir Favoritos.
+
+VALIDACIÓN
+==========
+- JavaScript validado con node --check: CORRECTO.
+- @version comprobada: 1.1.33.
+- Guards internos comprobados: V1133.
+- No quedan referencias a 1.1.28/V1128.
+- Búsqueda completa del script:
+  * 0 referencias a favorito/favorite.
+  * 0 referencias a favorite-farm.
+  * 0 referencias a Farm sincronizado.
+  * 0 referencias a BroadcastChannel.
+- Confirmadas las cinco pestañas esperadas.
+- Confirmadas las capabilities normales sin las capabilities de Favoritos.
+
+SHA-256
+=======
+312bd677ac1e84d72a9ac8e4311297ff6807be538b92b475d6f15936608c0dea
+
+ARCHIVOS
+========
+Script:
+pokegrid-hunt-intelligence-1.1.33.txt
+
+Registro de cambios:
+actualizaciones-hunt-intelligence-1.1.33.txt
