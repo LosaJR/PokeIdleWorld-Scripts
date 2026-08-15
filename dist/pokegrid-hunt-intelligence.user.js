@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.39
+// @version      1.1.40
 // @description  Recomendador, No capturados, Item Finder, supervisor y gestor compacto de Favoritos por cuenta con histórico móvil de 12 muestras.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1139) return;
-  window.__pgHuntIntelligenceCoreV1139 = true;
+  if (window.__pgHuntIntelligenceCoreV1140) return;
+  window.__pgHuntIntelligenceCoreV1140 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -5621,7 +5621,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.39',
+    version: '1.1.40',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -6268,13 +6268,88 @@
   }
 
   function favoriteInstallMessageBridge() {
+    const ORIGIN = 'https://poke.idleworld.online';
+    const REQUEST_TYPE = 'favorites-rpc-request';
+    const RESPONSE_TYPE = 'favorites-rpc-response';
+
+    const respond = (requestId, action, ok, result = null, error = '') => {
+      try {
+        window.postMessage({
+          source: 'hunt-intelligence',
+          type: RESPONSE_TYPE,
+          requestId: String(requestId || ''),
+          action: String(action || ''),
+          ok: Boolean(ok),
+          result: result ?? null,
+          error: error ? String(error) : '',
+          version: '1.1.40',
+          at: Date.now()
+        }, ORIGIN);
+      } catch (postError) {
+        console.warn('[Hunt Intelligence · Favoritos RPC] No se pudo responder.', postError);
+      }
+    };
+
+    const runRpcAction = async (action, args) => {
+      const list = Array.isArray(args) ? args : [];
+      switch (String(action || '')) {
+        case 'ping':
+          return { ready: true, version: '1.1.40', account: favoriteGetLocalAccountState() };
+        case 'getLocalAccountState':
+          return favoriteGetLocalAccountState();
+        case 'getChoices':
+          return (await favoriteLoadChoices()).map(choice => ({ ...choice }));
+        case 'setLocalEnabled':
+          return favoriteSetLocalEnabled(Boolean(list[0]));
+        case 'setLocalTarget':
+          return favoriteSetLocalTarget(Number(list[0]), String(list[1] || ''));
+        case 'moveLocalTarget':
+          return favoriteMoveLocalTarget(Number(list[0]), Number(list[1]));
+        case 'startLocalAccount':
+          return favoriteStartLocalAccount();
+        case 'stopLocalAccount':
+          return favoriteStopLocalAccount();
+        default:
+          throw new Error(`Acción RPC de Favoritos no reconocida: ${String(action || '')}`);
+      }
+    };
+
     window.addEventListener('message', event => {
-      if (event.origin !== 'https://poke.idleworld.online') return;
+      if (event.origin !== ORIGIN) return;
       const message = event?.data;
       if (!message || message.source !== 'pokegrid-topbar') return;
-      if (message.type !== 'open-favorites-manager') return;
-      favoriteOpenManager();
+
+      // Compatibilidad con el antiguo panel interno.
+      if (message.type === 'open-favorites-manager') {
+        favoriteOpenManager();
+        return;
+      }
+
+      if (message.type !== REQUEST_TYPE) return;
+      const requestId = String(message.requestId || '');
+      const action = String(message.action || '');
+      if (!requestId || !action) return;
+
+      Promise.resolve()
+        .then(() => runRpcAction(action, message.args))
+        .then(result => respond(requestId, action, true, result, ''))
+        .catch(error => {
+          console.error('[Hunt Intelligence · Favoritos RPC]', action, error);
+          respond(requestId, action, false, null, error?.message || String(error));
+        });
     });
+
+    // Señal opcional de disponibilidad para el shell de PokeGrid.
+    setTimeout(() => {
+      try {
+        window.postMessage({
+          source: 'hunt-intelligence',
+          type: 'favorites-rpc-ready',
+          version: '1.1.40',
+          at: Date.now()
+        }, ORIGIN);
+      } catch {}
+    }, 0);
   }
 
   function favoriteConnectChannel() {
@@ -6418,14 +6493,14 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.39',
+      version: '1.1.40',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
       status: 'waiting',
       statusText: 'Preparando motores de cálculo.',
       staleAfterMs: 45000,
-      capabilities: ['piwtools','hunt-ranking','pokemon-level-hunt-gate','live-stat-reranking','pokedex-not-caught','item-finder','daily-bonus','daily-auto-reset','tm-toggle','vip-toggle','personal-history','history-backup','leveling-history','personal-ranking','nearby-level-personal-mark','cross-move-personal-calibration','time-weighted-leveling-calibration','personal-xph-history','bridge-ui-core','persistent-opacity','favorites-manager','per-account-favorites','cross-tab-favorite-autohunt','favorites-resume','pokegrid-shell-local-account-api']
+      capabilities: ['piwtools','hunt-ranking','pokemon-level-hunt-gate','live-stat-reranking','pokedex-not-caught','item-finder','daily-bonus','daily-auto-reset','tm-toggle','vip-toggle','personal-history','history-backup','leveling-history','personal-ranking','nearby-level-personal-mark','cross-move-personal-calibration','time-weighted-leveling-calibration','personal-xph-history','bridge-ui-core','persistent-opacity','favorites-manager','per-account-favorites','cross-tab-favorite-autohunt','favorites-resume','pokegrid-shell-local-account-api','pokegrid-shell-postmessage-rpc']
     });
     healthClient.registerCommand('open-hunt', () => { activeTab='hunt'; revealManagedPanel({full:true}); loadHunt(false); return {opened:'hunt'}; }, {label:'Abrir Hunt Advisor'});
     healthClient.registerCommand('open-not-caught', () => { activeTab='notcaught'; revealManagedPanel({full:true}); loadNotCaught(false); return {opened:'notcaught'}; }, {label:'Abrir No capturados'});
@@ -6455,7 +6530,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.39',
+    version: '1.1.40',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
