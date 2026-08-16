@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.41
+// @version      1.1.42
 // @description  Recomendador, No capturados, Item Finder, supervisor y gestor compacto de Favoritos por cuenta con histórico móvil de 12 muestras.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1141) return;
-  window.__pgHuntIntelligenceCoreV1141 = true;
+  if (window.__pgHuntIntelligenceCoreV1142) return;
+  window.__pgHuntIntelligenceCoreV1142 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -4520,51 +4520,61 @@
       throw new Error('La API /api/game/pokedex devolvió un formato no reconocido: falta species[].');
     }
 
+    /*
+     * IMPORTANTE: species[] NO es el catálogo completo de la Pokédex.
+     * Es una lista de progreso de especies que ya tienen algún registro para la
+     * cuenta. Una especie cazable que todavía no aparece aquí equivale a
+     * { kills: 0, caught: false }; no debe desaparecer de "No capturados".
+     */
     const normalizedSpecies = species
       .filter(entry => entry && typeof entry === 'object')
       .map(entry => ({ ...entry }));
 
-    if (!normalizedSpecies.length) {
-      throw new Error('La API /api/game/pokedex no devolvió especies.');
-    }
-
     const withoutId = normalizedSpecies.filter(entry => !pokedexSpeciesId(entry));
     if (withoutId.length) {
-      throw new Error(`La API /api/game/pokedex devolvió ${withoutId.length} especies sin ID.`);
+      throw new Error(`La API /api/game/pokedex devolvió ${withoutId.length} especies de progreso sin ID.`);
     }
 
     const withoutCaughtState = normalizedSpecies.filter(entry => pokedexCaughtState(entry) === null);
     if (withoutCaughtState.length) {
       throw new Error(
-        `La API /api/game/pokedex devolvió ${withoutCaughtState.length} especies sin un estado caught válido.`
+        `La API /api/game/pokedex devolvió ${withoutCaughtState.length} especies de progreso sin un estado caught válido.`
       );
     }
 
+    const allSpecies = dedupePokedexEntries(normalizedSpecies);
     const caughtSpecies = dedupePokedexEntries(
-      normalizedSpecies.filter(entry => pokedexCaughtState(entry) === true)
+      allSpecies.filter(entry => pokedexCaughtState(entry) === true)
     );
     const notCaughtSpecies = dedupePokedexEntries(
-      normalizedSpecies.filter(entry => pokedexCaughtState(entry) === false)
+      allSpecies.filter(entry => pokedexCaughtState(entry) === false)
     );
-    const allSpecies = dedupePokedexEntries(normalizedSpecies);
+
+    const statusById = new Map();
+    for (const entry of allSpecies) {
+      const id = pokedexSpeciesId(entry);
+      if (id) statusById.set(id, entry);
+    }
 
     return {
       payload,
       species: allSpecies,
+      statusById,
       caughtSpecies,
       notCaughtSpecies,
       caughtCount: caughtSpecies.length,
-      notCaughtCount: notCaughtSpecies.length,
-      hasExplicitLists: true,
+      explicitNotCaughtCount: notCaughtSpecies.length,
+      progressCount: allSpecies.length,
       sourceMode,
       debug: {
         endpoint: '/api/game/pokedex',
+        semantics: 'sparse-progress',
         unlockKills: Number.isFinite(Number(payload?.unlockKills))
           ? Number(payload.unlockKills)
           : null,
-        totalSpecies: allSpecies.length,
-        caught: caughtSpecies.length,
-        notCaught: notCaughtSpecies.length
+        progressRecords: allSpecies.length,
+        explicitCaught: caughtSpecies.length,
+        explicitNotCaught: notCaughtSpecies.length
       }
     };
   }
@@ -4749,167 +4759,232 @@
     return id&&byId.has(id)?byId.get(id):null;
   }
 
-  function buildNotCaughtResult(huntResult, pokedex) {
-    const canonicalKey = entry => {
-      const id = pokedexSpeciesId(entry);
-      const name = pokedexSpeciesName(entry);
-      return id ? `id:${id}` : name ? `name:${name}` : '';
-    };
-
-    const requiredLevel = hunt => Math.max(1, finite(
+  function notCaughtRequiredLevel(hunt) {
+    return Math.max(1, finite(
       hunt?.marker?.level,
       hunt?.marker?.lvl,
       hunt?.marker?.minLevel,
       hunt?.creature?.huntLevel,
       1
     ));
+  }
 
-    const isAccessible = hunt => requiredLevel(hunt) <= Math.max(
-      1,
-      finite(huntResult?.accessLevel, huntResult?.lead?.level, 1)
+  function notCaughtHuntSpeciesId(value) {
+    const hunt = value?.hunt || value || {};
+    const creatureId = hunt?.creature?.pokeId
+      ?? hunt?.creature?.speciesId
+      ?? hunt?.creature?.id;
+    if (creatureId !== undefined && creatureId !== null && creatureId !== '') {
+      return String(creatureId);
+    }
+    return huntSpeciesId(hunt);
+  }
+
+  /*
+   * Heurística de captura que PIWTools utilizaba para Poké Ball:
+   *   p = 1 - exp(-1.75 * ballPrice / priceNpc)
+   * Poké Ball = 5 gold.
+   *
+   * La columna pedida por el usuario NO pretende reemplazar esa heurística por
+   * el modelo real del servidor: muestra literalmente "PIWTools Poké Ball ×4",
+   * con tope 100%, para representar su uso exclusivo de Ultra Ball.
+   */
+  function piwtoolsPokeBallCaptureChance(creature) {
+    const priceNpc = finite(
+      creature?.priceNpc,
+      creature?.priceNPC,
+      creature?.npcPrice,
+      0
     );
+    if (!(priceNpc > 0)) return null;
+    return clamp(1 - Math.exp(-(1.75 * 5) / priceNpc), 0, 1);
+  }
+
+  function requestedUltraBallCaptureChance(creature) {
+    const pokeBallChance = piwtoolsPokeBallCaptureChance(creature);
+    if (!Number.isFinite(pokeBallChance)) return null;
+    return clamp(pokeBallChance * 4, 0, 1);
+  }
+
+  function formatCapturePercent(value) {
+    if (value === null || value === undefined || value === '') return '—';
+    const chance = Number(value);
+    if (!Number.isFinite(chance)) return '—';
+    const pct = chance * 100;
+    const decimals = pct < 0.01 ? 4 : pct < 0.1 ? 3 : pct < 1 ? 3 : pct < 10 ? 2 : 1;
+    return `${fmt(pct, decimals)}%`;
+  }
+
+  function buildNotCaughtResult(huntResult, pokedex) {
+    const allHunts = Array.isArray(huntResult?.data?.hunts)
+      ? huntResult.data.hunts.filter(Boolean)
+      : [];
+
+    const progressById = pokedex?.statusById instanceof Map
+      ? pokedex.statusById
+      : new Map((pokedex?.species || []).map(entry => [pokedexSpeciesId(entry), entry]).filter(([id]) => id));
+
+    const accessLevel = Math.max(1, finite(
+      huntResult?.accessLevel,
+      huntResult?.lead?.level,
+      1
+    ));
 
     /*
-     * La Pokédex sigue siendo la única fuente que decide qué especies faltan.
-     * Después se consulta el catálogo COMPLETO de hunts del mapa. Las filas
-     * calculadas solo aportan XP/h y kills/h; ya no deciden si una especie
-     * disponible debe aparecer o no.
+     * FUENTE DE VERDAD:
+     *   1) empezamos por TODAS las hunts reales del mapa;
+     *   2) agrupamos por pokeId real de la criatura;
+     *   3) consultamos el progreso sparse de /api/game/pokedex;
+     *   4) caught:true => excluir;
+     *      caught:false O ausencia total de registro => Not Caught.
+     *
+     * De este modo una especie jamás tocada (sin fila en species[]) ya no puede
+     * desaparecer. Y un legendario sin marker/hunt tampoco puede entrar porque
+     * nunca aparece en allHunts.
      */
-    const enrichDexEntry = entry => {
-      const id = pokedexSpeciesId(entry);
-      const creature = id
-        ? huntResult?.data?.creaturesById?.get?.(String(id))
-        : null;
-      if (!creature?.name || pokedexSpeciesName(entry)) return entry;
-      return { ...entry, name: creature.name };
-    };
-
-    const officialPending = dedupePokedexEntries(
-      (pokedex.notCaughtSpecies || []).map(enrichDexEntry)
-    );
-
-    const officialCaught = dedupePokedexEntries(
-      (pokedex.caughtSpecies || []).map(enrichDexEntry)
-    );
-
-    const pendingById = new Map();
-    const pendingByName = new Map();
-    const pendingOrder = new Map();
-
-    officialPending.forEach((entry, index) => {
-      const id = pokedexSpeciesId(entry);
-      const name = pokedexSpeciesName(entry);
-      const key = canonicalKey(entry);
-      if (id) pendingById.set(id, entry);
-      if (name) pendingByName.set(name, entry);
-      if (key) pendingOrder.set(key, index);
-    });
-
-    // Mejor resultado calculado por especie. huntResult.rows ya está ordenado
-    // de mejor a peor según el ranking de Hunt Intelligence.
-    const bestCalculatedBySpecies = new Map();
-    for (const row of huntResult.rows || []) {
-      const pendingEntry = resolveDexSpecies(row, pendingById, pendingByName);
-      if (!pendingEntry) continue;
-      const key = canonicalKey(pendingEntry);
-      if (!key || bestCalculatedBySpecies.has(key)) continue;
-      bestCalculatedBySpecies.set(key, {
-        ...row,
-        dexEntry: pendingEntry,
-        calculationAvailable: true
-      });
+    const huntsBySpeciesId = new Map();
+    let huntsWithoutSpeciesId = 0;
+    for (const hunt of allHunts) {
+      const speciesId = notCaughtHuntSpeciesId(hunt);
+      if (!speciesId) {
+        huntsWithoutSpeciesId += 1;
+        continue;
+      }
+      const list = huntsBySpeciesId.get(speciesId) || [];
+      list.push(hunt);
+      huntsBySpeciesId.set(speciesId, list);
     }
 
-    // Hunts existentes y desbloqueadas, aunque el motor no haya podido generar
-    // una estimación de rendimiento con el Pokémon equipado.
-    const accessibleHuntsBySpecies = new Map();
-    for (const hunt of huntResult?.data?.hunts || []) {
-      if (!hunt || !isAccessible(hunt)) continue;
-
-      const pendingEntry = resolveDexSpecies(hunt, pendingById, pendingByName);
-      if (!pendingEntry) continue;
-
-      const key = canonicalKey(pendingEntry);
-      if (!key) continue;
-
-      const candidates = accessibleHuntsBySpecies.get(key) || [];
-      candidates.push(hunt);
-      accessibleHuntsBySpecies.set(key, candidates);
+    const calculatedBySpeciesId = new Map();
+    for (const row of huntResult?.rows || []) {
+      const speciesId = notCaughtHuntSpeciesId(row);
+      if (!speciesId) continue;
+      const existing = calculatedBySpeciesId.get(speciesId);
+      if (!existing || finite(row.xph) > finite(existing.xph)) {
+        calculatedBySpeciesId.set(speciesId, row);
+      }
     }
 
-    const huntPreference = (hunt, pendingEntry) => {
-      const speciesName = pokedexSpeciesName(pendingEntry);
-      const names = huntSpeciesNames(hunt);
-      const stripped = names.map(stripVariantWords);
-      if (names.includes(speciesName)) return 0;
-      if (stripped.includes(speciesName)) return 1;
-      return 2;
-    };
+    const rows = [];
+    let explicitNotCaught = 0;
+    let inferredNotCaught = 0;
+    let excludedCaught = 0;
+    let blockedByLevel = 0;
 
-    for (const [key, candidates] of accessibleHuntsBySpecies) {
-      const pendingEntry = officialPending.find(entry => canonicalKey(entry) === key);
-      candidates.sort((left, right) =>
-        huntPreference(left, pendingEntry) - huntPreference(right, pendingEntry)
-        || requiredLevel(left) - requiredLevel(right)
-        || String(left?.name || '').localeCompare(String(right?.name || ''), 'es')
-      );
-    }
+    const chooseHunt = candidates => [...candidates].sort((left, right) =>
+      notCaughtRequiredLevel(left) - notCaughtRequiredLevel(right)
+      || String(left?.creature?.name || left?.name || '').localeCompare(
+        String(right?.creature?.name || right?.name || ''), 'es'
+      )
+      || String(left?.slug || '').localeCompare(String(right?.slug || ''), 'es')
+    )[0] || null;
 
-    const calculatedRows = [];
-    const availabilityOnlyRows = [];
-    let totalNoAccessibleHunt = 0;
-
-    for (const pendingEntry of officialPending) {
-      const key = canonicalKey(pendingEntry);
-      if (!key) continue;
-
-      const calculated = bestCalculatedBySpecies.get(key);
-      if (calculated) {
-        calculatedRows.push(calculated);
+    for (const [speciesId, candidates] of huntsBySpeciesId) {
+      const progress = progressById.get(String(speciesId)) || null;
+      if (progress && isPokedexSpeciesCaught(progress)) {
+        excludedCaught += 1;
         continue;
       }
 
-      const fallbackHunt = accessibleHuntsBySpecies.get(key)?.[0];
-      if (fallbackHunt) {
-        availabilityOnlyRows.push({
-          hunt: fallbackHunt,
-          dexEntry: pendingEntry,
-          calculationAvailable: false,
-          xph: null,
-          kph: null,
-          diff: null,
-          dailyBoosted: false,
-          source: 'Hunt disponible · sin cálculo con el equipo actual'
-        });
-      } else {
-        totalNoAccessibleHunt += 1;
-      }
+      if (progress) explicitNotCaught += 1;
+      else inferredNotCaught += 1;
+
+      const hunt = chooseHunt(candidates);
+      if (!hunt) continue;
+
+      const level = notCaughtRequiredLevel(hunt);
+      const accessible = level <= accessLevel;
+      if (!accessible) blockedByLevel += 1;
+
+      const calculated = calculatedBySpeciesId.get(String(speciesId));
+      const calculationAvailable = Boolean(
+        calculated
+        && Number.isFinite(Number(calculated.xph))
+        && Number.isFinite(Number(calculated.kph))
+      );
+
+      const creature = hunt?.creature || calculated?.hunt?.creature || null;
+      const dexEntry = progress || {
+        id: Number.isFinite(Number(speciesId)) ? Number(speciesId) : speciesId,
+        name: creature?.name || hunt?.name || hunt?.slug || `Pokémon #${speciesId}`,
+        kills: 0,
+        caught: false,
+        inferredMissingProgress: true
+      };
+
+      rows.push({
+        ...(calculationAvailable ? calculated : {}),
+        hunt,
+        dexEntry,
+        speciesId,
+        calculationAvailable,
+        xph: calculationAvailable ? Number(calculated.xph) : null,
+        kph: calculationAvailable ? Number(calculated.kph) : null,
+        diff: calculationAvailable ? calculated.diff : null,
+        dailyBoosted: calculationAvailable ? Boolean(calculated.dailyBoosted) : false,
+        source: calculationAvailable
+          ? calculated.source
+          : 'Hunt disponible · sin cálculo con el equipo actual',
+        requiredLevel: level,
+        accessible,
+        progressSource: progress ? 'api-explicit' : 'api-missing-default-not-caught',
+        pokeBallCaptureChance: piwtoolsPokeBallCaptureChance(creature),
+        ultraBallCaptureChance: requestedUltraBallCaptureChance(creature)
+      });
     }
 
-    // Conserva el ranking por XP/h para las filas calculadas. Las especies
-    // disponibles sin cálculo se añaden después siguiendo el orden de Not Caught.
-    calculatedRows.sort((a, b) => finite(b.xph) - finite(a.xph));
-    availabilityOnlyRows.sort((a, b) =>
-      finite(pendingOrder.get(canonicalKey(a.dexEntry)), Number.MAX_SAFE_INTEGER)
-      - finite(pendingOrder.get(canonicalKey(b.dexEntry)), Number.MAX_SAFE_INTEGER)
+    rows.sort((left, right) =>
+      finite(left.requiredLevel, Number.MAX_SAFE_INTEGER)
+      - finite(right.requiredLevel, Number.MAX_SAFE_INTEGER)
+      || String(
+        left?.dexEntry?.name
+        || left?.hunt?.creature?.name
+        || left?.hunt?.name
+        || ''
+      ).localeCompare(String(
+        right?.dexEntry?.name
+        || right?.hunt?.creature?.name
+        || right?.hunt?.name
+        || ''
+      ), 'es')
     );
 
-    const rows = [...calculatedRows, ...availabilityOnlyRows];
+    const debug = {
+      endpoint: '/api/game/pokedex',
+      pokedexSemantics: 'sparse-progress',
+      progressRecords: pokedex?.progressCount ?? pokedex?.species?.length ?? 0,
+      explicitCaught: pokedex?.caughtSpecies?.length ?? 0,
+      explicitNotCaught,
+      inferredNotCaughtNoProgressRecord: inferredNotCaught,
+      huntRowsRaw: allHunts.length,
+      huntSpecies: huntsBySpeciesId.size,
+      huntsWithoutSpeciesId,
+      includedNotCaughtWithHunt: rows.length,
+      excludedCaught,
+      blockedByCurrentLevel: blockedByLevel,
+      accessLevel,
+      captureColumn: 'PIWTools Poké Ball heuristic ×4 (Ultra requested)',
+      sampleInferred: rows
+        .filter(row => row.progressSource === 'api-missing-default-not-caught')
+        .slice(0, 12)
+        .map(row => ({ id: row.speciesId, name: row.hunt?.creature?.name || row.hunt?.name, level: row.requiredLevel }))
+    };
+
+    try { console.info('[Hunt Intelligence · No capturados · diagnóstico]', debug); } catch {}
 
     return {
       ...huntResult,
       rows,
-      totalUncaught: officialPending.length,
-      totalCaught: pokedex.caughtCount !== null
-        && pokedex.caughtCount !== undefined
-        && Number.isFinite(Number(pokedex.caughtCount))
-          ? Number(pokedex.caughtCount)
-          : (officialCaught.length || null),
-      totalCalculated: calculatedRows.length,
-      totalWithoutCalculation: availabilityOnlyRows.length,
-      totalNoAccessibleHunt,
+      totalUncaught: rows.length,
+      totalCaught: excludedCaught,
+      totalCalculated: rows.filter(row => row.calculationAvailable).length,
+      totalWithoutCalculation: rows.filter(row => !row.calculationAvailable).length,
+      totalNoAccessibleHunt: 0,
+      totalBlockedByLevel: blockedByLevel,
+      explicitNotCaught,
+      inferredNotCaught,
       pokedexSourceMode: pokedex.sourceMode,
-      officialPending
+      notCaughtDebug: debug
     };
   }
 
@@ -4917,7 +4992,7 @@
     if (busy) return;
     busy = true;
     activeTab = 'notcaught';
-    renderLoading('Consultando /api/game/pokedex y calculando las hunts pendientes…');
+    renderLoading('Cruzando todas las hunts del mapa con el progreso de /api/game/pokedex…');
     try {
       const [huntResult, pokedex] = await Promise.all([
         H().calculateRecommendations(force),
@@ -4933,17 +5008,15 @@
   }
 
   function renderNotCaught(result) {
-    const unavailable = Math.max(0, finite(result.totalNoAccessibleHunt, finite(result.totalUncaught) - result.rows.length));
     const withoutCalculation = Math.max(0, finite(result.totalWithoutCalculation));
-    const hasCaughtCount = result.totalCaught !== null
-      && result.totalCaught !== undefined
-      && Number.isFinite(Number(result.totalCaught));
-    const pokedexSummary = hasCaughtCount
-      ? `${fmt(result.totalCaught)} capturadas`
-      : `${fmt(result.totalUncaught)} pendientes en Not Caught`;
+    const blocked = Math.max(0, finite(result.totalBlockedByLevel));
+    const inferred = Math.max(0, finite(result.inferredNotCaught));
+    const explicit = Math.max(0, finite(result.explicitNotCaught));
+
     const body = `
-      <div class="pg-u-note"><b>No capturados:</b> consulta directamente <b>/api/game/pokedex</b> y usa únicamente las especies con <b>caught: false</b>. Ya no abre, pulsa ni recorre la Pokédex visual.</div>
-      <div class="pg-u-caught-summary"><span><b>${fmt(result.rows.length)}</b> especies pendientes con hunt accesible${withoutCalculation ? ` · ${fmt(withoutCalculation)} sin cálculo` : ''}</span><span>${pokedexSummary}${unavailable ? ` · ${fmt(unavailable)} pendientes sin hunt accesible` : ''}</span></div>
+      <div class="pg-u-note"><b>No capturados:</b> parte de <b>todas las hunts reales de /api/game/map-markers</b> y cruza su <b>pokeId</b> con el progreso de <b>/api/game/pokedex</b>. Esa API es sparse: si una especie cazable todavía no tiene registro de progreso, se considera correctamente <b>Not Caught</b>. Solo <b>caught:true</b> la elimina de esta lista. Los Pokémon sin hunt real (por ejemplo legendarios no cazables) no entran.</div>
+      <div class="pg-u-note"><b>Captura Ultra:</b> porcentaje base de la heurística de PIWTools para Poké Ball y después <b>×4</b>, tal como se ha solicitado; máximo 100%. No cambia tu Auto Catch ni la ball seleccionada.</div>
+      <div class="pg-u-caught-summary"><span><b>${fmt(result.rows.length)}</b> Not Caught con hunt · ordenados por nivel ↑${withoutCalculation ? ` · ${fmt(withoutCalculation)} sin cálculo XP` : ''}</span><span>${fmt(explicit)} explícitos · ${fmt(inferred)} sin registro previo${blocked ? ` · ${fmt(blocked)} por encima del nivel actual` : ''}</span></div>
       <div data-notcaught-list>${result.rows.map((row, index) => {
         const officialName = String(
           row.dexEntry?.name
@@ -4957,26 +5030,29 @@
         const calculated = row.calculationAvailable !== false
           && Number.isFinite(Number(row.xph))
           && Number.isFinite(Number(row.kph));
-        const requiredLevel = finite(
-          row.diff?.level,
-          row.hunt?.marker?.level,
-          row.hunt?.marker?.lvl,
-          row.hunt?.marker?.minLevel,
-          row.hunt?.creature?.huntLevel,
-          1
-        );
-        const subtitle = calculated
-          ? `Hunt: ${esc(huntName)}${row.dailyBoosted ? ' · +20% diario' : ''}`
-          : `Hunt: ${esc(huntName)} · disponible, sin cálculo con el equipo actual`;
+        const requiredLevel = Math.max(1, finite(row.requiredLevel, notCaughtRequiredLevel(row.hunt)));
+        const accessible = row.accessible !== false;
+        const captureTitle = row.pokeBallCaptureChance !== null
+          && row.pokeBallCaptureChance !== undefined
+          && Number.isFinite(Number(row.pokeBallCaptureChance))
+          ? `PIWTools Poké Ball: ${formatCapturePercent(row.pokeBallCaptureChance)} · Ultra mostrada = ×4`
+          : 'PIWTools: porcentaje no disponible para esta especie';
+        const subtitleParts = [
+          `Hunt: ${esc(huntName)}`,
+          row.dailyBoosted ? '+20% diario' : '',
+          accessible ? '' : `bloqueada ahora (requiere Nv. ${fmt(requiredLevel)})`,
+          row.progressSource === 'api-missing-default-not-caught' ? 'sin registro previo en Pokédex → Not Caught' : 'Pokédex: caught:false'
+        ].filter(Boolean);
         return `<div class="pg-u-row">
-          <div class="pg-u-rank">${calculated ? '○' : '◇'}</div>
-          <div><button class="pg-u-target" data-hunt-index="${index}" data-source="notcaught" title="Ir directamente a cazar ${esc(pokemonName)}">${esc(pokemonName)}</button><div class="pg-u-sub">${subtitle}</div></div>
-          <div class="pg-u-metric xp"><b>${calculated ? fmt(row.xph) : '—'}</b><br><small>XP/h</small></div>
-          <div class="pg-u-metric speed"><b>${calculated ? fmt(row.kph) : '—'}</b><br><small>kills/h</small></div>
-          <div class="pg-u-metric hide-mobile"><b>${fmt(requiredLevel)}</b><br><small>nivel</small></div>
+          <div class="pg-u-rank">○</div>
+          <div><button class="pg-u-target" data-hunt-index="${index}" data-source="notcaught" ${accessible ? '' : 'disabled aria-disabled="true"'} title="${accessible ? `Ir directamente a cazar ${esc(pokemonName)}` : `Hunt disponible pero requiere nivel ${fmt(requiredLevel)}`}">${esc(pokemonName)}</button><div class="pg-u-sub">${subtitleParts.join(' · ')}</div></div>
+          <div class="pg-u-metric"><b>${fmt(requiredLevel)}</b><br><small>nivel</small></div>
+          <div class="pg-u-metric rate" title="${esc(captureTitle)}"><b>${formatCapturePercent(row.ultraBallCaptureChance)}</b><br><small>Ultra ×4</small></div>
+          <div class="pg-u-metric xp hide-mobile"><b>${calculated ? fmt(row.xph) : '—'}</b><br><small>XP/h</small></div>
+          <div class="pg-u-metric speed hide-mobile"><b>${calculated ? fmt(row.kph) : '—'}</b><br><small>kills/h</small></div>
           <div class="pg-u-metric eff hide-mobile"><b>${calculated ? `×${fmt(row.diff?.offense?.eff, 2)}` : '—'}</b><br><small>efectividad</small></div>
         </div>`;
-      }).join('') || '<div class="pg-u-empty">No quedan Pokémon sin capturar con una hunt accesible. ¡Pokédex al día!</div>'}</div>`;
+      }).join('') || '<div class="pg-u-empty">No quedan Pokémon Not Caught que tengan una hunt disponible en el mapa. ¡Pokédex al día!</div>'}</div>`;
     shell(body);
   }
 
@@ -5621,7 +5697,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.41',
+    version: '1.1.42',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -6302,7 +6378,7 @@
           ok: Boolean(ok),
           result: result ?? null,
           error: error ? String(error) : '',
-          version: '1.1.41',
+          version: '1.1.42',
           at: Date.now()
         }, ORIGIN);
       } catch (postError) {
@@ -6314,7 +6390,7 @@
       const list = Array.isArray(args) ? args : [];
       switch (String(action || '')) {
         case 'ping':
-          return { ready: true, version: '1.1.41', account: favoriteGetLocalAccountState() };
+          return { ready: true, version: '1.1.42', account: favoriteGetLocalAccountState() };
         case 'getLocalAccountState':
           return favoriteGetLocalAccountState();
         case 'getChoices':
@@ -6365,7 +6441,7 @@
         window.postMessage({
           source: 'hunt-intelligence',
           type: 'favorites-rpc-ready',
-          version: '1.1.41',
+          version: '1.1.42',
           at: Date.now()
         }, ORIGIN);
       } catch {}
@@ -6517,7 +6593,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.41',
+      version: '1.1.42',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -6554,7 +6630,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.41',
+    version: '1.1.42',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },

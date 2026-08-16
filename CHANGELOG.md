@@ -1,5 +1,290 @@
 # Poke Idle World Scripts — Changelog
 
+## PokeGrid - Hunt Intelligence 1.1.42 — 2026-08-16
+
+POKE IDLE WORLD — HUNT INTELLIGENCE
+ACTUALIZACIONES DE LA VERSIÓN 1.1.42
+Fecha: 2026-08-16
+
+VERSIÓN
+=======
+Anterior: 1.1.41
+Nueva:    1.1.42
+
+OBJETIVO
+========
+Corregir de raíz la pestaña "No capturados" para que muestre todos los Pokémon
+que cumplen simultáneamente:
+
+1. Nunca han sido capturados por la cuenta (Not Caught).
+2. Tienen una hunt real disponible en los mapas del juego.
+
+Además:
+- ordenar la lista por nivel de hunt de menor a mayor;
+- añadir una columna con el porcentaje solicitado para Ultra Ball;
+- no utilizar en ningún momento la colección actual como criterio de captura.
+
+CAUSA REAL DEL FALLO
+====================
+La versión anterior interpretaba:
+
+GET /api/game/pokedex
+
+como si payload.species[] fuera un catálogo completo de todas las especies.
+
+Eso es incorrecto.
+
+species[] es una lista SPARSE de progreso:
+solo contiene especies para las que la cuenta ya tiene algún registro de progreso.
+
+Por tanto una especie que:
+- nunca se ha capturado;
+- nunca ha generado todavía un registro de progreso;
+
+puede no existir en species[].
+
+La lógica anterior hacía:
+- caught:true  -> capturado
+- caught:false -> pendiente
+- especie ausente -> ni siquiera se procesaba
+
+Ese último caso era el fallo.
+
+Por eso Pokémon cazables y nunca capturados podían desaparecer por completo de
+"No capturados".
+
+REFERENCIA DE IMPLEMENTACIÓN
+=============================
+Se contrastó el comportamiento con el motor público de Poke-Hunt, derivado del
+bundle de PIWTools.
+
+Su planificación de Pokédex trata la respuesta de /api/game/pokedex como
+"touched species only" y, cuando una especie cazable no tiene fila de progreso,
+utiliza el estado por defecto:
+
+{ kills: 0, caught: false }
+
+1.1.42 aplica ese mismo principio, adaptado al requisito de Hunt Intelligence:
+para esta pestaña solo importa si caught es true o no.
+
+NUEVA FUENTE DE VERDAD
+======================
+"No capturados" ahora empieza por el lado correcto:
+
+TODAS LAS HUNTS REALES
+/api/game/map-markers
+        ↓
+pokeId real de la criatura
+        ↓
+progreso sparse de /api/game/pokedex
+
+Regla final:
+
+- si existe progreso y caught === true:
+  NO aparece.
+
+- si existe progreso y caught === false:
+  aparece.
+
+- si NO existe ningún registro de progreso para ese pokeId:
+  se considera Not Caught y aparece.
+
+- si una especie está Not Caught pero NO tiene ninguna hunt real:
+  no aparece.
+
+Esto evita incluir legendarios u otras especies que existan en Pokédex pero no
+puedan cazarse actualmente mediante una hunt.
+
+NO SE USA LA COLECCIÓN ACTUAL
+==============================
+Se verificó expresamente que el bloque de "No capturados" no consulta:
+
+- Pokémon poseídos actualmente;
+- colección actual;
+- owned Pokémon;
+- ws.pokes;
+- si el usuario vendió/liberó una captura anterior.
+
+El único estado histórico utilizado para decidir si está capturado es:
+caught de /api/game/pokedex.
+
+CATÁLOGO DE LOS MAPAS
+=====================
+Se recorren todas las hunts disponibles en el catálogo de mapas y se agrupan por
+pokeId real.
+
+Si una especie tiene más de una hunt:
+- se selecciona primero la de menor nivel;
+- nombre/slug se usan como desempate estable.
+
+La disponibilidad de cálculo de XP/h ya NO decide si una especie aparece.
+
+Una especie con hunt real puede mostrarse aunque Hunt Intelligence no pueda
+calcular en ese momento XP/h/kills/h con el Pokémon equipado.
+
+HUNTS POR ENCIMA DEL NIVEL ACTUAL
+=================================
+Antes podían desaparecer por el filtro de acceso de la recomendación normal.
+
+Ahora:
+- también se muestran;
+- permanecen en su posición correcta por nivel;
+- se marcan como bloqueadas para el nivel actual;
+- el botón de entrada queda deshabilitado mientras no sea accesible.
+
+Así la pestaña representa el conjunto completo de Not Caught cazables, no solo
+lo que el Pokémon equipado puede farmear en ese instante.
+
+ORDEN NUEVO
+===========
+La lista se ordena siempre por:
+
+1. Nivel requerido de la hunt, ASCENDENTE.
+2. Nombre del Pokémon como desempate.
+
+Ejemplo:
+
+Nv. 10
+Nv. 20
+Nv. 30
+Nv. 100
+Nv. 500
+
+Esto sustituye el orden anterior basado en XP/h / disponibilidad de cálculo.
+
+PORCENTAJE DE CAPTURA — ULTRA BALL
+==================================
+Se añade una nueva métrica visible por fila:
+
+Ultra ×4
+
+Para obtener el porcentaje base se utiliza la heurística documentada de PIWTools
+para Poké Ball:
+
+p = 1 - exp(-1.75 × ballPrice / priceNpc)
+
+Para Poké Ball:
+ballPrice = 5
+
+Por tanto:
+
+pokeBallChance = 1 - exp(-(1.75 × 5) / priceNpc)
+
+Después se aplica exactamente la regla solicitada:
+
+ultraDisplayed = pokeBallChance × 4
+
+con límite máximo del 100%.
+
+Ejemplo conceptual solicitado:
+0,139% Poké Ball
+× 4
+= 0,556% Ultra mostrada
+
+IMPORTANTE SOBRE ESTA COLUMNA
+=============================
+La columna representa deliberadamente:
+
+"porcentaje PIWTools de Poké Ball ×4"
+
+porque ese es el dato solicitado.
+
+No modifica:
+- Auto Catch;
+- Poké Ball seleccionada;
+- inventario de balls;
+- ninguna configuración de captura.
+
+Tampoco pretende sustituir internamente la mecánica real del servidor del juego.
+Es una métrica informativa para ordenar/valorar las capturas pendientes.
+
+TOOLTIP
+=======
+Al pasar por el porcentaje se muestra también el porcentaje base de Poké Ball
+utilizado antes del ×4.
+
+DIAGNÓSTICO INTERNO
+===================
+Cada carga de "No capturados" registra en consola:
+
+[Hunt Intelligence · No capturados · diagnóstico]
+
+con:
+- progressRecords;
+- explicitCaught;
+- explicitNotCaught;
+- inferredNotCaughtNoProgressRecord;
+- huntRowsRaw;
+- huntSpecies;
+- huntsWithoutSpeciesId;
+- includedNotCaughtWithHunt;
+- excludedCaught;
+- blockedByCurrentLevel;
+- accessLevel;
+- ejemplos de especies inferidas como Not Caught por ausencia de progreso.
+
+Esto permite detectar inmediatamente si vuelve a faltar una especie concreta.
+
+CASO DE REGRESIÓN PROBADO
+=========================
+Se ejecutó una prueba aislada con:
+
+- Caterpie: hunt Nv.10, sin registro de progreso.
+- Teddiursa: hunt Nv.30, sin registro de progreso.
+- Ursaring: hunt Nv.100, caught:false explícito.
+- Highmon: hunt Nv.500, sin registro y por encima del nivel actual.
+- Metapod: hunt real, caught:true.
+
+Resultado esperado y obtenido:
+
+Caterpie  Nv.10
+Teddiursa Nv.30
+Ursaring  Nv.100
+Highmon   Nv.500
+
+Metapod se excluye.
+
+La prueba confirma:
+- especies ausentes del progreso se incluyen;
+- caught:true se excluye;
+- caught:false explícito se incluye;
+- niveles altos no desaparecen;
+- orden ascendente correcto;
+- cálculo Ultra ×4 correcto.
+
+FAVORITOS / RPC
+===============
+No se modifica la arquitectura de Favoritos.
+
+Se comprobaron como presentes:
+- favorites-rpc-request;
+- getLocalAccountState;
+- moveLocalTarget;
+- favoriteNormalizeMoveDirection.
+
+La corrección de flechas de 1.1.41 se conserva.
+
+VALIDACIÓN
+==========
+- node --check: CORRECTO.
+- @version: 1.1.42.
+- Guard interno: V1142.
+- 0 referencias restantes a 1.1.41/V1141.
+- Prueba funcional sparse/map/sort/Ultra: PASS.
+- 0 referencias a colección/owned/ws.pokes dentro del bloque de No capturados.
+- Eliminado el filtro que ocultaba hunts no accesibles.
+- Eliminado el uso de notCaughtSpecies explícito como universo completo.
+- Orden final por requiredLevel ascendente confirmado.
+
+SHA-256
+=======
+b39d8b71b35952c80dc50660934432bfc661febf6f88a4ab54d0ce7997c7f526
+
+ARCHIVOS
+========
+pokegrid-hunt-intelligence-1.1.42.txt
+actualizaciones-hunt-intelligence-1.1.42.txt
+
 ## PokeGrid - Hunt Intelligence 1.1.41 — 2026-08-16
 
 POKE IDLE WORLD — HUNT INTELLIGENCE
