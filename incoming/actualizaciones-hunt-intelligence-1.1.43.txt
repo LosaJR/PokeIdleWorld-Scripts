@@ -1,0 +1,156 @@
+POKE IDLE WORLD — HUNT INTELLIGENCE
+ACTUALIZACIONES DE LA VERSIÓN 1.1.43
+Fecha: 2026-08-17
+
+VERSIÓN
+=======
+Anterior: 1.1.42
+Nueva:    1.1.43
+
+OBJETIVO
+========
+Añadir en:
+Hunts → Mejor general
+
+un filtro manual de NIVEL MÁXIMO para impedir que el ranking recomiende hunts
+por encima del nivel que el usuario quiera considerar.
+
+EJEMPLO
+=======
+Si se introduce:
+
+500
+
+el ranking de Mejor general solo podrá utilizar hunts con:
+
+nivel requerido <= 500
+
+Una hunt de nivel 501, 550, 600, etc. queda fuera antes de calcular el score.
+
+NUEVO CONTROL
+=============
+Dentro de los ajustes de "Mejor general" aparece:
+
+Nivel máximo [         ] [∞]
+
+- Se puede escribir cualquier nivel entero positivo.
+- El filtro se aplica al pulsar Enter o al salir del campo.
+- El ranking se recalcula automáticamente.
+- El botón ∞ elimina el límite manual.
+- Campo vacío = Sin límite manual.
+
+ALCANCE
+=======
+El filtro se aplica ÚNICAMENTE a:
+
+Hunts → Mejor general
+
+No modifica el comportamiento de:
+- Mejor XP.
+- No capturados.
+- Items.
+- Rendimiento.
+- Histórico.
+- Favoritos.
+
+COMPORTAMIENTO
+==============
+El filtro manual funciona como un segundo techo adicional.
+
+Primero Hunt Intelligence conserva las hunts consideradas accesibles por su
+lógica normal.
+
+Después, si Mejor general tiene un Nivel máximo configurado:
+
+huntRequiredLevel <= maxHuntLevel
+
+Solo esas hunts pasan al cálculo de:
+- XP/h
+- Items/h
+- Raros/h
+- Oro NPC/h
+- Score general
+
+Esto es importante porque las hunts excluidas NO participan tampoco en la
+normalización del score. Por tanto, el ranking se recalcula únicamente con el
+conjunto realmente permitido por el usuario.
+
+PERSISTENCIA
+============
+Se añade al config existente:
+
+maxHuntLevel
+
+Valor por defecto:
+0
+
+Significado:
+0 = sin límite manual.
+
+El valor se guarda en el mismo localStorage de configuración de Hunt
+Intelligence, por lo que cada cuenta/webview conserva su propio límite.
+
+INFORMACIÓN EN PANTALLA
+=======================
+Cuando el filtro está activo se muestra en Hunts:
+
+Filtro manual: hasta Nv. X
+
+También se indica:
+- cuántas hunts se están evaluando;
+- cuántas había accesibles antes de aplicar el límite manual.
+
+Ejemplo:
+
+Hunts evaluadas: 43 de 71 accesibles por nivel.
+
+BOTÓN ∞
+=======
+El botón ∞:
+- establece maxHuntLevel = 0;
+- elimina inmediatamente el techo manual;
+- recalcula el ranking;
+- vuelve al comportamiento normal.
+
+COMPATIBILIDAD
+==============
+Se conserva la configuración anterior automáticamente.
+
+Las cuentas que actualicen desde 1.1.42 comienzan con:
+
+maxHuntLevel = 0
+
+por lo que el ranking se comporta exactamente como antes hasta que el usuario
+establezca un límite.
+
+FAVORITOS / RPC
+===============
+No se modifica la arquitectura de Favoritos.
+
+Se verificó que permanecen presentes:
+- favorites-rpc-request
+- getLocalAccountState
+- favoriteNormalizeMoveDirection
+
+La corrección de movimiento de slots y el mailbox/RPC siguen intactos.
+
+VALIDACIÓN
+==========
+- node --check: CORRECTO.
+- @version: 1.1.43.
+- Guard principal: V1143.
+- maxHuntLevel persistente: presente.
+- Filtro aplicado antes de scoreRows(): confirmado.
+- Mejor general: filtro activo.
+- Mejor XP: no usa el límite manual.
+- Botón ∞: restablece a sin límite.
+- Favoritos/RPC: presentes y sin cambios funcionales.
+
+SHA-256
+=======
+2c2339fdea07edb8e417e4e0453d67199547fbc00e9db264e39255c5bc30b358
+
+ARCHIVOS
+========
+pokegrid-hunt-intelligence-1.1.43.txt
+actualizaciones-hunt-intelligence-1.1.43.txt
