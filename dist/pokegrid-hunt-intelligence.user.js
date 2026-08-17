@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.42
+// @version      1.1.43
 // @description  Recomendador, No capturados, Item Finder, supervisor y gestor compacto de Favoritos por cuenta con histórico móvil de 12 muestras.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1142) return;
-  window.__pgHuntIntelligenceCoreV1142 = true;
+  if (window.__pgHuntIntelligenceCoreV1143) return;
+  window.__pgHuntIntelligenceCoreV1143 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -49,6 +49,7 @@
     lootWeight: 30,
     rareWeight: 0,
     goldWeight: 30,
+    maxHuntLevel: 0,
     topN: 8,
     autoOpen: true
   };
@@ -490,7 +491,14 @@
     const captureRate = globalCaptureRate();
     const catchInfo = getAutoCatchInfo(data.itemsById);
 
-    const rows = data.hunts.map(hunt => {
+    const configuredMaxHuntLevel = config.mode === 'general'
+      ? Math.max(0, Math.floor(finite(config.maxHuntLevel, 0)))
+      : 0;
+    const candidateHunts = configuredMaxHuntLevel > 0
+      ? data.hunts.filter(hunt => huntRequiredLevel(hunt) <= configuredMaxHuntLevel)
+      : data.hunts;
+
+    const rows = candidateHunts.map(hunt => {
       const diff = huntDifficulty(hunt, lead, leadSpecies);
       const measured = history[hunt.key] || history[norm(hunt.slug)];
       let kph;
@@ -608,6 +616,7 @@
             <label>Peso XP <input data-weight="xpWeight" type="number" min="0" max="100" value="${finite(config.xpWeight)}"></label>
             <label>Peso loot <input data-weight="lootWeight" type="number" min="0" max="100" value="${finite(config.lootWeight)}"></label>
             <label>Peso oro neto <input data-weight="goldWeight" type="number" min="0" max="100" value="${finite(config.goldWeight)}"></label>
+            <label>Nivel máximo <input data-max-hunt-level type="number" min="1" step="1" placeholder="Sin límite" value="${finite(config.maxHuntLevel, 0) > 0 ? Math.floor(finite(config.maxHuntLevel, 0)) : ''}" title="Solo en Mejor general. Vacío = sin límite manual."></label>
           </div>
           <div>
             ${topRows.map((row, index) => `
@@ -640,6 +649,12 @@
       saveState();
       openAdvisor(false);
     }));
+    overlay.querySelector('[data-max-hunt-level]')?.addEventListener('change', event => {
+      const raw = String(event.target.value || '').trim();
+      config.maxHuntLevel = raw ? Math.max(1, Math.floor(finite(raw, 1))) : 0;
+      saveState();
+      openAdvisor(false);
+    });
     document.body.appendChild(overlay);
   }
 
@@ -706,6 +721,11 @@
       config[key] = clamp(finite(value, 0), 0, 100); saveState();
     },
     setTopN: value => { config.topN = clamp(finite(value, 8), 3, 20); saveState(); },
+    setMaxHuntLevel: value => {
+      const next = Math.max(0, Math.floor(finite(value, 0)));
+      config.maxHuntLevel = next > 0 ? Math.max(1, next) : 0;
+      saveState();
+    },
     helpers: { norm, finite, fmt, esc, clamp }
   };
 })();
@@ -2160,7 +2180,13 @@
     const catchInfo = autoCatchInfo(data);
     const trainerLevel = trainerLevelNow();
     const accessLevel = huntAccessLevel(lead);
-    const accessibleHunts = data.hunts.filter(hunt => isUnlocked(hunt, lead));
+    const configuredMaxHuntLevel = cfg.mode === 'general'
+      ? Math.max(0, Math.floor(finite(cfg.maxHuntLevel, 0)))
+      : 0;
+    const unlockedHunts = data.hunts.filter(hunt => isUnlocked(hunt, lead));
+    const accessibleHunts = configuredMaxHuntLevel > 0
+      ? unlockedHunts.filter(hunt => huntRequiredLevel(hunt) <= configuredMaxHuntLevel)
+      : unlockedHunts;
 
     const rows = accessibleHunts.map(hunt => {
       const diff = modelHunt(hunt, lead, leadSpecies, productivity, useTM);
@@ -2235,6 +2261,8 @@
       rows, lead, leadSpecies, catchInfo, captureRate: 0, data, dailyBonus: daily, useTM,
       trainerLevel,
       accessLevel,
+      configuredMaxHuntLevel,
+      unlockedHuntsCount: unlockedHunts.length,
       accessibleHuntsCount: accessibleHunts.length,
       vipActive, vipMultiplier,
       productivity: {
@@ -3859,6 +3887,10 @@
       #${PANEL_ID} .pg-u-step{display:inline-flex;align-items:center;gap:4px}
       #${PANEL_ID} .pg-u-step button{min-width:27px;padding:5px 7px!important}
       #${PANEL_ID} .pg-u-weight-value{min-width:38px;text-align:center;color:#eef5ff;font-weight:850;font-variant-numeric:tabular-nums}
+      #${PANEL_ID} .pg-u-maxlevel{font-size:10px;color:#9ba8ba;display:flex;align-items:center;gap:8px;justify-content:space-between}
+      #${PANEL_ID} .pg-u-maxlevel-tools{display:flex;align-items:center;gap:5px}
+      #${PANEL_ID} .pg-u-maxlevel input{width:82px;text-align:center;font-variant-numeric:tabular-nums}
+      #${PANEL_ID} .pg-u-maxlevel button{min-width:30px;padding:5px 7px!important}
       #${PANEL_ID} .pg-u-table-head,#${PANEL_ID} .pg-u-row{display:grid;grid-template-columns:34px minmax(175px,1fr) repeat(6,minmax(70px,auto));gap:8px;align-items:center}
       #${PANEL_ID} .pg-u-table-head{padding:7px 8px 5px;border-bottom:1px solid #344155;color:#8392a6;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.02em}
       #${PANEL_ID} .pg-u-table-head .pg-u-col{text-align:right;white-space:nowrap}
@@ -4153,7 +4185,7 @@
 
     // El juego y PokeGrid pueden tener manejadores globales de puntero. Estos controles
     // se aíslan en fase de burbuja sin cancelar su acción predeterminada.
-    const protectedSelector = '[data-mode-value],[data-daily-toggle],[data-daily-value],[data-use-tm-button],[data-vip-button],[data-weight-delta],[data-supervisor-delta],[data-adopt-legacy-vip],[data-delete-intelligence-history],[data-clear-intelligence-history],[data-panel-collapse],[data-query],[data-item-search]';
+    const protectedSelector = '[data-mode-value],[data-daily-toggle],[data-daily-value],[data-use-tm-button],[data-vip-button],[data-weight-delta],[data-max-hunt-level],[data-max-hunt-level-clear],[data-supervisor-delta],[data-adopt-legacy-vip],[data-delete-intelligence-history],[data-clear-intelligence-history],[data-panel-collapse],[data-query],[data-item-search]';
     const protect = event => { if (event.target.closest?.(protectedSelector)) event.stopPropagation(); };
     overlay.querySelector('.pg-u-card')?.addEventListener('pointerdown', protect);
     overlay.querySelector('.pg-u-card')?.addEventListener('mousedown', protect);
@@ -4256,6 +4288,15 @@
         renderHistory(false); return;
       }
 
+      const clearMaxLevelButton = event.target.closest('[data-max-hunt-level-clear]');
+      if (clearMaxLevelButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        H()?.setMaxHuntLevel?.(0);
+        loadHunt(false);
+        return;
+      }
+
       const weightButton = event.target.closest('[data-weight-delta]');
       if (weightButton) {
         event.preventDefault();
@@ -4302,6 +4343,21 @@
     };
     overlay.__pgHuntClickHandler = clickHandler;
     overlay.addEventListener('click', clickHandler);
+
+    if (overlay.__pgHuntChangeHandler) {
+      overlay.removeEventListener('change', overlay.__pgHuntChangeHandler);
+    }
+    const changeHandler = event => {
+      const maxLevelInput = event.target.closest?.('[data-max-hunt-level]');
+      if (!maxLevelInput) return;
+      event.stopPropagation();
+      const raw = String(maxLevelInput.value || '').trim();
+      H()?.setMaxHuntLevel?.(raw ? Math.max(1, Math.floor(finite(raw, 1))) : 0);
+      loadHunt(false);
+    };
+    overlay.__pgHuntChangeHandler = changeHandler;
+    overlay.addEventListener('change', changeHandler);
+
     if (options.after) options.after(overlay);
     return overlay;
   }
@@ -4367,6 +4423,17 @@
     </span></div>`;
   }
 
+  function maxHuntLevelControlHtml(value) {
+    const safe = Math.max(0, Math.floor(finite(value, 0)));
+    return `<div class="pg-u-maxlevel pg-u-control">
+      <span>Nivel máximo</span>
+      <span class="pg-u-maxlevel-tools">
+        <input type="number" min="1" step="1" inputmode="numeric" data-max-hunt-level value="${safe > 0 ? safe : ''}" placeholder="Sin límite" title="Solo se aplica a Mejor general. Pulsa Enter o sal del campo para aplicar.">
+        <button type="button" data-max-hunt-level-clear title="Quitar límite manual y volver al límite normal">∞</button>
+      </span>
+    </div>`;
+  }
+
   function rerunActivePanel(force = false) {
     if (activeTab === 'notcaught') return loadNotCaught(force);
     if (activeTab === 'item') {
@@ -4430,17 +4497,18 @@
     const topRows = result.rows.slice(0, clamp(finite(cfg.topN, 8), 3, 20));
     const product = productivityDescription(result.productivity);
     const body = `
-      <div class="pg-u-note"><b>Ranking inteligente:</b> solo se evalúan hunts cuyo nivel sea <b>igual o inferior al nivel actual del Pokémon</b> y que la cuenta pueda utilizar. Dentro de esas hunts, una de nivel inferior puede seguir ganando si ofrece mejor rendimiento. Para cada objetivo se recalculan stats actuales, mejor ataque disponible, físico/especial, tipo/efectividad, defensa rival, golpes y kills/h. Al subir de nivel o cambiar Atk/Sp.Atk, el ranking se recalcula automáticamente. Primero se usa tu histórico directo del <b>mismo nivel + mismo ataque</b>. Si has subido de nivel o aprendido otro ataque, no desaparece tu marca: se usa tu rendimiento real frente a PIWTools de esa <b>misma hunt y Pokémon</b> para calibrar la simulación actual, sin utilizar nunca datos de un nivel superior. Items/h y Raros/h siguen usando loot real de 30 min cuando existe.</div>
+      <div class="pg-u-note"><b>Ranking inteligente:</b> solo se evalúan hunts cuyo nivel sea <b>igual o inferior al nivel actual del Pokémon</b> y que la cuenta pueda utilizar. En <b>Mejor general</b> puedes añadir además un <b>Nivel máximo manual</b>; ese techo se aplica antes de calcular el score, así que ninguna hunt por encima del valor elegido puede entrar en el ranking. Dentro de esas hunts, una de nivel inferior puede seguir ganando si ofrece mejor rendimiento. Para cada objetivo se recalculan stats actuales, mejor ataque disponible, físico/especial, tipo/efectividad, defensa rival, golpes y kills/h. Al subir de nivel o cambiar Atk/Sp.Atk, el ranking se recalcula automáticamente. Primero se usa tu histórico directo del <b>mismo nivel + mismo ataque</b>. Si has subido de nivel o aprendido otro ataque, no desaparece tu marca: se usa tu rendimiento real frente a PIWTools de esa <b>misma hunt y Pokémon</b> para calibrar la simulación actual, sin utilizar nunca datos de un nivel superior. Items/h y Raros/h siguen usando loot real de 30 min cuando existe.</div>
       <div class="pg-u-sourcebox ${product.tone}">
         <div><b>Fuente de productividad:</b> ${esc(product.text)}<br>${dailyDescription(result.dailyBonus)} · <b>MT:</b> ${cfg.useTM ? 'incluidas' : 'excluidas'} · <b>VIP:</b> ${cfg.vipActive ? 'activo' : 'inactivo'}</div>
         <div class="pg-u-daily">${dailyControlHtml(cfg.dailyType || 'auto', result.dailyBonus)}${tmControlHtml(cfg.useTM)}${vipControlHtml(cfg.vipActive)}</div>
       </div>
-      <div class="pg-u-note">Pokémon activo: <b>${esc(result.lead?.name || 'Primer slot')}</b> Nv. ${fmt(finite(result.lead?.level))} · Límite de hunt actual: <b>Nv. ${fmt(finite(result.accessLevel, result.lead?.level))}</b> · Hunts evaluadas: <b>${fmt(finite(result.accessibleHuntsCount))}</b>. ${result.catchInfo.active ? `Auto Catch detectado; ball: ${fmt(result.catchInfo.ballPrice)} gold. La venta de capturas no interviene en este ranking.` : 'Auto Catch no interviene en este ranking.'}</div>
+      <div class="pg-u-note">Pokémon activo: <b>${esc(result.lead?.name || 'Primer slot')}</b> Nv. ${fmt(finite(result.lead?.level))} · Límite de hunt actual: <b>Nv. ${fmt(finite(result.accessLevel, result.lead?.level))}</b>${cfg.mode === 'general' && finite(cfg.maxHuntLevel, 0) > 0 ? ` · Filtro manual: <b>hasta Nv. ${fmt(Math.floor(finite(cfg.maxHuntLevel)))}</b>` : ''} · Hunts evaluadas: <b>${fmt(finite(result.accessibleHuntsCount))}</b>${cfg.mode === 'general' && finite(cfg.maxHuntLevel, 0) > 0 ? ` de ${fmt(finite(result.unlockedHuntsCount, result.accessibleHuntsCount))} accesibles por nivel` : ''}. ${result.catchInfo.active ? `Auto Catch detectado; ball: ${fmt(result.catchInfo.ballPrice)} gold. La venta de capturas no interviene en este ranking.` : 'Auto Catch no interviene en este ranking.'}</div>
       <div class="pg-u-settings" ${cfg.mode === 'general' ? '' : 'style="display:none"'}>
         ${weightControlHtml('xpWeight', 'Peso XP', cfg.xpWeight)}
         ${weightControlHtml('lootWeight', 'Peso loot', cfg.lootWeight)}
         ${weightControlHtml('rareWeight', 'Peso raros/h', cfg.rareWeight)}
         ${weightControlHtml('goldWeight', 'Peso oro NPC', cfg.goldWeight)}
+        ${maxHuntLevelControlHtml(cfg.maxHuntLevel)}
       </div>
       <div class="pg-u-table-head">
         <div></div>
@@ -4462,7 +4530,7 @@
           <div class="pg-u-metric rare hide-mobile"><b>${fmt(row.rarePh, 2)}</b></div>
           <div class="pg-u-metric gold hide-mobile"><b>${fmt(row.netGoldPh)}</b></div>
           <div class="pg-u-metric score hide-mobile"><b>${cfg.mode === 'general' ? fmt(row.generalScore, 1) : fmt(row.kph)}</b></div>
-        </div>`).join('') || '<div class="pg-u-empty">No se encontraron hunts desbloqueadas para el nivel actual de este Pokémon.</div>'}</div>`;
+        </div>`).join('') || `<div class="pg-u-empty">${cfg.mode === 'general' && finite(cfg.maxHuntLevel, 0) > 0 ? `No hay hunts disponibles dentro del límite manual de Nv. ${fmt(Math.floor(finite(cfg.maxHuntLevel)))}.` : 'No se encontraron hunts desbloqueadas para el nivel actual de este Pokémon.'}</div>`}</div>`;
     shell(body);
   }
 
@@ -5697,7 +5765,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.42',
+    version: '1.1.43',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -6378,7 +6446,7 @@
           ok: Boolean(ok),
           result: result ?? null,
           error: error ? String(error) : '',
-          version: '1.1.42',
+          version: '1.1.43',
           at: Date.now()
         }, ORIGIN);
       } catch (postError) {
@@ -6390,7 +6458,7 @@
       const list = Array.isArray(args) ? args : [];
       switch (String(action || '')) {
         case 'ping':
-          return { ready: true, version: '1.1.42', account: favoriteGetLocalAccountState() };
+          return { ready: true, version: '1.1.43', account: favoriteGetLocalAccountState() };
         case 'getLocalAccountState':
           return favoriteGetLocalAccountState();
         case 'getChoices':
@@ -6441,7 +6509,7 @@
         window.postMessage({
           source: 'hunt-intelligence',
           type: 'favorites-rpc-ready',
-          version: '1.1.42',
+          version: '1.1.43',
           at: Date.now()
         }, ORIGIN);
       } catch {}
@@ -6593,7 +6661,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.42',
+      version: '1.1.43',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -6630,7 +6698,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.42',
+    version: '1.1.43',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
