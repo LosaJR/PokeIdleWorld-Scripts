@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.44
+// @version      1.1.45
 // @description  Recomendador, No capturados, Item Finder, supervisor y gestor compacto de Favoritos por cuenta con histórico móvil de 12 muestras.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1144) return;
-  window.__pgHuntIntelligenceCoreV1144 = true;
+  if (window.__pgHuntIntelligenceCoreV1145) return;
+  window.__pgHuntIntelligenceCoreV1145 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -3846,13 +3846,13 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.44',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    version:'1.1.45',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.44',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.45',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.44',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon, incluidos Items/h, Raros/h y Especiales/h, y normaliza XP/VIP/bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','real-special-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.45',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon, incluidos Items/h, Raros/h y Especiales/h, y normaliza XP/VIP/bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','real-special-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   const historyRecovery = recoverHistoryIfNeeded();
@@ -3987,7 +3987,28 @@
 
       /* Bridge UI Core v1: Hunt Intelligence conserva su contenido, pero la ventana exterior
          pasa a compartir mover/resize/minimizar/maximizar/layout/opacidad con el resto. */
-      #${PANEL_ID}.pg-ui-managed{font-family:system-ui;color:#e8edf5}
+      #${PANEL_ID}.pg-ui-managed{
+        font-family:system-ui;color:#e8edf5;
+        min-width:min(360px,calc(100vw - 8px))!important;
+        max-width:calc(100vw - 8px)!important
+      }
+      #${PANEL_ID}.pg-ui-managed.pg-ui-minimized{
+        width:min(390px,calc(100vw - 8px))!important;
+        min-width:min(390px,calc(100vw - 8px))!important;
+        max-width:calc(100vw - 8px)!important
+      }
+      #${PANEL_ID}.pg-ui-managed.pg-ui-minimized>.pg-ui-header{gap:6px;padding:7px 8px}
+      #${PANEL_ID}.pg-ui-managed.pg-ui-minimized>.pg-ui-header .pg-ui-subtitle{display:none!important}
+      #${PANEL_ID}.pg-ui-managed.pg-ui-minimized>.pg-ui-header .pg-ui-title{
+        min-width:0;overflow:hidden;text-overflow:ellipsis
+      }
+      #${PANEL_ID}.pg-ui-managed.pg-ui-minimized>.pg-ui-header .pg-ui-opacity{
+        min-width:92px!important;gap:4px!important
+      }
+      #${PANEL_ID}.pg-ui-managed.pg-ui-minimized>.pg-ui-header .pg-ui-opacity input[type="range"]{
+        width:52px!important
+      }
+      #${PANEL_ID}.pg-ui-managed.pg-ui-minimized>.pg-ui-header .pg-ui-opacity-value{width:28px!important}
       #${PANEL_ID}.pg-ui-managed>.pg-ui-body{min-height:100%;overflow:visible}
       #${PANEL_ID}.pg-ui-managed .pg-u-card{
         position:static;left:auto;top:auto;transform:none;width:auto;height:auto;
@@ -4047,6 +4068,10 @@
       #${PANEL_ID}.pg-ui-managed>.pg-ui-header .pg-ui-button{
         border:1px solid #4b607a;background:rgba(24,36,56,.88);color:#f4f8ff;
         border-radius:7px;min-width:29px;height:27px;padding:0 7px;font:800 12px system-ui
+      }
+
+      @media(max-width:340px){
+        #${PANEL_ID}.pg-ui-managed.pg-ui-minimized>.pg-ui-header .pg-ui-opacity{display:none!important}
       }
 
       @media(max-width:700px){#${PANEL_ID} .pg-u-sourcebox{grid-template-columns:1fr}.pg-u-daily{white-space:normal;flex-wrap:wrap}#${PANEL_ID} .pg-u-table-head,#${PANEL_ID} .pg-u-row{grid-template-columns:28px 1fr 78px 78px 78px 78px}#${PANEL_ID} .hide-mobile{display:none}#${PANEL_ID} .pg-u-settings{grid-template-columns:1fr}#${PANEL_ID} .pg-u-tabs{top:47px}#${PANEL_ID} .pg-hi-grid{grid-template-columns:1fr}#${PANEL_ID} .pg-hi-hero{grid-template-columns:1fr 1fr}#${PANEL_ID} .pg-hi-history-head{display:none}#${PANEL_ID} .pg-hi-history-row{grid-template-columns:1fr 70px 44px}#${PANEL_ID} .pg-hi-history-name{grid-column:1/-1}}
@@ -4386,7 +4411,8 @@
       }
 
       overlay.querySelectorAll('[data-daily-menu]:not([hidden])').forEach(menu => { menu.hidden = true; });
-      if (event.target === overlay || event.target.closest('[data-close]')) { closePanel(); return; }
+      const isManagedOverlay = overlay.classList.contains('pg-ui-managed');
+      if ((!isManagedOverlay && event.target === overlay) || event.target.closest('[data-close]')) { closePanel(); return; }
       const tab = event.target.closest('[data-tab]')?.dataset.tab;
       if (tab) { switchTab(tab); return; }
       const target = event.target.closest('[data-hunt-index]');
@@ -5843,7 +5869,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.44',
+    version: '1.1.45',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -6524,7 +6550,7 @@
           ok: Boolean(ok),
           result: result ?? null,
           error: error ? String(error) : '',
-          version: '1.1.44',
+          version: '1.1.45',
           at: Date.now()
         }, ORIGIN);
       } catch (postError) {
@@ -6536,7 +6562,7 @@
       const list = Array.isArray(args) ? args : [];
       switch (String(action || '')) {
         case 'ping':
-          return { ready: true, version: '1.1.44', account: favoriteGetLocalAccountState() };
+          return { ready: true, version: '1.1.45', account: favoriteGetLocalAccountState() };
         case 'getLocalAccountState':
           return favoriteGetLocalAccountState();
         case 'getChoices':
@@ -6587,7 +6613,7 @@
         window.postMessage({
           source: 'hunt-intelligence',
           type: 'favorites-rpc-ready',
-          version: '1.1.44',
+          version: '1.1.45',
           at: Date.now()
         }, ORIGIN);
       } catch {}
@@ -6739,7 +6765,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.44',
+      version: '1.1.45',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -6776,7 +6802,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.44',
+    version: '1.1.45',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
