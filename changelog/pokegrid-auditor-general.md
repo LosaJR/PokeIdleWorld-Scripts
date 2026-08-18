@@ -1,5 +1,101 @@
 # PokeGrid - Auditor General
 
+## 1.0.3 — 2026-08-18
+
+POKEGRID - AUDITOR GENERAL
+ACTUALIZACIONES v1.0.3
+Fecha: 2026-08-18
+
+VERSIÓN
+- 1.0.2 -> 1.0.3
+- Modo de captura nuevo: GAME_ONLY.
+- Capacidad mantenida: 1000 registros.
+
+OBJETIVO
+Dedicar los 1000 slots a telemetría útil del propio juego y evitar que scripts de PokeGrid/PIWTools llenen la auditoría con estados locales o copias duplicadas de la misma señal.
+
+CAMBIOS PRINCIPALES
+1. Eliminada la captura de Storage.
+   - Ya no se interceptan localStorage/sessionStorage setItem/removeItem/clear.
+   - En la auditoría de 1000 registros anterior, 232 entradas eran escrituras de nuestros propios scripts.
+   - Ejemplos eliminados: pg-hunt-intelligence-v1, pg-piwtools-engine-v3, pg-hunt-favorites-manager-v1, pg-decision-detector-v1 y pg-game-structure-monitor-v3.
+
+2. Eliminada la captura de postMessage del mismo origen.
+   - Evita registrar RPC/mensajes internos de herramientas y bridges.
+
+3. Eliminada la captura de history/pushState/replaceState/popstate.
+   - Evita señales de navegación que no aportan valor al estudio de combate/captura y pueden ser provocadas por scripts.
+
+4. Eliminado el sondeo continuo de window.__poke.ws.
+   - El WebSocket original ya se captura directamente.
+   - En la auditoría anterior, 357 de 1000 registros eran poke-ws-cache, en gran parte duplicados del WebSocket real.
+   - Ahora window.__poke.ws solo se usa una vez al iniciar como bootstrap de contexto para estados persistentes útiles: pokes, field-init, field, analyzer, balls, inventory, events, pending y trade.
+
+5. Eliminado el sondeo continuo de __poke.sess/prev.
+   - En la muestra anterior generaba snapshots acumulativos repetidos y solapaba información que ya entrega analyzer/WebSocket.
+
+6. Filtro de llamadas de red iniciadas por userscripts/extensiones.
+   - Fetch, XHR, WebSocket saliente, EventSource y sendBeacon intentan clasificar el callsite.
+   - Las llamadas identificables como Tampermonkey/Violentmonkey/Greasemonkey/extensión o scripts PokeGrid/PIWTools no ocupan registros.
+   - El filtrado es best-effort: depende de que Chromium exponga información suficiente en Error().stack.
+   - Los dos frames internos del propio auditor se excluyen antes de clasificar el caller, para no confundir el auditor con el origen real de todas las llamadas.
+
+7. WebSocket etiquetado por evento sin crear entradas adicionales.
+   - route pasa a ser ws.<type> cuando el payload tiene type.
+   - Ejemplos: ws.field, ws.field-kill, ws.catch-result, ws.poke-delta, ws.poke-xp, ws.analyzer, ws.balls, ws.inventory.
+   - Se añade eventType para facilitar correlaciones y búsquedas.
+
+8. Se añade sequence a cada entrada.
+   - Facilita reconstruir el orden de eventos al estudiar secuencias rápidas de combate/captura.
+
+9. Persistencia aislada de v1.0.2.
+   - Nueva clave sessionStorage v1.0.3.
+   - Nueva base IndexedDB v2.
+   - La nueva versión no hidrata automáticamente los registros ruidosos guardados por 1.0.2.
+   - El botón Limpiar también elimina snapshots antiguos 1.0.2/1.0.1.
+
+10. Se mantiene la caché window.__poke.api.
+    - Es de bajo volumen y permite recuperar respuestas API importantes que pudieron cargarse antes de pulsar Empezar.
+
+EXPERIMENTO GEODUDE
+Esta versión está preparada para correlacionar:
+- ws.field: información visible del Geodude antes de morir (slot, coordenadas, HP/maxHP, shiny, speciesId y demás campos emitidos).
+- ws.field-kill: muerte concreta.
+- ws.catch-result: éxito/fallo y Ball usada.
+- ws.poke-delta: si la captura tiene éxito, datos del Pokémon recibido, incluyendo quality/ivTotal/power/stats cuando el servidor los emite.
+
+El objetivo del siguiente dataset es comprobar si algún campo conocido antes de la captura correlaciona estadísticamente con quality/IV del Pokémon finalmente obtenido.
+
+RECOMENDACIÓN DE CAPTURA
+- Instalar v1.0.3.
+- Abrir la zona de Geodude.
+- Pulsar Limpiar.
+- Pulsar Empezar.
+- Mantener la misma Hunt y capturar tantos Geodude como sea posible.
+- No hace falta interactuar con otros scripts durante la prueba.
+- Cuando llegue a 1000/1000, pulsar Detener y Guardar todo.
+- Enviar el JSON completo sin filtrar.
+
+VALIDACIÓN
+- node --check: OK.
+- MAX_ENTRIES = 1000 confirmado.
+- CAPTURE_MODE = GAME_ONLY confirmado.
+- Sin hooks Storage.
+- Sin window-message.
+- Sin history hooks.
+- Sin poke-ws-cache continuo.
+- Sin runtimeFingerprints/scanPokeRuntimeState.
+- WebSocket route/eventType por tipo confirmado.
+- Prueba estática del filtro de callsite:
+  * llamada simulada desde bundle del juego -> no se clasifica como userscript.
+  * llamada simulada desde PokeGrid Hunt Intelligence -> sí se clasifica como userscript.
+
+SHA-256 SCRIPT v1.0.3
+03c05bd3465c207b13755476de292455ab849d662cd659d0cfbfd15d8069de2d
+
+PUBLICACIÓN
+- No se ha publicado nada en GitHub.
+
 ## 1.0.2 — 2026-08-18
 
 POKE IDLE WORLD — POKEGRID AUDITOR GENERAL

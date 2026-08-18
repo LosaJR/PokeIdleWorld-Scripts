@@ -9,6 +9,14 @@
       "updateURL": "https://losajr.github.io/PokeIdleWorld-Scripts/piw-qol-es.meta.js"
     },
     {
+      "name": "PokeGrid - Auditor General",
+      "version": "1.0.2",
+      "file": "pokegrid-auditor-general.user.js",
+      "metaFile": "pokegrid-auditor-general.meta.js",
+      "downloadURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-auditor-general.user.js",
+      "updateURL": "https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-auditor-general.meta.js"
+    },
+    {
       "name": "PokeGrid - Boss Damage Meter",
       "version": "1.0.6",
       "file": "pokegrid-boss-damage-meter.user.js",

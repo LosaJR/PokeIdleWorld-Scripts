@@ -1,28 +1,29 @@
 // ==UserScript==
 // @name         PokeGrid - Auditor General
 // @namespace    ivan-pokegrid-tools
-// @version      1.0.3
-// @description  Auditor GAME ONLY para PokeGrid: hasta 1000 registros centrados en tráfico/estado del juego, filtrando scripts de usuario y evitando duplicados de window.__poke.ws.
+// @version      1.0.2
+// @description  Auditor de diagnóstico ampliado para PokeGrid: hasta 1000 registros de red, WebSocket/SSE, estado vivo de window.__poke, storage y navegación, con exportación JSON y redacción de credenciales.
 // @match        https://poke.idleworld.online/*
 // @grant        none
 // @run-at       document-start
+// @updateURL    https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-auditor-general.meta.js
+// @downloadURL  https://losajr.github.io/PokeIdleWorld-Scripts/pokegrid-auditor-general.user.js
 // ==/UserScript==
 
 (() => {
   'use strict';
-  if (window.__pgGeneralAuditorV103) return;
-  window.__pgGeneralAuditorV103 = true;
+  if (window.__pgGeneralAuditorV102) return;
+  window.__pgGeneralAuditorV102 = true;
 
-  const VERSION = '1.0.3';
-  const STORAGE_KEY = 'pokegrid-general-auditor-v1.0.3';
-  const OLD_STORAGE_KEYS = ['pokegrid-general-auditor-v1.0.2', 'pokegrid-general-auditor-v1.0.1'];
-  const DB_NAME = 'pokegrid-general-auditor-db-v2';
+  const VERSION = '1.0.2';
+  const STORAGE_KEY = 'pokegrid-general-auditor-v1.0.2';
+  const LEGACY_STORAGE_KEYS = ['pokegrid-general-auditor-v1.0.1'];
+  const DB_NAME = 'pokegrid-general-auditor-db-v1';
   const DB_STORE = 'entries';
   const MAX_ENTRIES = 1000;
   const SESSION_SNAPSHOT_ENTRIES = 120;
   const MAX_BODY_CHARS = 350000;
   const CACHE_POLL_MS = 250;
-  const CAPTURE_MODE = 'GAME_ONLY';
   const SESSION_SAVE_DEBOUNCE_MS = 300;
   const UI_ID = 'pg-general-auditor-panel';
   const LAUNCHER_ID = 'pg-general-auditor-launcher';
@@ -37,13 +38,12 @@
   let dbPromise = null;
   let idbWriteCounter = 0;
   let persistenceMode = 'memoria';
-  let captureSequence = 0;
 
   const nowIso = () => new Date().toISOString();
 
   function loadEntries() {
     const merged = [];
-    const keys = [STORAGE_KEY];
+    const keys = [STORAGE_KEY, ...LEGACY_STORAGE_KEYS];
     for (const key of keys) {
       try {
         const parsed = JSON.parse(sessionStorage.getItem(key) || '[]');
@@ -197,7 +197,7 @@
     }
     try {
       sessionStorage.removeItem(STORAGE_KEY);
-      for (const key of OLD_STORAGE_KEYS) sessionStorage.removeItem(key);
+      for (const key of LEGACY_STORAGE_KEYS) sessionStorage.removeItem(key);
     } catch {}
   }
 
@@ -216,7 +216,7 @@
     if (typeof value === 'string') {
       if (/^Bearer\s+/i.test(value)) return '[REDACTADO]';
       if (/eyJ[a-zA-Z0-9_-]{20,}\./.test(value)) return '[POSIBLE_TOKEN_REDACTADO]';
-      if (/\\b(?:access|refresh)[_-]?token\\b\s*[:=]/i.test(value)) return '[POSIBLE_TOKEN_REDACTADO]';
+      if (/(?:access|refresh)[_-]?token\s*[:=]/i.test(value)) return '[POSIBLE_TOKEN_REDACTADO]';
       return truncateText(value);
     }
     if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -318,37 +318,6 @@
     }
   }
 
-  function captureCallerStack() {
-    try { return String(new Error().stack || ''); }
-    catch { return ''; }
-  }
-
-  function externalCallerStack(stack) {
-    const lines = String(stack || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    if (lines[0] && /^error\b/i.test(lines[0])) lines.shift();
-    // captureCallerStack + wrapper auditado son nuestros dos primeros frames.
-    // Se excluyen para que Tampermonkey no haga parecer "userscript" a todas
-    // las llamadas legítimas del juego solo porque pasan por el auditor.
-    return lines.slice(2, 10).join('\n');
-  }
-
-  function isLikelyUserscriptStack(stack) {
-    const text = externalCallerStack(stack);
-    if (!text) return false;
-    return /userscript|tampermonkey|violentmonkey|greasemonkey|chrome-extension:|moz-extension:|pokegrid-(?:hunt|piwtools|decision|game-structure|boss|favorites?|bridge|script)|pg-(?:hunt|piwtools|decision|game-structure|boss|favorites?|bridge)|piwtools/i.test(text);
-  }
-
-  function websocketEventType(payload) {
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return '';
-    const type = payload.type;
-    return typeof type === 'string' && type.trim() ? type.trim() : '';
-  }
-
-  function websocketRoute(payload) {
-    const type = websocketEventType(payload);
-    return type ? `ws.${type}` : 'websocket';
-  }
-
   function isInterestingUrl(url) {
     const route = routeOf(url);
     return (
@@ -363,7 +332,6 @@
     const clean = sanitize({
       id: crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       timestamp: nowIso(),
-      sequence: ++captureSequence,
       page: location.href,
       ...entry
     });
@@ -412,12 +380,11 @@
       );
       const method = String(init?.method || input?.method || 'GET').toUpperCase();
       const started = performance.now();
-      const auditThisCall = !isLikelyUserscriptStack(captureCallerStack());
-      const requestBody = auditThisCall ? await requestBodyFromFetch(input, init) : null;
+      const requestBody = await requestBodyFromFetch(input, init);
 
       try {
         const response = await nativeFetch.apply(this, arguments);
-        if (auditThisCall) addEntry({
+        addEntry({
           transport: 'fetch',
           method,
           url,
@@ -430,7 +397,7 @@
         });
         return response;
       } catch (error) {
-        if (auditThisCall) addEntry({
+        addEntry({
           transport: 'fetch',
           method,
           url,
@@ -463,11 +430,9 @@
     NativeXHR.prototype.send = function auditedSend(body) {
       const meta = this.__pgAudit || { method: 'GET', url: '' };
       const started = performance.now();
-      const auditThisCall = !isLikelyUserscriptStack(captureCallerStack());
-      const requestBody = auditThisCall ? normalizeBody(body) : null;
+      const requestBody = normalizeBody(body);
 
       this.addEventListener('loadend', () => {
-        if (!auditThisCall) return;
         let bodyOut = null;
         try {
           if (!this.responseType || this.responseType === 'text') {
@@ -499,72 +464,56 @@
   }
 
   // -----------------------------------------------------------------------
-  // WEBSOCKET DEL JUEGO
-  // Se conserva el mensaje original una sola vez. No se duplica después desde
-  // window.__poke.ws. Las conexiones abiertas desde userscripts/extensiones se
-  // excluyen por callsite cuando pueden identificarse.
+  // WEBSOCKET
   // -----------------------------------------------------------------------
   const NativeWebSocket = window.WebSocket;
   if (typeof NativeWebSocket === 'function') {
     class AuditedWebSocket extends NativeWebSocket {
       constructor(...args) {
-        const callerStack = captureCallerStack();
         super(...args);
         this.__pgGeneralAuditorWrapped = true;
-        this.__pgGeneralAuditorGameSocket = !isLikelyUserscriptStack(callerStack);
         const socketUrl = absoluteUrl(args[0]);
 
-        if (this.__pgGeneralAuditorGameSocket) {
-          this.addEventListener('open', () => addEntry({
-            transport: 'websocket-open',
+        this.addEventListener('open', () => addEntry({
+          transport: 'websocket-open',
+          url: socketUrl,
+          route: 'websocket',
+          protocol: this.protocol || ''
+        }));
+
+        this.addEventListener('message', event => {
+          Promise.resolve(normalizeWirePayload(event.data)).then(payload => addEntry({
+            transport: 'websocket-in',
             url: socketUrl,
             route: 'websocket',
-            protocol: this.protocol || ''
+            payload
           }));
+        });
 
-          this.addEventListener('message', event => {
-            const receivedAt = nowIso();
-            Promise.resolve(normalizeWirePayload(event.data)).then(payload => addEntry({
-              timestamp: receivedAt,
-              transport: 'websocket-in',
-              url: socketUrl,
-              route: websocketRoute(payload),
-              eventType: websocketEventType(payload),
-              payload
-            }));
-          });
+        this.addEventListener('close', event => addEntry({
+          transport: 'websocket-close',
+          url: socketUrl,
+          route: 'websocket',
+          code: event.code,
+          reason: sanitize(event.reason || ''),
+          wasClean: Boolean(event.wasClean)
+        }));
 
-          this.addEventListener('close', event => addEntry({
-            transport: 'websocket-close',
-            url: socketUrl,
-            route: 'websocket',
-            code: event.code,
-            reason: sanitize(event.reason || ''),
-            wasClean: Boolean(event.wasClean)
-          }));
-
-          this.addEventListener('error', () => addEntry({
-            transport: 'websocket-error',
-            url: socketUrl,
-            route: 'websocket',
-            error: 'Evento error de WebSocket'
-          }));
-        }
+        this.addEventListener('error', () => addEntry({
+          transport: 'websocket-error',
+          url: socketUrl,
+          route: 'websocket',
+          error: 'Evento error de WebSocket'
+        }));
       }
 
       send(data) {
-        const auditThisCall = this.__pgGeneralAuditorGameSocket && !isLikelyUserscriptStack(captureCallerStack());
-        if (auditThisCall) {
-          const sentAt = nowIso();
-          Promise.resolve(normalizeWirePayload(data)).then(payload => addEntry({
-            timestamp: sentAt,
-            transport: 'websocket-out',
-            url: this.url,
-            route: websocketRoute(payload),
-            eventType: websocketEventType(payload),
-            payload
-          }));
-        }
+        Promise.resolve(normalizeWirePayload(data)).then(payload => addEntry({
+          transport: 'websocket-out',
+          url: this.url,
+          route: 'websocket',
+          payload
+        }));
         return super.send(data);
       }
     }
@@ -586,9 +535,7 @@
   if (typeof NativeEventSource === 'function') {
     class AuditedEventSource extends NativeEventSource {
       constructor(url, options) {
-        const callerStack = captureCallerStack();
         super(url, options);
-        if (isLikelyUserscriptStack(callerStack)) return;
         const sourceUrl = absoluteUrl(url);
         this.addEventListener('open', () => addEntry({ transport: 'eventsource-open', url: sourceUrl, route: routeOf(sourceUrl) }));
         this.addEventListener('message', event => addEntry({
@@ -617,8 +564,7 @@
   if (nativeSendBeacon) {
     try {
       navigator.sendBeacon = function auditedSendBeacon(url, data) {
-        const auditThisCall = !isLikelyUserscriptStack(captureCallerStack());
-        if (auditThisCall) addEntry({
+        addEntry({
           transport: 'beacon-out',
           method: 'BEACON',
           url: absoluteUrl(url),
@@ -631,25 +577,105 @@
   }
 
   // -----------------------------------------------------------------------
-  // GAME ONLY
-  // No se interceptan postMessage, Storage ni history: en PokeGrid esas vías
-  // están muy contaminadas por userscripts y consumían cientos de slots sin
-  // aportar nueva telemetría del servidor.
+  // MENSAJES DE VENTANA MISMO ORIGEN
   // -----------------------------------------------------------------------
+  window.addEventListener('message', event => {
+    if (!enabled) return;
+    if (event.origin && event.origin !== location.origin) return;
+    addEntry({
+      transport: 'window-message',
+      route: 'postMessage',
+      origin: event.origin || location.origin,
+      payload: sanitize(event.data)
+    });
+  }, true);
 
   // -----------------------------------------------------------------------
-  // CONTEXTO DEL JUEGO EN window.__poke
-  // La API se observa por cambios porque puede contener respuestas cargadas
-  // antes de pulsar Empezar. window.__poke.ws NO se sondea continuamente: el
-  // WebSocket original ya se captura y duplicarlo malgastaba ~35% de los slots.
-  // Al iniciar solo se toma un bootstrap pequeño de estados persistentes útiles.
+  // STORAGE DEL JUEGO (sin claves sensibles)
+  // -----------------------------------------------------------------------
+  const nativeStorageSetItem = Storage.prototype.setItem;
+  const nativeStorageRemoveItem = Storage.prototype.removeItem;
+  const nativeStorageClear = Storage.prototype.clear;
+
+  function storageAreaName(storage) {
+    try {
+      if (storage === localStorage) return 'localStorage';
+      if (storage === sessionStorage) return 'sessionStorage';
+    } catch {}
+    return 'Storage';
+  }
+
+  Storage.prototype.setItem = function auditedStorageSetItem(key, value) {
+    const result = nativeStorageSetItem.apply(this, arguments);
+    const name = String(key || '');
+    if (enabled && !name.startsWith('pokegrid-general-auditor-') && !isSensitiveStorageKey(name)) {
+      addEntry({
+        transport: 'storage-set',
+        route: `${storageAreaName(this)}:${name}`,
+        storage: storageAreaName(this),
+        key: name,
+        value: parseMaybeJson(value)
+      });
+    }
+    return result;
+  };
+
+  Storage.prototype.removeItem = function auditedStorageRemoveItem(key) {
+    const name = String(key || '');
+    const oldValue = (!isSensitiveStorageKey(name) && !name.startsWith('pokegrid-general-auditor-'))
+      ? (() => { try { return this.getItem(name); } catch { return null; } })()
+      : null;
+    const result = nativeStorageRemoveItem.apply(this, arguments);
+    if (enabled && !name.startsWith('pokegrid-general-auditor-') && !isSensitiveStorageKey(name)) {
+      addEntry({
+        transport: 'storage-remove',
+        route: `${storageAreaName(this)}:${name}`,
+        storage: storageAreaName(this),
+        key: name,
+        previousValue: oldValue === null ? null : parseMaybeJson(oldValue)
+      });
+    }
+    return result;
+  };
+
+  Storage.prototype.clear = function auditedStorageClear() {
+    const area = storageAreaName(this);
+    const result = nativeStorageClear.apply(this, arguments);
+    if (enabled) addEntry({ transport: 'storage-clear', route: area, storage: area });
+    return result;
+  };
+
+  // -----------------------------------------------------------------------
+  // NAVEGACIÓN SPA
+  // -----------------------------------------------------------------------
+  for (const method of ['pushState', 'replaceState']) {
+    const nativeMethod = history[method];
+    if (typeof nativeMethod !== 'function') continue;
+    history[method] = function auditedHistoryState(state, title, url) {
+      const result = nativeMethod.apply(this, arguments);
+      addEntry({
+        transport: `history-${method}`,
+        route: routeOf(url || location.href),
+        url: absoluteUrl(url || location.href),
+        state: sanitize(state)
+      });
+      return result;
+    };
+  }
+  window.addEventListener('popstate', event => addEntry({
+    transport: 'history-popstate',
+    route: routeOf(location.href),
+    url: location.href,
+    state: sanitize(event.state)
+  }));
+
+  // -----------------------------------------------------------------------
+  // ESTADO VIVO window.__poke
+  // Captura snapshots posteriores incluso si la llamada/red se produjo antes
+  // de pulsar Empezar. API y WS se registran por clave para poder filtrar bien.
   // -----------------------------------------------------------------------
   const cacheFingerprints = new Map();
-  const bootstrapFingerprints = new Map();
-  const BOOTSTRAP_WS_KEYS = Object.freeze([
-    'pokes', 'field-init', 'field', 'analyzer', 'balls', 'inventory', 'events',
-    'pending', 'trade'
-  ]);
+  const runtimeFingerprints = new Map();
 
   function lightweightFingerprint(value) {
     try {
@@ -678,53 +704,43 @@
     }
   }
 
-  function scanPokeApiCache() {
+  function scanPokeRuntimeState() {
     if (!enabled) return;
     try {
-      const api = window.__poke?.api;
-      if (!api || typeof api !== 'object') return;
-      scanObjectChanges(api, 'poke-api-cache', 'api', cacheFingerprints);
+      const poke = window.__poke;
+      if (!poke || typeof poke !== 'object') return;
+
+      scanObjectChanges(poke.api, 'poke-api-cache', 'api', cacheFingerprints);
+      scanObjectChanges(poke.ws, 'poke-ws-cache', 'ws', cacheFingerprints);
+
+      const runtimeParts = {
+        sess: poke.sess,
+        prev: poke.prev,
+        lastSlug: poke.lastSlug,
+        accountId: poke.accountId
+      };
+      for (const [key, value] of Object.entries(runtimeParts)) {
+        if (value === undefined) continue;
+        const fingerprint = lightweightFingerprint(value);
+        if (runtimeFingerprints.get(key) === fingerprint) continue;
+        runtimeFingerprints.set(key, fingerprint);
+        addEntry({
+          transport: 'poke-runtime-state',
+          method: 'STATE',
+          route: `__poke.${key}`,
+          responseBody: sanitize(value)
+        });
+      }
     } catch {
       // El auditor nunca debe interferir con el juego.
     }
   }
 
-  function capturePokeWsBootstrap(force = false) {
-    if (!enabled) return;
-    try {
-      const ws = window.__poke?.ws;
-      if (!ws || typeof ws !== 'object') return;
-      for (const key of BOOTSTRAP_WS_KEYS) {
-        if (!(key in ws)) continue;
-        const value = ws[key];
-        const fingerprint = lightweightFingerprint(value);
-        const fpKey = `bootstrap:${key}`;
-        if (!force && bootstrapFingerprints.get(fpKey) === fingerprint) continue;
-        bootstrapFingerprints.set(fpKey, fingerprint);
-        addEntry({
-          transport: 'poke-ws-bootstrap',
-          method: 'BOOTSTRAP',
-          url: location.href,
-          route: `ws.${key}`,
-          eventType: value && typeof value === 'object' ? String(value.type || key) : key,
-          responseBody: sanitize(value)
-        });
-      }
-    } catch {
-      // Contexto opcional; nunca interferir con el juego.
-    }
-  }
-
-  function scanPokeGameContext({ bootstrap = false, forceBootstrap = false } = {}) {
-    scanPokeApiCache();
-    if (bootstrap) capturePokeWsBootstrap(forceBootstrap);
-  }
-
-  setInterval(scanPokeApiCache, CACHE_POLL_MS);
-  setTimeout(scanPokeApiCache, 0);
-  setTimeout(scanPokeApiCache, 500);
-  setTimeout(scanPokeApiCache, 1000);
-  setTimeout(scanPokeApiCache, 3000);
+  setInterval(scanPokeRuntimeState, CACHE_POLL_MS);
+  setTimeout(scanPokeRuntimeState, 0);
+  setTimeout(scanPokeRuntimeState, 500);
+  setTimeout(scanPokeRuntimeState, 1000);
+  setTimeout(scanPokeRuntimeState, 3000);
 
   // -----------------------------------------------------------------------
   // Exportación / UI
@@ -736,8 +752,8 @@
     // Fuerza un snapshot de la caché existente justo al empezar, aunque esos
     // datos se hubieran cargado antes de activar el auditor.
     cacheFingerprints.clear();
-    bootstrapFingerprints.clear();
-    scanPokeGameContext({ bootstrap: true, forceBootstrap: true });
+    runtimeFingerprints.clear();
+    scanPokeRuntimeState();
     render();
   }
 
@@ -773,7 +789,6 @@
       totalEntries: selected.length,
       totalStoredEntries: entries.length,
       maxEntries: MAX_ENTRIES,
-      captureMode: CAPTURE_MODE,
       persistence: persistenceMode,
       transportSummary: selected.reduce((out, entry) => {
         const key = String(entry.transport || 'desconocido');
@@ -782,11 +797,9 @@
       }, {}),
       filter: filtered ? String(filterNode?.value || '') : '',
       notes: [
-        'Modo GAME ONLY: no se registran Storage, postMessage ni navegación, porque en PokeGrid esas vías están dominadas por userscripts.',
-        'Las llamadas de red iniciadas desde userscripts/extensiones se filtran por callsite cuando el navegador permite identificarlas.',
-        'window.__poke.ws solo aporta un bootstrap inicial de contexto; no se sondea continuamente para evitar duplicar los mismos mensajes WebSocket.',
         'No se registran cabeceras HTTP ni cookies; claves/campos de credenciales y tokens se redactan.',
-        'La retención máxima en memoria/IndexedDB es de 1000 registros; sessionStorage solo conserva un snapshot ligero.'
+        'Incluye fetch, XHR, WebSocket (entrada/salida/ciclo de vida), EventSource/SSE, sendBeacon, postMessage del mismo origen, cambios de Storage, navegación SPA y snapshots de window.__poke.api/ws/sess/prev.',
+        'La retención máxima en memoria/IndexedDB es de 1000 registros; sessionStorage solo conserva un snapshot ligero para evitar agotar su cuota.'
       ],
       entries: selected
     };
@@ -827,11 +840,11 @@
   function clearEntries() {
     entries = [];
     cacheFingerprints.clear();
-    bootstrapFingerprints.clear();
+    runtimeFingerprints.clear();
     clearPersistentEntries().catch(() => {});
     saveEntries();
     render();
-    scanPokeGameContext({ bootstrap: true, forceBootstrap: true });
+    scanPokeRuntimeState();
   }
 
   function createButton(label, fn) {
@@ -846,7 +859,7 @@
   function render() {
     if (!panel) return;
     const selected = filteredEntries();
-    statusNode.textContent = `${enabled ? 'Grabando' : 'Detenido'} · GAME ONLY · ${entries.length}/${MAX_ENTRIES} registros · ${selected.length} visibles · ${persistenceMode}`;
+    statusNode.textContent = `${enabled ? 'Grabando' : 'Detenido'} · ${entries.length}/${MAX_ENTRIES} registros · ${selected.length} visibles · ${persistenceMode}`;
     statusNode.style.color = enabled ? '#86efac' : '#fca5a5';
 
     listNode.textContent = selected.length
@@ -880,14 +893,14 @@
     `;
 
     const title = document.createElement('div');
-    title.innerHTML = `<b>PokeGrid Auditor General v${VERSION}</b><br><small>GAME ONLY · 1000 registros · Red/WS/SSE · API · sin ruido de scripts</small>`;
+    title.innerHTML = `<b>PokeGrid Auditor General v${VERSION}</b><br><small>1000 registros · Red · WS/SSE · __poke.api/ws · Storage · navegación</small>`;
     title.style.marginBottom = '9px';
 
     statusNode = document.createElement('div');
     statusNode.style.marginBottom = '9px';
 
     filterNode = document.createElement('input');
-    filterNode.placeholder = 'Filtro: ws.field, field-kill, catch-result, poke-delta, pokedex, analyzer';
+    filterNode.placeholder = 'Filtro: pokedex, ws.field, catch-result, market, hunt, storage';
     filterNode.style.cssText = 'width:100%;box-sizing:border-box;margin-bottom:8px;padding:7px 9px;border:1px solid #334155;border-radius:6px;background:#020617;color:#e5e7eb;';
     filterNode.addEventListener('input', render);
 
@@ -896,7 +909,7 @@
     controls.append(
       createButton('Empezar', startCapture),
       createButton('Detener', stopCapture),
-      createButton('Escanear contexto', () => { scanPokeGameContext({ bootstrap: true, forceBootstrap: true }); render(); }),
+      createButton('Escanear estado', () => { scanPokeRuntimeState(); render(); }),
       createButton('Copiar filtrado', () => copyExport(true)),
       createButton('Guardar filtrado', () => saveExport(true)),
       createButton('Guardar todo', () => saveExport(false)),
@@ -931,9 +944,9 @@
     enable: startCapture,
     disable: stopCapture,
     clear: clearEntries,
-    scanCache: scanPokeGameContext,
-    scanRuntime: scanPokeGameContext,
-    getCapacity: () => ({ maxEntries: MAX_ENTRIES, currentEntries: entries.length, captureMode: CAPTURE_MODE, persistence: persistenceMode }),
+    scanCache: scanPokeRuntimeState,
+    scanRuntime: scanPokeRuntimeState,
+    getCapacity: () => ({ maxEntries: MAX_ENTRIES, currentEntries: entries.length, persistence: persistenceMode }),
     getEntries: () => structuredClone(entries),
     exportAll: () => structuredClone(exportPayload(false)),
     exportFiltered: query => {
@@ -953,5 +966,5 @@
   });
 
   hydrateEntriesFromDb().catch(() => {});
-  console.info(`[PokeGrid Auditor General] v${VERSION} listo · GAME ONLY · capacidad ${MAX_ENTRIES} · captura detenida hasta pulsar Empezar.`);
+  console.info(`[PokeGrid Auditor General] v${VERSION} listo · capacidad ${MAX_ENTRIES} · captura detenida hasta pulsar Empezar.`);
 })();
