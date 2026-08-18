@@ -1,11 +1,14 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { injectDistributionUrls } from './lib/userscript.mjs';
 
 const root = process.cwd();
 const incomingDir = path.join(root, 'incoming');
 const srcDir = path.join(root, 'src');
 const changelogDir = path.join(root, 'changelog');
 const generalChangelogPath = path.join(root, 'CHANGELOG.md');
+const config = JSON.parse(await fs.readFile(path.join(root, 'config', 'repository.json'), 'utf8'));
+const baseUrl = config.pagesBaseUrl.replace(/\/$/, '');
 
 const SCRIPT_SUFFIXES = ['.user.js', '.user.txt'];
 const CHANGELOG_SUFFIX = '.changelog.txt';
@@ -52,11 +55,6 @@ function scriptStem(name) {
   for (const suffix of SCRIPT_SUFFIXES) {
     if (name.endsWith(suffix)) return name.slice(0, -suffix.length);
   }
-
-  // Los scripts entregados al usuario también pueden venir como .txt normal.
-  // Solo los tratamos como userscript si el nombre no corresponde a un
-  // changelog; parseMeta() comprobará después que realmente contienen una
-  // cabecera ==UserScript== válida.
   if (
     name.endsWith('.txt')
     && !name.startsWith(UPDATE_NOTES_PREFIX)
@@ -64,7 +62,6 @@ function scriptStem(name) {
   ) {
     return name.slice(0, -'.txt'.length);
   }
-
   return null;
 }
 
@@ -116,10 +113,7 @@ async function prependEntry(filePath, header, entry, duplicateMarker) {
     throw new Error(`${path.relative(root, filePath)} ya contiene una entrada para ${duplicateMarker}.`);
   }
 
-  const base = current.trim()
-    ? current.trimEnd()
-    : header.trimEnd();
-
+  const base = current.trim() ? current.trimEnd() : header.trimEnd();
   const firstBreak = base.indexOf('\n');
   const title = firstBreak === -1 ? base : base.slice(0, firstBreak);
   const rest = firstBreak === -1 ? '' : base.slice(firstBreak + 1).trimStart();
@@ -156,13 +150,49 @@ async function main() {
     return;
   }
 
+  const srcFiles = (await fs.readdir(srcDir))
+    .filter(name => name.endsWith('.user.js'))
+    .sort();
+
+  const sourceByIdentity = new Map();
+  const sourceMeta = new Map();
+
+  for (const name of srcFiles) {
+    const content = await fs.readFile(path.join(srcDir, name), 'utf8');
+    const meta = parseMeta(content, `src/${name}`);
+    const key = identity(meta);
+    if (sourceByIdentity.has(key)) throw new Error(`Identidad duplicada en src/: ${meta.name}`);
+    sourceByIdentity.set(key, name);
+    sourceMeta.set(name, meta);
+  }
+
   const scriptByStem = new Map();
+  const scriptDescriptor = new Map();
+
   for (const name of scriptFiles) {
-    const stem = pairingStem(scriptStem(name));
+    const incomingPath = path.join(incomingDir, name);
+    const content = await fs.readFile(incomingPath, 'utf8');
+    const meta = parseMeta(content, `incoming/${name}`);
+
+    let targetName = srcFiles.includes(name) ? name : sourceByIdentity.get(identity(meta));
+    if (!targetName) {
+      throw new Error(`incoming/${name}: no existe un script en src/ con @name "${meta.name}" y el mismo @namespace.`);
+    }
+
+    const current = sourceMeta.get(targetName);
+    if (identity(meta) !== identity(current)) {
+      throw new Error(`incoming/${name}: la identidad no coincide con src/${targetName}.`);
+    }
+    if (compareVersions(meta.version, current.version) <= 0) {
+      throw new Error(`incoming/${name}: @version ${meta.version} debe ser superior a ${current.version}.`);
+    }
+
+    const stem = pairingStem(`${canonicalSlug(targetName)}-${meta.version}`);
     if (scriptByStem.has(stem)) {
       throw new Error(`incoming/: hay más de un userscript para la actualización "${stem}".`);
     }
     scriptByStem.set(stem, name);
+    scriptDescriptor.set(name, { content, meta, targetName, current });
   }
 
   const changelogByStem = new Map();
@@ -192,22 +222,6 @@ async function main() {
     return;
   }
 
-  const srcFiles = (await fs.readdir(srcDir))
-    .filter(name => name.endsWith('.user.js'))
-    .sort();
-
-  const sourceByIdentity = new Map();
-  const sourceMeta = new Map();
-
-  for (const name of srcFiles) {
-    const content = await fs.readFile(path.join(srcDir, name), 'utf8');
-    const meta = parseMeta(content, `src/${name}`);
-    const key = identity(meta);
-    if (sourceByIdentity.has(key)) throw new Error(`Identidad duplicada en src/: ${meta.name}`);
-    sourceByIdentity.set(key, name);
-    sourceMeta.set(name, meta);
-  }
-
   const claimedTargets = new Set();
   const date = madridDate();
 
@@ -217,29 +231,19 @@ async function main() {
     const incomingPath = path.join(incomingDir, incomingName);
     const changelogPath = path.join(incomingDir, changelogName);
 
-    const content = await fs.readFile(incomingPath, 'utf8');
+    const descriptor = scriptDescriptor.get(incomingName);
+    const { meta, targetName, current } = descriptor;
     const notes = normalizeNotes(
       await fs.readFile(changelogPath, 'utf8'),
       `incoming/${changelogName}`
     );
-    const meta = parseMeta(content, `incoming/${incomingName}`);
 
-    let targetName = srcFiles.includes(incomingName) ? incomingName : sourceByIdentity.get(identity(meta));
-    if (!targetName) {
-      throw new Error(`incoming/${incomingName}: no existe un script en src/ con @name "${meta.name}" y el mismo @namespace.`);
-    }
     if (claimedTargets.has(targetName)) {
       throw new Error(`Hay más de una pareja en incoming/ intentando actualizar ${targetName}.`);
     }
     claimedTargets.add(targetName);
 
-    const current = sourceMeta.get(targetName);
-    if (identity(meta) !== identity(current)) {
-      throw new Error(`incoming/${incomingName}: la identidad no coincide con src/${targetName}.`);
-    }
-    if (compareVersions(meta.version, current.version) <= 0) {
-      throw new Error(`incoming/${incomingName}: @version ${meta.version} debe ser superior a ${current.version}.`);
-    }
+    const content = injectDistributionUrls(descriptor.content, baseUrl, targetName);
 
     const slug = canonicalSlug(targetName);
     const scriptLogPath = path.join(changelogDir, `${slug}.md`);
