@@ -1,0 +1,13 @@
+{
+  "files": [
+    {
+      "target": "src/pokegrid-auditor-general.user.js",
+      "payloads": [
+        "staging-upload/auditor-general-1.0.2.b64"
+      ],
+      "encoding": "gzip-base64",
+      "sha256": "2c7d3fdc0c1793e259a65728f19539f11a5218b9e8dd798c599c36fada091c4a",
+      "bytes": 35539
+    }
+  ]
+}
