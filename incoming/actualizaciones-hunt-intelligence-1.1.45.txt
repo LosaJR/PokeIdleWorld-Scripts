@@ -1,0 +1,63 @@
+POKE IDLE WORLD / POKEGRID — HUNT INTELLIGENCE
+ACTUALIZACIONES DE LA VERSIÓN 1.1.45
+Fecha: 2026-08-18
+
+VERSIÓN
+- Versión anterior: 1.1.44
+- Nueva versión: 1.1.45
+
+OBJETIVO
+- Corregir la geometría de Hunt Intelligence cuando PokeGrid cambia el tamaño del webview entre la vista de 4 cuentas y una cuenta ampliada.
+- Conseguir que la barra minimizada se muestre completa y mantenga accesible la X de cierre.
+- Evitar que Hunt Intelligence se cierre accidentalmente al terminar de redimensionarlo desde una esquina.
+
+AÑADIDO
+- Geometría responsive específica para la ventana de Hunt Intelligence gestionada por Bridge UI.
+- El estado minimizado usa un ancho compacto objetivo de 390 px, limitado automáticamente al ancho real disponible del webview (100vw - 8 px).
+- El encabezado minimizado oculta el subtítulo y permite truncar el título para reservar espacio a los controles.
+- El control de opacidad se compacta mientras la ventana está minimizada.
+- En viewports extremadamente estrechos (<= 340 px), el control de opacidad se oculta en minimizado para priorizar los botones de minimizar/maximizar/cerrar.
+
+MODIFICADO
+- La ventana gestionada por Bridge ya no mantiene a la fuerza un mínimo de 360 px cuando el propio webview es más estrecho; puede adaptarse al espacio real disponible.
+- El ancho máximo visual de Hunt Intelligence queda limitado al viewport actual para evitar que parte del encabezado quede fuera de pantalla al alternar tamaños de PokeGrid.
+- Se actualizan los identificadores/versiones públicas de Hunt Intelligence a 1.1.45.
+
+ELIMINADO
+- No se ha eliminado ninguna función de Hunt Intelligence.
+- No se ha eliminado ni modificado ninguna función de Favoritos, No capturados, Items, Rendimiento, Histórico o Especiales/h.
+
+CORREGIDO
+- Corregido el caso en el que abrir Map/Mapa podía mostrar Hunt Intelligence minimizado con la barra cortada y la X fuera de la zona visible.
+- Corregido el cierre accidental al soltar el ratón después de redimensionar la ventana desde una esquina.
+  Causa: en modo Bridge UI, el elemento que Hunt Intelligence trataba como "fondo exterior" es realmente la propia ventana. Un click generado sobre esa superficie al finalizar el resize podía ejecutar closePanel().
+  Corrección: el click directo sobre el contenedor solo cierra en el modo legacy, donde sí existe un overlay exterior. En modo Bridge, cerrar sigue correspondiendo al botón X real de la ventana.
+- La barra minimizada se adapta dinámicamente al tamaño actual del webview, por lo que no depende de que la cuenta esté en 2x2 o ampliada.
+
+VALIDACIONES REALIZADAS
+- Fuente base 1.1.44 reconstruida y verificada exactamente contra la copia actual del repositorio antes de modificar:
+  - Git blob SHA: 19440486fec4f8c3ea855fc59e9d6d79df827878
+  - SHA-256 base: 21261a2150fc08b56157c9c38ca3d7ec82346bc26f3aeb7d5143ca57f907ccb5
+- node --check sobre una copia temporal .js de la 1.1.45: OK.
+- Verificado que el guard principal y las versiones públicas son 1.1.45.
+- Verificado que sigue presente el RPC de Favoritos por postMessage y sus acciones:
+  ping, getLocalAccountState, getChoices, setLocalEnabled, setLocalTarget, moveLocalTarget, startLocalAccount y stopLocalAccount.
+- Verificada la normalización de flechas de Favoritos (up/down/arriba/abajo/subir/bajar/prev/previous/next): intacta.
+- Verificada la lógica sparse de /api/game/pokedex y el cruce con hunts reales para No capturados: intacta.
+- Verificados specialItems, specialItemsPh, cleanBaseSpecialItemsPh, Strange Pheromone y Bronze Boss Token: intactos.
+- Script Bridge & Health Agent 1.1.8: no modificado.
+- No se ha publicado ningún cambio en GitHub.
+
+HASH DE LA NUEVA VERSIÓN
+- SHA-256 pokegrid-hunt-intelligence-1.1.45.txt:
+  b934a323e686efdee4b53a99eceda6c0af14edfe1688ecc0696af2aba34e288a
+
+PRUEBA REAL RECOMENDADA EN POKEGRID
+1. Con las 4 cuentas visibles en 2x2, abrir Map/Mapa varias veces y comprobar que Hunt Intelligence aparece minimizado con la barra completa y la X visible.
+2. Abrir Hunt Intelligence completo, redimensionarlo varias veces desde la esquina y soltar el ratón; no debe cerrarse.
+3. Ampliar una cuenta mediante PokeGrid, repetir apertura minimizada y resize.
+4. Volver a la vista 2x2 y repetir, comprobando que la barra minimizada vuelve a ajustarse al espacio disponible.
+5. Confirmar que la X sigue cerrando normalmente cuando se pulsa de forma intencionada.
+
+NOTA
+- Las validaciones anteriores cubren sintaxis y regresiones estáticas. La interacción exacta con Electron/webview al alternar 2x2 y vista ampliada debe confirmarse con la prueba real en PokeGrid.
