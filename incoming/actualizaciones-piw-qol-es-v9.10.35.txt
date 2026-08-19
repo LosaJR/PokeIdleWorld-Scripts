@@ -1,0 +1,55 @@
+PIW-QOL ES — Actualización 9.10.35
+=================================
+
+Fecha: 19/08/2026
+Base utilizada: PIW-QOL ES 9.10.34 proporcionada por el usuario.
+
+CAMBIOS
+-------
+
+1. Mercado Global: compra de varias unidades de un mismo anuncio
+   - Los anuncios de objetos con más de 1 unidad ya no obligan a comprar de una en una.
+   - Al pulsar «Comprar» se abre un selector de cantidad.
+   - Se puede introducir cualquier cantidad entre 1 y el máximo permitido.
+   - El valor inicial sugerido es 10 unidades cuando el anuncio/saldo lo permiten.
+
+2. Límite automático por stock y saldo
+   - La cantidad máxima se limita al stock disponible en el anuncio.
+   - También se limita a las unidades que pueden pagarse con el saldo actual.
+   - Si no hay saldo suficiente ni siquiera para una unidad, la compra se cancela y se muestra un aviso.
+
+3. Confirmación de compra adaptada a la cantidad
+   - La ventana de confirmación muestra:
+       · cantidad total a comprar;
+       · precio unitario;
+       · coste total;
+       · saldo estimado tras la compra.
+
+4. Petición real al Mercado Global
+   - La acción `buy-stack` ahora envía la cantidad seleccionada mediante `quantity` en lugar de forzar siempre `quantity: 1`.
+   - Se mantienen `kind`, `refId`, `price`, `currency` e `ids` tal como los utilizaba la versión 9.10.34.
+
+5. Actualización del stock mostrado
+   - Tras una compra parcial se resta del anuncio exactamente la cantidad comprada.
+   - Si se compra todo el stock restante, el anuncio desaparece de la lista.
+   - Los Pokémon continúan siendo compras unitarias y no muestran selector de cantidad.
+
+COMPATIBILIDAD
+--------------
+
+- Se mantienen sin cambios @updateURL y @downloadURL.
+- No se han modificado otras funciones de PIW-QOL.
+- No se ha publicado nada en GitHub.
+
+VALIDACIÓN
+----------
+
+- `node --check`: OK.
+- Versión de metadata: 9.10.35.
+- SCRIPT_BUILD: 9.10.35.
+- Comprobación de `buy-stack` con `quantity: purchaseQuantity`: OK.
+- URLs de actualización GitHub conservadas: OK.
+
+SHA-256 DEL SCRIPT
+------------------
+8bbb56e4804ac5d8c17ee434e75add09c2d02ec669ed1322c44957f92dacffce
