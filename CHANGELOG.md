@@ -1,5 +1,68 @@
 # Poke Idle World Scripts — Changelog
 
+## PokeGrid - Hunt Intelligence 1.1.47 — 2026-08-19
+
+PokeGrid - Hunt Intelligence v1.1.47
+
+Corrección principal: interfaz estable en PokeGrid 4x4 y 1x1.
+
+CAUSA
+- Hunt Intelligence estaba mezclando su propio estado plegado/desplegado con el estado minimizado y la geometría recordada por Bridge UI.
+- Al cambiar una cuenta entre vista 4x4 y 1x1, Bridge podía reutilizar un tamaño/posición procedente de otro viewport.
+- La apertura automática al pulsar Map utilizaba setMinimized(true). Durante los rerenders de carga/datos, ese estado podía combinarse con el cuerpo reconstruido y dejar una ventana grande prácticamente vacía.
+- El cuerpo gestionado por Bridge tenía min-height:100% y overflow:visible, lo que podía hacer que el contenido excediera la altura útil de la ventana.
+
+CAMBIOS
+1. Dos modos de presentación explícitos y excluyentes:
+   - manual-full: al pulsar el icono 🧠.
+   - map-compact: al pulsar Map/Mapa.
+
+2. Apertura manual desde 🧠:
+   - Siempre fuerza Hunt Intelligence a ocupar el viewport disponible de ESA cuenta/webview.
+   - left/top = 4 px.
+   - width = 100vw - 8 px.
+   - height = 100vh - 8 px.
+   - No reutiliza el tamaño de una apertura anterior.
+   - Se adapta automáticamente al pasar de 4x4 a 1x1 y viceversa.
+
+3. Apertura automática desde Map:
+   - Ya NO utiliza el minimizado de Bridge.
+   - Se abre como una franja compacta superior.
+   - Muestra la cabecera de Hunt Intelligence y los controles superiores de Hunts.
+   - Oculta pestañas y cuerpo completo mientras está en modo Map compacto.
+   - Anchura máxima 560 px, limitada siempre al ancho real del viewport.
+   - En viewports pequeños ocupa como máximo el ancho disponible de la cuenta.
+   - No puede aparecer como panel grande vacío durante el cálculo inicial.
+
+4. Bridge UI:
+   - rememberLayout desactivado específicamente para Hunt Intelligence.
+   - La geometría se decide según el modo actual, no por un layout antiguo de Bridge.
+   - minWidth reducido a 280 px y minHeight a 86 px para que el modo compacto sea válido también en vistas pequeñas.
+   - Cada rerender vuelve a aplicar el modo actual, evitando saltos de tamaño al terminar una carga o actualizar datos.
+
+5. Contenedor gestionado:
+   - pg-ui-body usa flex con min-height:0 y overflow:auto.
+   - Evita que el cuerpo fuerce una altura mayor que la ventana disponible.
+
+6. Fallback sin Bridge:
+   - Mantiene los mismos dos comportamientos: manual a viewport completo y Map compacto.
+
+COMPORTAMIENTO ESPERADO
+- 4x4 + clic 🧠: Hunt Intelligence ocupa toda la superficie disponible dentro de esa cuenta.
+- 1x1 + clic 🧠: Hunt Intelligence vuelve a ocupar toda la superficie disponible del viewport grande.
+- Alternar varias veces 4x4 ↔ 1x1 no debe recuperar tamaños viejos ni quedarse parcialmente abierto.
+- Clic en Map: aparece solamente la zona superior compacta de Hunt Intelligence.
+- Volver a pulsar 🧠 después de Map: se abre inmediatamente el panel completo.
+
+VALIDACIÓN
+- node --check: OK.
+- setMinimized(true) en Hunt Intelligence: 0 usos.
+- rememberLayout de Hunt Intelligence: false.
+- Modo manual-full presente y conectado al botón 🧠.
+- Modo map-compact presente y conectado a Map/Mapa.
+
+No se ha publicado nada en GitHub.
+
 ## PokeGrid - Hunt Intelligence 1.1.46 — 2026-08-19
 
 PokeGrid - Hunt Intelligence v1.1.46

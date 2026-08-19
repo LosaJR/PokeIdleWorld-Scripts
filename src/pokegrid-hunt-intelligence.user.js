@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.46
+// @version      1.1.47
 // @description  Recomendador, No capturados, Item Finder, supervisor y gestor compacto de Favoritos por cuenta con histórico móvil de 12 muestras.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1146) return;
-  window.__pgHuntIntelligenceCoreV1146 = true;
+  if (window.__pgHuntIntelligenceCoreV1147) return;
+  window.__pgHuntIntelligenceCoreV1147 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -3962,6 +3962,10 @@
   let uiWindow = null;
   let usingBridgeUi = false;
   let uiUpgradeBusy = false;
+  // La presentación ya no depende del último tamaño/minimizado guardado por Bridge.
+  // manual-full: clic en 🧠 => usa todo el viewport de ESA cuenta/webview.
+  // map-compact: clic en Map => solo cabecera/controles superiores.
+  let panelPresentationMode = 'manual-full';
 
   const H = () => window.__PGUnifiedHuntCore;
   const I = () => window.__PGUnifiedItemCore;
@@ -4058,8 +4062,9 @@
       /* Bridge UI Core v1: Hunt Intelligence conserva su contenido, pero la ventana exterior
          pasa a compartir mover/resize/minimizar/maximizar/layout/opacidad con el resto. */
       #${PANEL_ID}.pg-ui-managed{
-        font-family:system-ui;color:#e8edf5;
-        min-width:min(360px,calc(100vw - 8px))!important;
+        font-family:system-ui;color:#e8edf5;box-sizing:border-box!important;
+        display:flex!important;flex-direction:column!important;
+        min-width:min(280px,calc(100vw - 8px))!important;
         max-width:calc(100vw - 8px)!important
       }
       #${PANEL_ID}.pg-ui-managed.pg-ui-minimized{
@@ -4079,7 +4084,10 @@
         width:52px!important
       }
       #${PANEL_ID}.pg-ui-managed.pg-ui-minimized>.pg-ui-header .pg-ui-opacity-value{width:28px!important}
-      #${PANEL_ID}.pg-ui-managed>.pg-ui-body{min-height:100%;overflow:visible}
+      #${PANEL_ID}.pg-ui-managed>.pg-ui-body{
+        flex:1 1 auto!important;min-width:0!important;min-height:0!important;
+        height:auto!important;overflow:auto!important
+      }
       #${PANEL_ID}.pg-ui-managed .pg-u-card{
         position:static;left:auto;top:auto;transform:none;width:auto;height:auto;
         min-width:0;min-height:0;max-width:none;max-height:none;overflow:visible;resize:none;
@@ -4138,6 +4146,64 @@
       #${PANEL_ID}.pg-ui-managed>.pg-ui-header .pg-ui-button{
         border:1px solid #4b607a;background:rgba(24,36,56,.88);color:#f4f8ff;
         border-radius:7px;min-width:29px;height:27px;padding:0 7px;font:800 12px system-ui
+      }
+
+      /* v1.1.47: dos estados deterministas. Nunca se reutiliza un tamaño viejo
+         de 1x1 al pasar a 4x4 ni un minimizado viejo al volver a 1x1. */
+      #${PANEL_ID}.pg-ui-managed.pg-hi-manual-full{
+        left:4px!important;top:4px!important;right:auto!important;bottom:auto!important;
+        width:calc(100vw - 8px)!important;height:calc(100vh - 8px)!important;
+        min-width:0!important;min-height:0!important;max-width:calc(100vw - 8px)!important;
+        max-height:calc(100vh - 8px)!important;transform:none!important;resize:none!important
+      }
+      #${PANEL_ID}.pg-ui-managed.pg-hi-manual-full>.pg-ui-body{
+        flex:1 1 auto!important;min-height:0!important;max-height:none!important;overflow:auto!important
+      }
+      #${PANEL_ID}.pg-ui-managed.pg-hi-map-compact{
+        left:50%!important;top:4px!important;right:auto!important;bottom:auto!important;
+        width:min(560px,calc(100vw - 8px))!important;height:auto!important;
+        min-width:0!important;min-height:0!important;max-width:calc(100vw - 8px)!important;
+        max-height:min(112px,calc(100vh - 8px))!important;
+        transform:translateX(-50%)!important;resize:none!important;overflow:hidden!important
+      }
+      #${PANEL_ID}.pg-ui-managed.pg-hi-map-compact>.pg-ui-header{gap:4px!important;padding:6px 8px!important}
+      #${PANEL_ID}.pg-ui-managed.pg-hi-map-compact>.pg-ui-header .pg-ui-subtitle,
+      #${PANEL_ID}.pg-ui-managed.pg-hi-map-compact>.pg-ui-header .pg-ui-opacity{display:none!important}
+      #${PANEL_ID}.pg-ui-managed.pg-hi-map-compact>.pg-ui-body{
+        flex:0 0 auto!important;min-height:0!important;height:auto!important;max-height:52px!important;
+        overflow:hidden!important
+      }
+      #${PANEL_ID}.pg-ui-managed.pg-hi-map-compact .pg-u-card{height:auto!important;overflow:hidden!important}
+      #${PANEL_ID}.pg-ui-managed.pg-hi-map-compact .pg-u-head{
+        position:static!important;top:auto!important;min-height:0!important;padding:6px 8px!important;
+        border-bottom:0!important;background:rgba(17,25,37,var(--pg-ui-card-opacity,.82))
+      }
+      #${PANEL_ID}.pg-ui-managed.pg-hi-map-compact .pg-u-tabs,
+      #${PANEL_ID}.pg-ui-managed.pg-hi-map-compact .pg-u-body{display:none!important}
+      #${PANEL_ID}.pg-ui-managed.pg-hi-map-compact .pg-u-mode-group{display:flex!important}
+
+      /* Fallback sin Bridge: mismos dos comportamientos. */
+      #${PANEL_ID}:not(.pg-ui-managed).pg-hi-manual-full .pg-u-card{
+        left:4px!important;top:4px!important;transform:none!important;
+        width:calc(100vw - 8px)!important;height:calc(100vh - 8px)!important;
+        min-width:0!important;min-height:0!important;max-width:calc(100vw - 8px)!important;
+        max-height:calc(100vh - 8px)!important;resize:none!important
+      }
+      #${PANEL_ID}:not(.pg-ui-managed).pg-hi-map-compact .pg-u-card{
+        left:50%!important;top:4px!important;transform:translateX(-50%)!important;
+        width:min(420px,calc(100vw - 8px))!important;height:auto!important;min-width:0!important;
+        min-height:0!important;max-width:calc(100vw - 8px)!important;max-height:74px!important;
+        resize:none!important;overflow:hidden!important
+      }
+      #${PANEL_ID}:not(.pg-ui-managed).pg-hi-map-compact .pg-u-tabs,
+      #${PANEL_ID}:not(.pg-ui-managed).pg-hi-map-compact .pg-u-body{display:none!important}
+
+      @media(max-width:520px){
+        #${PANEL_ID}.pg-ui-managed.pg-hi-manual-full>.pg-ui-header .pg-ui-subtitle,
+        #${PANEL_ID}.pg-ui-managed.pg-hi-manual-full>.pg-ui-header .pg-ui-opacity{display:none!important}
+        #${PANEL_ID}.pg-ui-managed.pg-hi-map-compact{width:calc(100vw - 8px)!important}
+        #${PANEL_ID}.pg-ui-managed.pg-hi-map-compact .pg-u-head{gap:4px!important;padding:5px 6px!important}
+        #${PANEL_ID}.pg-ui-managed.pg-hi-map-compact .pg-u-mode-btn{padding:5px 6px!important}
       }
 
       @media(max-width:340px){
@@ -4259,25 +4325,24 @@
       existing.remove();
     }
 
-    const legacy = readPanelLayout();
     try {
       uiWindow = bridgeUi.createWindow({
         id: BRIDGE_UI_ID,
         domId: PANEL_ID,
         title: '🧠 Hunt Intelligence',
         subtitle: tabUiLabel(),
-        width: legacy?.width || 790,
-        height: legacy?.height || 720,
-        left: legacy?.left,
-        top: legacy?.top,
-        minWidth: 360,
-        minHeight: 220,
+        width: Math.min(790, Math.max(280, window.innerWidth - 8)),
+        height: Math.min(720, Math.max(86, window.innerHeight - 8)),
+        minWidth: 280,
+        minHeight: 86,
         movable: true,
         resizable: true,
         minimizable: true,
         maximizable: true,
         closable: true,
-        rememberLayout: true,
+        // Hunt Intelligence tiene dos layouts propios (manual completo / Map compacto).
+        // No reutilizar la geometría de otro viewport 1x1/4x4.
+        rememberLayout: false,
         defaultOpacity: 94,
         bodyClass: 'pg-hunt-intelligence-ui-body'
       });
@@ -4289,6 +4354,32 @@
       usingBridgeUi = false;
       return null;
     }
+  }
+
+  function applyPanelPresentation() {
+    const panel = document.getElementById(PANEL_ID);
+    if (!panel) return false;
+    const manualFull = panelPresentationMode === 'manual-full';
+    panel.classList.toggle('pg-hi-manual-full', manualFull);
+    panel.classList.toggle('pg-hi-map-compact', !manualFull);
+
+    if (panel.classList.contains('pg-ui-managed') && uiWindow) {
+      // El modo compacto de Map NO usa el minimizado de Bridge: ese estado era
+      // el que podía dejar un cuerpo grande/vacío al reconstruirse el contenido.
+      try { uiWindow.setMinimized(false); } catch {}
+      panel.classList.remove('pg-ui-minimized');
+      try { uiWindow.setSubtitle(manualFull ? tabUiLabel() : 'Vista rápida · Hunts'); } catch {}
+    } else {
+      const card = panel.querySelector('.pg-u-card');
+      if (card) setPanelCollapsed(card, !manualFull);
+    }
+    return true;
+  }
+
+  function setPanelPresentation(mode) {
+    panelPresentationMode = mode === 'map-compact' ? 'map-compact' : 'manual-full';
+    panelCollapsed = panelPresentationMode === 'map-compact';
+    requestAnimationFrame(applyPanelPresentation);
   }
 
   function closePanel() {
@@ -4326,14 +4417,10 @@
       managed.setSubtitle(tabUiLabel());
       managed.body.innerHTML = cardHtml;
 
-      // Solo la creación inicial decide si se abre plegada.
-      // Cambiar pestaña/refrescar no toca el estado visual de la ventana.
-      if (!hadManagedWindow) {
-        managed.open();
-        const requestedCollapsed = panelCollapsed;
-        panelCollapsed = false;
-        managed.setMinimized(requestedCollapsed);
-      }
+      // v1.1.47: Bridge no decide el tamaño/minimizado. El modo actual se
+      // reaplica después de CADA render para que 4x4/1x1 sean deterministas.
+      if (!hadManagedWindow) managed.open();
+      applyPanelPresentation();
     } else {
       const previous = document.getElementById(PANEL_ID);
       if (previous) {
@@ -4347,9 +4434,11 @@
 
       overlay = document.createElement('div');
       overlay.id = PANEL_ID;
+      overlay.classList.add(panelPresentationMode === 'map-compact' ? 'pg-hi-map-compact' : 'pg-hi-manual-full');
       overlay.innerHTML = cardHtml;
       document.body.appendChild(overlay);
       installPanelInteractions(overlay);
+      applyPanelPresentation();
     }
 
     // El juego y PokeGrid pueden tener manejadores globales de puntero. Estos controles
@@ -4367,8 +4456,8 @@
       const collapseButton=event.target.closest('[data-panel-collapse]');
       if(collapseButton){
         event.preventDefault();event.stopPropagation();
-        if (usingBridgeUi && uiWindow) uiWindow.toggleMinimized();
-        else setPanelCollapsed(overlay.querySelector('.pg-u-card'),!panelCollapsed);
+        setPanelPresentation(panelPresentationMode === 'map-compact' ? 'manual-full' : 'map-compact');
+        applyPanelPresentation();
         return;
       }
       const modeButton = event.target.closest('[data-mode-value]');
@@ -5747,24 +5836,25 @@
     window.addEventListener('resize', () => clampFloatingButton(button, true));
   }
 
-  function revealManagedPanel({ full = false } = {}) {
+  function revealManagedPanel() {
     if (!usingBridgeUi || !uiWindow?.panel?.isConnected) return false;
     uiWindow.open();
-    if (full) uiWindow.setMinimized(false);
+    try { uiWindow.setMinimized(false); } catch {}
+    applyPanelPresentation();
     return true;
   }
 
   function openFullFromButton(){
-    panelCollapsed=false;
     activeTab='hunt';
-    revealManagedPanel({full:true});
+    setPanelPresentation('manual-full');
+    revealManagedPanel();
     loadHunt(false);
   }
 
   function openCollapsedFromMap(){
-    panelCollapsed=true;
     activeTab='hunt';
-    if (revealManagedPanel({full:false}) && uiWindow) uiWindow.setMinimized(true);
+    setPanelPresentation('map-compact');
+    revealManagedPanel();
     loadHunt(false);
   }
 

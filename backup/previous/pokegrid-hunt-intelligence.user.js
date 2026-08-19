@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PokeGrid - Hunt Intelligence
 // @namespace    ivan-pokegrid-tools
-// @version      1.1.45
+// @version      1.1.46
 // @description  Recomendador, No capturados, Item Finder, supervisor y gestor compacto de Favoritos por cuenta con histórico móvil de 12 muestras.
 // @match        https://poke.idleworld.online/*
 // @grant        none
@@ -12,8 +12,8 @@
 
 (() => {
   'use strict';
-  if (window.__pgHuntIntelligenceCoreV1145) return;
-  window.__pgHuntIntelligenceCoreV1145 = true;
+  if (window.__pgHuntIntelligenceCoreV1146) return;
+  window.__pgHuntIntelligenceCoreV1146 = true;
 
   const NS = 'pg-best-hunt-v1';
   const CFG_KEY = `${NS}:config`;
@@ -361,6 +361,15 @@
     return data.creaturesByName.get(norm(lead.name)) || null;
   }
 
+  const NPC_GOLD_EXCLUDED_SPECIAL_NAMES = new Set([
+    'strange pheromone', 'strange pheromones',
+    'bronze boss token', 'bronze boss tokens', 'bronze token', 'bronze tokens'
+  ]);
+
+  function isNpcGoldExcludedSpecial(item) {
+    return NPC_GOLD_EXCLUDED_SPECIAL_NAMES.has(norm(item?.name || item?.title || ''));
+  }
+
   function ingestMeasurements(data) {
     const p = getPokeState();
     if (!p) return;
@@ -380,8 +389,13 @@
       let lootUnits = 0;
       for (const [id, drop] of Object.entries(session.drops || {})) {
         const qty = finite(drop?.qty, 0);
+        const item = data.itemsById[id];
         lootUnits += qty;
-        lootGold += qty * finite(data.itemsById[id]?.npcPrice, data.itemsById[id]?.sellValue, 0);
+        // Oro NPC real excluye los dos drops especiales de altísimo valor.
+        // Siguen midiéndose por separado en Especiales/h.
+        if (!isNpcGoldExcludedSpecial(item)) {
+          lootGold += qty * finite(item?.npcPrice, item?.sellValue, 0);
+        }
       }
       const hours = seconds / 3600;
       const sample = {
@@ -437,7 +451,9 @@
       const avgQty = Math.max(0, (minQty + maxQty) / 2);
       const expected = chance * avgQty;
       units += expected;
-      gold += expected * finite(item?.npcPrice, item?.sellValue, entry.npcPrice, 0);
+      if (!isNpcGoldExcludedSpecial(item)) {
+        gold += expected * finite(item?.npcPrice, item?.sellValue, entry.npcPrice, 0);
+      }
       known++;
     }
     return { gold, units, known, total: loot.length };
@@ -1817,6 +1833,7 @@
     let rareKnown = 0;
     let specialKnown = 0;
     const rareItemIds = new Set();
+    const npcGoldByItemId = {};
     const specials = specialItemIds(data);
     const entries = lootEntries(creature);
     for (const entry of entries) {
@@ -1844,14 +1861,25 @@
       // Especiales/h combina Strange Pheromone + Bronze Boss Token a valor 1:1.
       // Si el cliente expone un rate oficial válido, usa el mismo multiplicador de
       // loot que el resto. En cuanto hay histórico real, ese histórico tiene prioridad.
-      if (SPECIAL_ITEM_NAMES.has(norm(item?.name || pick(entry, ['name', 'itemName', 'item.name'], '')))) {
+      const specialName = norm(item?.name || pick(entry, ['name', 'itemName', 'item.name'], ''));
+      const isSpecial = SPECIAL_ITEM_NAMES.has(specialName);
+      if (isSpecial) {
         if (chance > 0) {
           specialUnits += expected;
           specialKnown++;
         }
       }
 
-      gold += expected * npc;
+      // Oro NPC/h excluye Pheromone y Bronze Boss Token tanto de la estimación
+      // como de las muestras reales: su enorme valor NPC distorsionaría el ranking.
+      // Esos drops siguen estando representados exclusivamente en Especiales/h.
+      if (!isSpecial) {
+        gold += expected * npc;
+        const itemId = pick(entry, ['itemId', 'id', 'item.id'], item?.id ?? null);
+        if (itemId !== null && itemId !== undefined && itemId !== '' && npc > 0) {
+          npcGoldByItemId[String(itemId)] = Math.max(0, npc);
+        }
+      }
       known++;
     }
     return {
@@ -1864,7 +1892,8 @@
       specialKnown,
       total: entries.length,
       rareItemIds: [...rareItemIds],
-      specialItemIds: specials
+      specialItemIds: specials,
+      npcGoldByItemId
     };
   }
 
@@ -2256,12 +2285,17 @@
         && exact?.specialSamples > 0
         && Number.isFinite(Number(exact?.currentSpecialItemsPh))
       );
+      const usePersonalGold = Boolean(
+        usePersonal
+        && exact?.goldSamples > 0
+        && Number.isFinite(Number(exact?.currentNpcGoldPh))
+      );
 
       const lootPh = usePersonalLoot ? Number(exact.currentItemsPh) : effectiveKph * loot.units;
       const rarePh = usePersonalRare ? Number(exact.currentRareItemsPh) : effectiveKph * loot.rareUnits;
       const specialDataKnown = Boolean(usePersonalSpecial || loot.specialKnown > 0);
       const specialPh = usePersonalSpecial ? Number(exact.currentSpecialItemsPh) : (loot.specialKnown > 0 ? effectiveKph * loot.specialUnits : 0);
-      const netGoldPh = effectiveKph * loot.gold;
+      const netGoldPh = usePersonalGold ? Number(exact.currentNpcGoldPh) : effectiveKph * loot.gold;
       const sourceParts = [productivity.source, `${diff.hits.toFixed(2)} golpes`];
       if (diff.estimated) sourceParts.push('velocidad aproximada');
       if (vipActive) sourceParts.push('VIP ×1,50');
@@ -2275,6 +2309,7 @@
       sourceParts.push(usePersonalLoot ? `items: histórico real (${exact.lootSamples})` : 'items: estimación');
       sourceParts.push(usePersonalRare ? `raros: histórico real (${exact.rareSamples})` : 'raros: estimación');
       sourceParts.push(usePersonalSpecial ? `especiales: histórico real (${exact.specialSamples})` : (loot.specialKnown ? 'especiales: rate visible' : 'especiales: esperando muestras'));
+      sourceParts.push(usePersonalGold ? `oro NPC: histórico real sin especiales (${exact.goldSamples})` : 'oro NPC: estimación sin especiales');
       return {
         hunt, diff, measured: exact || null, source: sourceParts.join(' · '),
         kph: effectiveKph, theoreticalKph,
@@ -2282,12 +2317,13 @@
         theoreticalXph, effectiveXph,
         lootPh, rarePh, specialPh, specialDataKnown, capturePh: 0, captureGoldPh: 0, supplyGoldPh: 0, netGoldPh,
         lootDataKnown: loot.known, rareLootKnown: loot.rareKnown, specialLootKnown: loot.specialKnown, lootDataTotal: loot.total,
-        rareItemIds: loot.rareItemIds, specialItemIds: loot.specialItemIds,
+        rareItemIds: loot.rareItemIds, specialItemIds: loot.specialItemIds, npcGoldByItemId: loot.npcGoldByItemId,
         dailyBoosted: boosted, vipActive, vipMultiplier,
         calibration: null, personal: usePersonal ? exact : null, personalKph, personalXph,
         lootRankingSource: usePersonalLoot ? 'historico-real' : 'estimado',
         rareRankingSource: usePersonalRare ? 'historico-real' : 'estimado',
         specialRankingSource: usePersonalSpecial ? 'historico-real' : (loot.specialKnown ? 'estimado' : 'sin-rate'),
+        goldRankingSource: usePersonalGold ? 'historico-real-sin-especiales' : 'estimado-sin-especiales',
         rankingSource: usePersonal ? 'historico-reciente' : 'piwtools'
       };
     }).filter(row => Number.isFinite(row.kph) && row.kph > 0 && Number.isFinite(row.xph));
@@ -2852,22 +2888,26 @@
     return result;
   }
 
-  function dropDelta(start, end, rareItemIds = [], specialItemIds = []) {
+  function dropDelta(start, end, rareItemIds = [], specialItemIds = [], npcGoldByItemId = {}) {
     const from = start && typeof start === 'object' ? start : {};
     const to = end && typeof end === 'object' ? end : {};
     const rare = new Set((Array.isArray(rareItemIds) ? rareItemIds : []).map(String));
     const special = new Set((Array.isArray(specialItemIds) ? specialItemIds : []).map(String));
+    const npcPrices = npcGoldByItemId && typeof npcGoldByItemId === 'object' ? npcGoldByItemId : {};
     let items = 0;
     let rareItems = 0;
     let specialItems = 0;
+    let npcGold = 0;
     const ids = new Set([...Object.keys(from), ...Object.keys(to)]);
     for (const id of ids) {
       const delta = Math.max(0, finite(to[id]) - finite(from[id]));
       items += delta;
       if (rare.has(String(id))) rareItems += delta;
       if (special.has(String(id))) specialItems += delta;
+      // Pheromone/Token se excluyen siempre del oro aunque por error exista precio.
+      if (!special.has(String(id))) npcGold += delta * Math.max(0, finite(npcPrices[String(id)]));
     }
-    return { items, rareItems, specialItems };
+    return { items, rareItems, specialItems, npcGold };
   }
 
   function rawSession() {
@@ -2945,6 +2985,7 @@
         vipActive: Boolean(result?.vipActive), vipKnown: true,
         rareItemIds: Array.isArray(current?.rareItemIds) ? current.rareItemIds.map(String) : [],
         specialItemIds: Array.isArray(current?.specialItemIds) ? current.specialItemIds.map(String) : [],
+        npcGoldByItemId: current?.npcGoldByItemId && typeof current.npcGoldByItemId === 'object' ? { ...current.npcGoldByItemId } : {},
         expectedKph: Math.max(0, finite(current?.theoreticalKph, current?.kph)), expectedXph: Math.max(0, finite(current?.theoreticalXph, current?.xph))
       }
     };
@@ -3078,18 +3119,21 @@
     const cleanBaseXph = rawXph / (sample.meta.vipActive ? VIP_MULT : 1) / (sample.meta.dailyBoosted ? DAILY_MULT : 1);
 
     const loot = lootMeasured
-      ? dropDelta(startDrops, endDrops, sample.meta?.rareItemIds, sample.meta?.specialItemIds)
-      : { items: 0, rareItems: 0, specialItems: 0 };
+      ? dropDelta(startDrops, endDrops, sample.meta?.rareItemIds, sample.meta?.specialItemIds, sample.meta?.npcGoldByItemId)
+      : { items: 0, rareItems: 0, specialItems: 0, npcGold: 0 };
     const items = Math.max(0, finite(loot.items));
     const rareItems = Math.max(0, finite(loot.rareItems));
     const specialItems = Math.max(0, finite(loot.specialItems));
+    const npcGold = Math.max(0, finite(loot.npcGold));
     const rawItemsPh = lootMeasured ? items * 2 : null;
     const rawRareItemsPh = lootMeasured ? rareItems * 2 : null;
     const rawSpecialItemsPh = lootMeasured ? specialItems * 2 : null;
+    const rawNpcGoldPh = lootMeasured ? npcGold * 2 : null;
     const dailyLootMultiplier = sample.meta.dailyBoosted ? DAILY_MULT : 1;
     const cleanBaseItemsPh = lootMeasured ? rawItemsPh / dailyLootMultiplier : null;
     const cleanBaseRareItemsPh = lootMeasured ? rawRareItemsPh / dailyLootMultiplier : null;
     const cleanBaseSpecialItemsPh = lootMeasured ? rawSpecialItemsPh / dailyLootMultiplier : null;
+    const cleanBaseNpcGoldPh = lootMeasured ? rawNpcGoldPh / dailyLootMultiplier : null;
 
     const levelStart = finite(sample.baseLeadLevel, sample.meta?.leadLevel);
     const levelEnd = finite(sample.lastLeadLevel, levelStart);
@@ -3120,9 +3164,12 @@
       rareItemsPh: rawRareItemsPh,
       specialItems,
       specialItemsPh: rawSpecialItemsPh,
+      npcGold,
+      npcGoldPh: rawNpcGoldPh,
       cleanBaseItemsPh,
       cleanBaseRareItemsPh,
       cleanBaseSpecialItemsPh,
+      cleanBaseNpcGoldPh,
       reason,
       sampleWindowMinutes: FIXED_MIN_MINUTES,
       ...sample.meta,
@@ -3288,6 +3335,11 @@
     if (!Array.isArray(activeSample.meta?.specialItemIds)) {
       activeSample.meta.specialItemIds = Array.isArray(current?.specialItemIds) ? current.specialItemIds.map(String) : [];
     }
+    if (!activeSample.meta || typeof activeSample.meta !== 'object') activeSample.meta = {};
+    activeSample.meta.npcGoldByItemId = {
+      ...(activeSample.meta.npcGoldByItemId && typeof activeSample.meta.npcGoldByItemId === 'object' ? activeSample.meta.npcGoldByItemId : {}),
+      ...(current?.npcGoldByItemId && typeof current.npcGoldByItemId === 'object' ? current.npcGoldByItemId : {})
+    };
     restoredActiveSample = false;
 
     const end = activeSampleSafeEnd(now);
@@ -3300,8 +3352,8 @@
       && Number(activeSample.lootTrackingStartedAt) <= activeSample.startedAt + 1000
     );
     const currentLoot = currentLootMeasured
-      ? dropDelta(activeSample.baseDrops, activeSample.lastDrops, activeSample.meta?.rareItemIds, activeSample.meta?.specialItemIds)
-      : {items:0,rareItems:0,specialItems:0};
+      ? dropDelta(activeSample.baseDrops, activeSample.lastDrops, activeSample.meta?.rareItemIds, activeSample.meta?.specialItemIds, activeSample.meta?.npcGoldByItemId)
+      : {items:0,rareItems:0,specialItems:0,npcGold:0};
     persistActiveSample();
     return {
       slug:raw.slug,start:activeSample.startedAt,elapsedSeconds,kills,xp,
@@ -3310,9 +3362,11 @@
       items:currentLootMeasured?currentLoot.items:null,
       rareItems:currentLootMeasured?currentLoot.rareItems:null,
       specialItems:currentLootMeasured?currentLoot.specialItems:null,
+      npcGold:currentLootMeasured?currentLoot.npcGold:null,
       itemsPh:currentLootMeasured&&hours?currentLoot.items/hours:null,
       rareItemsPh:currentLootMeasured&&hours?currentLoot.rareItems/hours:null,
       specialItemsPh:currentLootMeasured&&hours?currentLoot.specialItems/hours:null,
+      npcGoldPh:currentLootMeasured&&hours?currentLoot.npcGold/hours:null,
       paused:now-activeSample.lastProgressAt>INACTIVITY_MS,
       completedRows:clone(completedRows),
       meta:{...activeSample.meta}
@@ -3462,6 +3516,10 @@
       row.lootMeasured === true
       && Number.isFinite(Number(row.cleanBaseSpecialItemsPh))
     );
+    const goldRows = rows.filter(row =>
+      row.lootMeasured === true
+      && Number.isFinite(Number(row.cleanBaseNpcGoldPh))
+    );
 
     let baseItemsPh = lootRows.length
       ? lootRows.reduce((sum, row) => sum + Number(row.cleanBaseItemsPh), 0) / lootRows.length
@@ -3472,12 +3530,16 @@
     let baseSpecialItemsPh = specialRows.length
       ? specialRows.reduce((sum, row) => sum + Number(row.cleanBaseSpecialItemsPh), 0) / specialRows.length
       : null;
+    let baseNpcGoldPh = goldRows.length
+      ? goldRows.reduce((sum, row) => sum + Number(row.cleanBaseNpcGoldPh), 0) / goldRows.length
+      : null;
 
     if (historicalKph > 0 && kph > 0) {
       const kphScale = kph / historicalKph;
       if (baseItemsPh !== null) baseItemsPh *= kphScale;
       if (baseRareItemsPh !== null) baseRareItemsPh *= kphScale;
       if (baseSpecialItemsPh !== null) baseSpecialItemsPh *= kphScale;
+      if (baseNpcGoldPh !== null) baseNpcGoldPh *= kphScale;
     }
 
     const levels = rows.map(rowReferenceLevel).filter(value => value > 0);
@@ -3510,12 +3572,15 @@
       lootSamples: lootRows.length,
       rareSamples: rareRows.length,
       specialSamples: specialRows.length,
+      goldSamples: goldRows.length,
       baseItemsPh,
       currentItemsPh: baseItemsPh === null ? null : baseItemsPh * currentLootMultiplier,
       baseRareItemsPh,
       currentRareItemsPh: baseRareItemsPh === null ? null : baseRareItemsPh * currentLootMultiplier,
       baseSpecialItemsPh,
-      currentSpecialItemsPh: baseSpecialItemsPh === null ? null : baseSpecialItemsPh * currentLootMultiplier
+      currentSpecialItemsPh: baseSpecialItemsPh === null ? null : baseSpecialItemsPh * currentLootMultiplier,
+      baseNpcGoldPh,
+      currentNpcGoldPh: baseNpcGoldPh === null ? null : baseNpcGoldPh * currentLootMultiplier
     };
   }
 
@@ -3570,7 +3635,7 @@
       const agg=map.get(key)||{
         key,huntName:row.huntName,leadName:row.leadName,moves:[],
         samples:0,seconds:0,kills:0,cleanXp:0,rawXp:0,rawXpSamples:0,legacy:0,vipYes:0,vipNo:0,
-        lootSamples:0,cleanItemsPh:0,rareSamples:0,cleanRareItemsPh:0,specialSamples:0,cleanSpecialItemsPh:0,
+        lootSamples:0,cleanItemsPh:0,rareSamples:0,cleanRareItemsPh:0,specialSamples:0,cleanSpecialItemsPh:0,goldSamples:0,cleanNpcGoldPh:0,
         minLevel:Infinity,maxLevel:0,levelingSamples:0
       };
       agg.samples++; agg.seconds+=SAMPLE_WINDOW_SECONDS; agg.kills+=finite(row.kills);
@@ -3597,6 +3662,9 @@
       if (row.lootMeasured===true&&Number.isFinite(Number(row.cleanBaseSpecialItemsPh))) {
         agg.specialSamples++; agg.cleanSpecialItemsPh+=Number(row.cleanBaseSpecialItemsPh);
       }
+      if (row.lootMeasured===true&&Number.isFinite(Number(row.cleanBaseNpcGoldPh))) {
+        agg.goldSamples++; agg.cleanNpcGoldPh+=Number(row.cleanBaseNpcGoldPh);
+      }
       map.set(key,agg);
     }
     return [...map.values()].map(row=>{
@@ -3607,13 +3675,14 @@
       const baseItemsPh=row.lootSamples?row.cleanItemsPh/row.lootSamples:null;
       const baseRareItemsPh=row.rareSamples?row.cleanRareItemsPh/row.rareSamples:null;
       const baseSpecialItemsPh=row.specialSamples?row.cleanSpecialItemsPh/row.specialSamples:null;
+      const baseNpcGoldPh=row.goldSamples?row.cleanNpcGoldPh/row.goldSamples:null;
       const moveSummary = row.moves.length <= 2
         ? row.moves.join(' / ')
         : `${row.moves.slice(0, 2).join(' / ')} +${row.moves.length - 2}`;
       return {
         ...row,hours,kph:row.samples?row.kills/hours:0,baseXph,personalXph,moveSummary,
         vipXph:baseXph*VIP_MULT,vipDailyXph:baseXph*VIP_MULT*DAILY_MULT,
-        baseItemsPh,baseRareItemsPh,baseSpecialItemsPh
+        baseItemsPh,baseRareItemsPh,baseSpecialItemsPh,baseNpcGoldPh
       };
     }).sort((a,b)=>b.baseXph-a.baseXph||b.samples-a.samples);
   }
@@ -3708,6 +3777,7 @@
     const observedItemsPh=Number.isFinite(Number(evaluation?.itemsPh))?Number(evaluation.itemsPh):(session.lootMeasured&&Number.isFinite(Number(session.itemsPh))?Number(session.itemsPh):null);
     const observedRarePh=Number.isFinite(Number(evaluation?.rareItemsPh))?Number(evaluation.rareItemsPh):(session.lootMeasured&&Number.isFinite(Number(session.rareItemsPh))?Number(session.rareItemsPh):null);
     const observedSpecialPh=Number.isFinite(Number(evaluation?.specialItemsPh))?Number(evaluation.specialItemsPh):(session.lootMeasured&&Number.isFinite(Number(session.specialItemsPh))?Number(session.specialItemsPh):null);
+    const observedNpcGoldPh=Number.isFinite(Number(evaluation?.npcGoldPh))?Number(evaluation.npcGoldPh):(session.lootMeasured&&Number.isFinite(Number(session.npcGoldPh))?Number(session.npcGoldPh):null);
     const tone=r.ready?(r.level==='good'?'ok':r.level==='warning'?'warn':'bad'):'warn';
     const alternatives=(r.result?.rows||[]).filter(row=>row!==current).slice(0,5);
     const progress=Math.min(FIXED_MIN_MINUTES,finite(session.elapsedSeconds)/60);
@@ -3716,7 +3786,7 @@
       : `Recopilando muestra: ${fmt(progress,1)} / ${FIXED_MIN_MINUTES} min · ${fmt(session.kills)} derrotas.`;
     return `<div class="pg-hi-banner ${tone}">${banner}</div>
       <div class="pg-hi-hero"><div><b>${esc(current.hunt?.name||r.slug||'Hunt actual')}</b><small>${esc(r.result?.lead?.name||'Pokémon')} Nv. ${fmt(r.result?.lead?.level)} · ${vip?'VIP Sí':'VIP No'}${daily?' · +20 % diario':''}${lastResetReason?` · ${esc(lastResetReason)}`:''}</small></div><div><b>${fmt(r.expectedKph)}</b><small>kills/h PIWTools</small></div><div><b>${fmt(r.actualKph)}</b><small>${evaluation?'última muestra':'muestra actual'} kills/h</small></div><div><b>${fmt(actualRaw)}</b><small>EXP/h observada</small></div><div><b>${fmt(clean)}</b><small>EXP/h base limpia</small></div></div>
-      <div class="pg-hi-grid"><div class="pg-hi-card"><h3>Condiciones y muestra</h3><div class="pg-hi-lines"><span>PIWTools actual</span><b>${fmt(finite(current.theoreticalXph,current.xph))}</b><span>Ranking utilizado</span><b>${fmt(current.xph)}</b><span>Muestra actual</span><b>${fmt(progress,1)} / ${FIXED_MIN_MINUTES} min</b><span>Derrotas actuales</span><b>${fmt(session.kills)}</b><span>Items/h observados</span><b>${observedItemsPh===null?'—':fmt(observedItemsPh,2)}</b><span>Raros/h observados</span><b>${observedRarePh===null?'—':fmt(observedRarePh,2)}</b><span>Especiales/h observados</span><b>${observedSpecialPh===null?'—':fmt(observedSpecialPh,2)}</b><span>Muestras retenidas</span><b>${fmt(segments.filter(row=>row.accountId===accountId()&&finite(row.elapsedSeconds)===SAMPLE_WINDOW_SECONDS).length)}</b></div></div>
+      <div class="pg-hi-grid"><div class="pg-hi-card"><h3>Condiciones y muestra</h3><div class="pg-hi-lines"><span>PIWTools actual</span><b>${fmt(finite(current.theoreticalXph,current.xph))}</b><span>Ranking utilizado</span><b>${fmt(current.xph)}</b><span>Muestra actual</span><b>${fmt(progress,1)} / ${FIXED_MIN_MINUTES} min</b><span>Derrotas actuales</span><b>${fmt(session.kills)}</b><span>Items/h observados</span><b>${observedItemsPh===null?'—':fmt(observedItemsPh,2)}</b><span>Raros/h observados</span><b>${observedRarePh===null?'—':fmt(observedRarePh,2)}</b><span>Especiales/h observados</span><b>${observedSpecialPh===null?'—':fmt(observedSpecialPh,2)}</b><span>Oro NPC/h observado</span><b>${observedNpcGoldPh===null?'—':fmt(observedNpcGoldPh)}</b><span>Muestras retenidas</span><b>${fmt(segments.filter(row=>row.accountId===accountId()&&finite(row.elapsedSeconds)===SAMPLE_WINDOW_SECONDS).length)}</b></div></div>
       <div class="pg-hi-card"><h3>Alternativas calculadas</h3>${alternatives.map(row=>`<div class="pg-hi-alt"><span>${esc(row.hunt?.name||'Hunt')}${row.dailyBoosted?' · +20 %':''}</span><b>${fmt(row.xph)} XP/h</b></div>`).join('')||'<div class="pg-u-empty">Sin alternativas.</div>'}</div></div>
       <div class="pg-hi-settings"><div>Umbral <span><button data-supervisor-delta="-5" data-supervisor-key="threshold">−</button><b>${fmt(config.threshold)}%</b><button data-supervisor-delta="5" data-supervisor-key="threshold">+</button></span></div><div>Muestra histórica <span><b>${FIXED_MIN_MINUTES} min (fijo)</b></span></div><div>Mín. kills <span><button data-supervisor-delta="-5" data-supervisor-key="minKills">−</button><b>${fmt(config.minKills)}</b><button data-supervisor-delta="5" data-supervisor-key="minKills">+</button></span></div></div>`;
   }
@@ -3727,7 +3797,7 @@
 
     const rows=aggregateHistory(),legacy=currentPokemonLegacyCount(),vip=Boolean(window.__PGPiwToolsEngine?.getVip?.());
     const totalStored=segments.filter(row=>row.accountId===accountId()&&finite(row.elapsedSeconds)===SAMPLE_WINDOW_SECONDS).length;
-    return `<div class="pg-u-note"><b>Histórico de ${esc(pokemon.name)}</b>${pokemon.level?` Nv. ${fmt(pokemon.level)}`:''}. Muestras totales guardadas en esta cuenta: <b>${fmt(totalStored)}</b>. Solo se muestran abajo las del Pokémon activo.<br>Cada Hunt + Pokémon conserva una ventana móvil de <b>${HISTORY_WINDOW_SAMPLES} muestras válidas</b> de 30 minutos (≈ ${fmt(HISTORY_WINDOW_SAMPLES * 0.5, 1)} h). Al entrar una nueva cuando la ventana está completa, se elimina automáticamente la más antigua. El nivel y los cambios de stats no invalidan el histórico: cada tanda se compara con lo que PIWTools esperaba durante esa propia tanda. Con al menos ${HISTORY_TRIM_MIN_SAMPLES} factores se descartan el mejor y el peor antes de calcular la calibración reciente. <b>XP/h real histórico</b> es experiencia realmente observada; <b>EXP base</b> elimina VIP ×1,50 y bonus diario ×1,20. Items/h, Raros/h y Especiales/h son drops realmente observados. Especiales/h suma Strange Pheromone + Bronze Boss Token a valor 1:1.</div>${legacy?`<div class="pg-hi-banner warn">Hay ${fmt(legacy)} muestras antiguas de ${esc(pokemon.name)} sin estado VIP. Sus kills/h siguen siendo útiles, pero su EXP no se usa hasta clasificarlas. <button data-adopt-legacy-vip>Asignarles VIP actual: ${vip?'Sí':'No'}</button></div>`:''}
+    return `<div class="pg-u-note"><b>Histórico de ${esc(pokemon.name)}</b>${pokemon.level?` Nv. ${fmt(pokemon.level)}`:''}. Muestras totales guardadas en esta cuenta: <b>${fmt(totalStored)}</b>. Solo se muestran abajo las del Pokémon activo.<br>Cada Hunt + Pokémon conserva una ventana móvil de <b>${HISTORY_WINDOW_SAMPLES} muestras válidas</b> de 30 minutos (≈ ${fmt(HISTORY_WINDOW_SAMPLES * 0.5, 1)} h). Al entrar una nueva cuando la ventana está completa, se elimina automáticamente la más antigua. El nivel y los cambios de stats no invalidan el histórico: cada tanda se compara con lo que PIWTools esperaba durante esa propia tanda. Con al menos ${HISTORY_TRIM_MIN_SAMPLES} factores se descartan el mejor y el peor antes de calcular la calibración reciente. <b>XP/h real histórico</b> es experiencia realmente observada; <b>EXP base</b> elimina VIP ×1,50 y bonus diario ×1,20. Items/h, Raros/h, Especiales/h y Oro NPC/h usan drops realmente observados cuando existe muestra. Especiales/h suma Strange Pheromone + Bronze Boss Token a valor 1:1; Oro NPC/h excluye siempre ambos especiales para evitar que su alto valor NPC distorsione el histórico.</div>${legacy?`<div class="pg-hi-banner warn">Hay ${fmt(legacy)} muestras antiguas de ${esc(pokemon.name)} sin estado VIP. Sus kills/h siguen siendo útiles, pero su EXP no se usa hasta clasificarlas. <button data-adopt-legacy-vip>Asignarles VIP actual: ${vip?'Sí':'No'}</button></div>`:''}
       <div class="pg-hi-history-head"><span>Hunt · Pokémon</span><span>Muestras</span><span>Horas</span><span>Kills/h</span><span>XP/h real histórico</span><span>EXP base</span><span>Items/h base</span><span>Raros/h base</span><span>Especiales/h</span><span></span></div>
       <div class="pg-hi-history">${rows.map(row=>`<div class="pg-hi-history-row"><span class="pg-hi-history-name"><b>${esc(row.huntName||'Hunt')}</b><small>${esc(row.leadName||pokemon.name||'Pokémon')} · ${row.minLevel!==Infinity&&row.maxLevel?`Nv. ${fmt(row.minLevel)}${row.maxLevel!==row.minLevel?`→${fmt(row.maxLevel)}`:''} · `:''}${esc(row.moveSummary||'Ataque')}${row.levelingSamples?` · leveo ${row.levelingSamples}`:''}${row.legacy?` · ${row.legacy} legado`:''}${row.lootSamples?` · loot ${row.lootSamples}/${row.samples}`:' · loot aún sin muestra'}</small></span><span>${fmt(row.samples)}/${HISTORY_WINDOW_SAMPLES}</span><span>${fmt(row.hours,1)}</span><span>${fmt(row.kph)}</span><span>${row.personalXph?fmt(row.personalXph):'—'}</span><span>${row.baseXph?fmt(row.baseXph):'—'}</span><span>${row.baseItemsPh===null?'—':fmt(row.baseItemsPh,2)}</span><span>${row.baseRareItemsPh===null?'—':fmt(row.baseRareItemsPh,2)}</span><span>${row.baseSpecialItemsPh===null?'—':fmt(row.baseSpecialItemsPh,2)}</span><button class="pg-hi-delete" data-delete-intelligence-history="${esc(row.key)}" data-history-label="${esc(`${row.huntName||'Hunt'} · ${row.leadName||pokemon.name||'Pokémon'}`)}" title="Borrar todas las muestras de esta línea" aria-label="Borrar histórico de ${esc(row.huntName||'esta hunt')}">🗑️</button></div>`).join('')||`<div class="pg-u-empty">${esc(pokemon.name)} todavía no tiene muestras completas. La primera aparecerá al completar 30 minutos útiles en la misma hunt y condiciones.</div>`}</div>
       <div class="pg-hi-actions"><button data-clear-intelligence-history>🗑️ Borrar histórico de ${esc(pokemon.name)}</button></div>`;
@@ -3736,7 +3806,7 @@
   function state() {
     const r=lastReport; let status='waiting',statusText='Esperando una muestra de rendimiento.';
     if(r?.error&&!r?.current){status='error';statusText=r.error;}else if(r?.ready){status=r.level==='good'?'ok':'warning';statusText=r.level==='good'?`Rendimiento correcto: ${fmt(r.percent,1)} % de PIWTools.`:`Rendimiento por debajo de PIWTools: ${fmt(r.percent,1)} %.`;}else if(r?.current){status='waiting';statusText=`Midiendo ${r.current?.hunt?.name||r.slug||'hunt'}: ${fmt(r.session?.kills||0)} derrotas.`;}
-    return {status,statusText,dependencies:{huntAdvisor:{ok:Boolean(window.__PGUnifiedHuntCore?.calculateRecommendations),checkedAt:Date.now()},session:{ok:Boolean(window.__poke?.sess?.start),checkedAt:Date.now()},activeHunt:{ok:Boolean(currentSlug()),checkedAt:Date.now()}},metrics:{busy,ready:Boolean(r?.ready),level:r?.level||'waiting',hunt:r?.current?.hunt?.name||r?.slug||'',expectedKph:finite(r?.expectedKph),actualKph:finite(r?.actualKph),efficiencyPercent:finite(r?.percent),elapsedMinutes:finite(r?.session?.elapsedSeconds)/60,kills:finite(r?.session?.kills),vipActive:Boolean(r?.result?.vipActive),dailyBoosted:Boolean(r?.current?.dailyBoosted),storedSegments:segments.length,validPersonalRows:segments.filter(x=>x.vipKnown===true).length,lootMeasuredRows:segments.filter(x=>x.lootMeasured===true).length,specialMeasuredRows:segments.filter(x=>Number.isFinite(Number(x.cleanBaseSpecialItemsPh))).length,levelingRows:segments.filter(x=>x.levelingSample===true).length,weightedExpectedRows:segments.filter(x=>finite(x.expectedKphAverage)>0).length,invalidatedBrokenLootRows:segments.filter(x=>x.lootInvalidatedReason==='parser-session-drops-1.1.20').length,historyBackupRows:(loadJson(HISTORY_BACKUP_KEY,[])||[]).length,historyRecovery,legacyRows:legacyCount(),activeSamplePersisted:Boolean(activeSample),sampleCheckpointMs:SAMPLE_CHECKPOINT_MS,config:{...config}}};
+    return {status,statusText,dependencies:{huntAdvisor:{ok:Boolean(window.__PGUnifiedHuntCore?.calculateRecommendations),checkedAt:Date.now()},session:{ok:Boolean(window.__poke?.sess?.start),checkedAt:Date.now()},activeHunt:{ok:Boolean(currentSlug()),checkedAt:Date.now()}},metrics:{busy,ready:Boolean(r?.ready),level:r?.level||'waiting',hunt:r?.current?.hunt?.name||r?.slug||'',expectedKph:finite(r?.expectedKph),actualKph:finite(r?.actualKph),efficiencyPercent:finite(r?.percent),elapsedMinutes:finite(r?.session?.elapsedSeconds)/60,kills:finite(r?.session?.kills),vipActive:Boolean(r?.result?.vipActive),dailyBoosted:Boolean(r?.current?.dailyBoosted),storedSegments:segments.length,validPersonalRows:segments.filter(x=>x.vipKnown===true).length,lootMeasuredRows:segments.filter(x=>x.lootMeasured===true).length,specialMeasuredRows:segments.filter(x=>Number.isFinite(Number(x.cleanBaseSpecialItemsPh))).length,goldMeasuredRows:segments.filter(x=>Number.isFinite(Number(x.cleanBaseNpcGoldPh))).length,levelingRows:segments.filter(x=>x.levelingSample===true).length,weightedExpectedRows:segments.filter(x=>finite(x.expectedKphAverage)>0).length,invalidatedBrokenLootRows:segments.filter(x=>x.lootInvalidatedReason==='parser-session-drops-1.1.20').length,historyBackupRows:(loadJson(HISTORY_BACKUP_KEY,[])||[]).length,historyRecovery,legacyRows:legacyCount(),activeSamplePersisted:Boolean(activeSample),sampleCheckpointMs:SAMPLE_CHECKPOINT_MS,config:{...config}}};
   }
 
   function restartTimer(){clearInterval(timer);timer=setInterval(()=>refresh(false),Math.max(8,finite(config.refreshSeconds,15))*1000);}
@@ -3846,13 +3916,13 @@
   window.addEventListener('pokegrid-vip-updated',()=>refresh(false));window.addEventListener('pokegrid-daily-bonus-updated',()=>refresh(false));
 
   window.__PGHuntIntelligenceSupervisor = {
-    version:'1.1.45',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
+    version:'1.1.46',refresh,getState:state,getReport:()=>clone(lastReport),getHistory:()=>clone(segments),getCurrentHistoryPokemon:()=>clone(currentHistoryPokemon()),getPersonalEstimate,getCalibration,
     renderCurrentHtml,renderHistoryHtml,adjustConfig,adoptLegacyVip,clearHistoryEntry,clearCurrentPokemonHistory,clearHistory,finalizeActiveSample
   };
-  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.45',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
+  window.__PGPerformanceSupervisor = Object.freeze({ version:'1.1.46',getState:state,refresh:()=>refresh(true),getHistory:()=>clone(segments),clearHistoryEntry,clearHistory });
 
   let healthClient=null;
-  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.45',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon, incluidos Items/h, Raros/h y Especiales/h, y normaliza XP/VIP/bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','real-special-items-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
+  function connectHealth(){const bridge=window.__pokeGridScripts;if(!bridge?.register||healthClient)return Boolean(healthClient);healthClient=bridge.register({id:'performance-supervisor',name:'Supervisor de rendimiento Hunt Intelligence',version:'1.1.46',description:'Mide rendimiento real con ventana móvil de 12 muestras por Hunt + Pokémon, incluidos Items/h, Raros/h, Especiales/h y Oro NPC/h real sin especiales, y normaliza XP/VIP/bonus diario.',icon:'📈',category:'gameplay-analysis',status:'waiting',statusText:'Esperando una muestra.',staleAfterMs:50000,capabilities:['real-kph','real-items-ph','real-rare-items-ph','real-special-items-ph','real-npc-gold-ph','piwtools-comparison','history','segmentation','vip-normalization','daily-normalization','loot-daily-normalization','personal-ranking']});healthClient.registerCommand('open',()=>{try{window.__PGHuntIntelligence?.openPerformance?.();}catch{}return{opened:true};},{label:'Abrir rendimiento'});healthClient.registerCommand('refresh',()=>refresh(true),{label:'Actualizar medición'});healthClient.registerCommand('get-history',()=>clone(segments),{label:'Obtener histórico'});healthClient.registerCommand('clear-history',clearHistory,{label:'Borrar histórico',dangerous:true});setInterval(()=>{try{healthClient.heartbeat(state());}catch{}},10000);try{healthClient.heartbeat(state());}catch{}return true;}
   window.addEventListener('pokegrid-health-bridge-ready',connectHealth);const bridgeTimer=setInterval(()=>{if(connectHealth())clearInterval(bridgeTimer);},1000);
 
   const historyRecovery = recoverHistoryIfNeeded();
@@ -4597,7 +4667,7 @@
     const topRows = result.rows.slice(0, clamp(finite(cfg.topN, 8), 3, 20));
     const product = productivityDescription(result.productivity);
     const body = `
-      <div class="pg-u-note"><b>Ranking inteligente:</b> solo se evalúan hunts cuyo nivel sea <b>igual o inferior al nivel actual del Pokémon</b> y que la cuenta pueda utilizar. En <b>Mejor general</b> puedes añadir además un <b>Nivel máximo manual</b>; ese techo se aplica antes de calcular el score, así que ninguna hunt por encima del valor elegido puede entrar en el ranking. Dentro de esas hunts, una de nivel inferior puede seguir ganando si ofrece mejor rendimiento. Para cada objetivo se recalculan stats actuales, mejor ataque disponible, físico/especial, tipo/efectividad, defensa rival, golpes y kills/h. Al subir de nivel o cambiar Atk/Sp.Atk, el ranking se recalcula automáticamente. Primero se usa tu histórico directo del <b>mismo nivel + mismo ataque</b>. Si has subido de nivel o aprendido otro ataque, no desaparece tu marca: se usa tu rendimiento real frente a PIWTools de esa <b>misma hunt y Pokémon</b> para calibrar la simulación actual, sin utilizar nunca datos de un nivel superior. Items/h, Raros/h y Especiales/h siguen usando loot real de 30 min cuando existe. <b>Especiales/h</b> suma Strange Pheromone + Bronze Boss Token a valor 1:1.</div>
+      <div class="pg-u-note"><b>Ranking inteligente:</b> solo se evalúan hunts cuyo nivel sea <b>igual o inferior al nivel actual del Pokémon</b> y que la cuenta pueda utilizar. En <b>Mejor general</b> puedes añadir además un <b>Nivel máximo manual</b>; ese techo se aplica antes de calcular el score, así que ninguna hunt por encima del valor elegido puede entrar en el ranking. Dentro de esas hunts, una de nivel inferior puede seguir ganando si ofrece mejor rendimiento. Para cada objetivo se recalculan stats actuales, mejor ataque disponible, físico/especial, tipo/efectividad, defensa rival, golpes y kills/h. Al subir de nivel o cambiar Atk/Sp.Atk, el ranking se recalcula automáticamente. Primero se usa tu histórico directo del <b>mismo nivel + mismo ataque</b>. Si has subido de nivel o aprendido otro ataque, no desaparece tu marca: se usa tu rendimiento real frente a PIWTools de esa <b>misma hunt y Pokémon</b> para calibrar la simulación actual, sin utilizar nunca datos de un nivel superior. Items/h, Raros/h, Especiales/h y <b>Oro NPC/h</b> usan loot real de 30 min cuando existe. <b>Especiales/h</b> suma Strange Pheromone + Bronze Boss Token a valor 1:1. <b>Oro NPC/h</b> excluye siempre esos dos drops, tanto en histórico como en estimación, para que su enorme valor NPC no distorsione el ranking.</div>
       <div class="pg-u-sourcebox ${product.tone}">
         <div><b>Fuente de productividad:</b> ${esc(product.text)}<br>${dailyDescription(result.dailyBonus)} · <b>MT:</b> ${cfg.useTM ? 'incluidas' : 'excluidas'} · <b>VIP:</b> ${cfg.vipActive ? 'activo' : 'inactivo'}</div>
         <div class="pg-u-daily">${dailyControlHtml(cfg.dailyType || 'auto', result.dailyBonus)}${tmControlHtml(cfg.useTM)}${vipControlHtml(cfg.vipActive)}</div>
@@ -5869,7 +5939,7 @@
   }
 
   window.__PGHuntAdvisor = Object.freeze({
-    version: '1.1.45',
+    version: '1.1.46',
     getState: huntHealthState,
     selfTest: () => ({
       ok: Boolean(H()?.calculateRecommendations && I()?.searchItem && window.__poke?.ws && window.__poke?.api),
@@ -6550,7 +6620,7 @@
           ok: Boolean(ok),
           result: result ?? null,
           error: error ? String(error) : '',
-          version: '1.1.45',
+          version: '1.1.46',
           at: Date.now()
         }, ORIGIN);
       } catch (postError) {
@@ -6562,7 +6632,7 @@
       const list = Array.isArray(args) ? args : [];
       switch (String(action || '')) {
         case 'ping':
-          return { ready: true, version: '1.1.45', account: favoriteGetLocalAccountState() };
+          return { ready: true, version: '1.1.46', account: favoriteGetLocalAccountState() };
         case 'getLocalAccountState':
           return favoriteGetLocalAccountState();
         case 'getChoices':
@@ -6613,7 +6683,7 @@
         window.postMessage({
           source: 'hunt-intelligence',
           type: 'favorites-rpc-ready',
-          version: '1.1.45',
+          version: '1.1.46',
           at: Date.now()
         }, ORIGIN);
       } catch {}
@@ -6765,7 +6835,7 @@
     healthClient = bridge.register({
       id: HEALTH_SCRIPT_ID,
       name: 'Hunt Intelligence',
-      version: '1.1.45',
+      version: '1.1.46',
       description: 'Ranking personal, Item Finder, rendimiento, histórico, VIP y bonus diario en un único motor.',
       icon: '🧠',
       category: 'gameplay-analysis',
@@ -6802,7 +6872,7 @@
   });
 
   window.__PGHuntIntelligence = Object.freeze({
-    version: '1.1.45',
+    version: '1.1.46',
     openHunt: () => { activeTab='hunt'; revealManagedPanel({full:true}); return loadHunt(false); },
     openNotCaught: () => { activeTab='notcaught'; revealManagedPanel({full:true}); return loadNotCaught(false); },
     openItem: query => { activeTab='item'; revealManagedPanel({full:true}); return runItemSearch(query || I()?.getLastItem?.() || '', false); },
