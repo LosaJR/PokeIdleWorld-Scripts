@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Poke Idle World - Quality of Life (PIW-QOL ES)
 // @namespace    http://tampermonkey.net/
-// @version      9.10.34
+// @version      9.10.35
 // @description  Mejoras de calidad de vida en español, sin modificar el mapa y con candados de venta configurables.
 // @author       Desjunior (JulianoCLI)
 // @match        https://poke.idleworld.online/play
@@ -14,7 +14,7 @@
 (function() {
     'use strict';
 
-    const SCRIPT_BUILD = '9.10.34';
+    const SCRIPT_BUILD = '9.10.35';
 
     const NativeWebSocket = window.WebSocket;
     const nativeWebSocketSend = NativeWebSocket.prototype.send;
@@ -3331,13 +3331,49 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
                 buyButton.addEventListener('click', async () => {
                     buyButton.disabled = true;
                     try {
+                        const isPokemonListing = entry.kind === 'pokemon';
+                        const availableQuantity = isPokemonListing ? 1 : Math.max(1, Math.floor(quantity));
                         const characterData = await gameApiRequest('/api/characters/me');
                         const currentBalance = currency === 'DIAMONDS'
                             ? Number(characterData.character?.diamonds || 0)
                             : Number(characterData.character?.gold || 0);
+
+                        let purchaseQuantity = 1;
+                        if (!isPokemonListing && availableQuantity > 1) {
+                            const affordableQuantity = price > 0
+                                ? Math.floor(Math.max(0, currentBalance) / price)
+                                : availableQuantity;
+                            const maxQuantity = Math.min(availableQuantity, affordableQuantity);
+                            if (maxQuantity < 1) {
+                                showWindowMessage(
+                                    backdrop.querySelector('.script-market-window'),
+                                    `Saldo insuficiente para comprar ${name}.`,
+                                    true
+                                );
+                                buyButton.disabled = false;
+                                return;
+                            }
+
+                            const selectedQuantity = await showScriptQuantityPrompt(
+                                `¿Cuántas unidades de ${name} quieres comprar?`,
+                                {
+                                    title: 'Mercado Global · Cantidad',
+                                    value: Math.min(10, maxQuantity),
+                                    min: 1,
+                                    max: maxQuantity,
+                                    confirmLabel: 'Continuar'
+                                }
+                            );
+                            if (selectedQuantity === null) {
+                                buyButton.disabled = false;
+                                return;
+                            }
+                            purchaseQuantity = selectedQuantity;
+                        }
+
                         const confirmed = await new Promise(resolve => showPurchaseConfirm({
                             name,
-                            quantity: 1,
+                            quantity: purchaseQuantity,
                             unitPrice: price,
                             currentBalance,
                             currency
@@ -3346,7 +3382,7 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
                             buyButton.disabled = false;
                             return;
                         }
-                        const marketAction = entry.kind === 'pokemon'
+                        const marketAction = isPokemonListing
                             ? { action: 'buy', id: entry.id, quantity: 1 }
                             : {
                                 action: 'buy-stack',
@@ -3354,20 +3390,25 @@ Saldo estimado después de la venta: 💲${expectedBalance.toLocaleString('es-ES
                                 refId: entry.refId,
                                 price: entry.price,
                                 currency: entry.currency,
-                                quantity: 1,
+                                quantity: purchaseQuantity,
                                 ids: entry.ids ?? [entry.id]
                             };
                         await gameApiRequest('/api/game/market/action', {
                             method: 'POST',
                             body: JSON.stringify(marketAction)
                         });
-                        if (quantity <= 1 || entry.kind === 'pokemon') {
+                        if (isPokemonListing || purchaseQuantity >= availableQuantity) {
                             currentListings = currentListings.filter(item => item !== entry);
                         } else {
-                            entry.quantity = quantity - 1;
+                            entry.quantity = availableQuantity - purchaseQuantity;
                         }
                         render();
-                        showWindowMessage(backdrop.querySelector('.script-market-window'), tr('purchaseDone'));
+                        showWindowMessage(
+                            backdrop.querySelector('.script-market-window'),
+                            purchaseQuantity > 1
+                                ? `Compra completada: ${purchaseQuantity.toLocaleString('es-ES')}× ${name}`
+                                : tr('purchaseDone')
+                        );
                     } catch (error) {
                         showWindowMessage(backdrop.querySelector('.script-market-window'), `${tr('purchaseFailed')} ${error.message}`, true);
                         buyButton.disabled = false;
