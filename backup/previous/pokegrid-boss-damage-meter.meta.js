@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         PokeGrid - Boss Damage Meter
 // @namespace    ivan-pokegrid-tools
-// @version      1.0.6
-// @description  Medidor automático de daño por Pokémon para cada run de Boss. Top 6 en tiempo real, daño efectivo por pérdida real de HP y reset por run.
+// @version      1.0.7
+// @description  Medidor de daño por Boss con Top 6 en tiempo real, contador de Bronze Boss Token y repetición automática opcional del Boss seleccionado.
 // @match        https://poke.idleworld.online/*
 // @grant        none
 // @run-at       document-idle

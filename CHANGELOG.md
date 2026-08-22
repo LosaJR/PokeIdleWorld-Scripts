@@ -1,5 +1,74 @@
 # Poke Idle World Scripts — Changelog
 
+## PokeGrid - Boss Damage Meter 1.0.8 — 2026-08-22
+
+POKEGRID - BOSS DAMAGE METER
+ACTUALIZACIONES v1.0.8
+Fecha: 2026-08-22
+
+VERSIÓN
+- 1.0.7 -> 1.0.8
+
+CAUSA DEL FALLO
+- La 1.0.7 repetía el Boss a través de la interfaz nativa.
+- Después de una victoria el modal de recompensas podía permanecer encima de la pantalla.
+- El script conseguía abrir Bosses y seleccionar el Boss elegido, pero dependía de encontrar y pulsar un segundo botón visual para iniciar la pelea.
+- En la interfaz actual ese segundo paso no era fiable, por lo que se veía Giant Cruel seleccionado pero la nueva run no llegaba a empezar.
+
+CORRECCIÓN
+1. Auto Boss deja de depender de clics en la interfaz de Bosses.
+   - Se elimina la búsqueda de tarjetas/botones nativos del ciclo automático.
+   - Ya no importa que el modal visual de recompensas siga visible unos instantes.
+
+2. Ciclo usando el protocolo real del juego.
+   - Después de bossOutcome="won" + bossLoot resuelto:
+       leave-hunt
+       espera 1,5 s
+       joy-heal
+       espera 1,5 s
+       enter-hunt con el slug del Boss seleccionado
+   - Este flujo coincide con el utilizado por una implementación actual específica de Auto Boss para Poke Idle World.
+
+3. Reentrada directa en el Boss seleccionado.
+   - El selector sigue utilizando los Bosses activos de /api/game/boss.
+   - El slug se obtiene de arena.map para el Boss elegido.
+   - Cambiar el Boss seleccionado cambia también el slug usado en la siguiente reentrada.
+
+4. Bronze Boss Token.
+   - Se mantiene el contador por itemId 70000.
+   - Se refresca el inventario antes de reentrar y poco después de enviar enter-hunt.
+   - Si el contador llega a 0, Auto Boss se detiene.
+
+5. Protección contra dobles reentradas.
+   - Una transición queda bloqueada mientras se ejecuta leave-hunt -> joy-heal -> enter-hunt.
+   - La misma run no puede procesarse dos veces gracias a lastAutoBossRunKey.
+   - Tras enviar enter-hunt hay una ventana de reintento de 7 s para evitar duplicados mientras llega el nuevo field-init.
+   - Detener Auto Boss invalida cualquier transición pendiente.
+
+6. Estado visible actualizado.
+   - "Loot recibido · saliendo del Boss…"
+   - "Fuera del Boss · curando equipo…"
+   - "Equipo curado · entrando en <Boss>…"
+   - "Reentrada enviada · esperando <Boss>"
+
+IMPACTO
+- El modal de recompensas ya no bloquea el siguiente combate.
+- No es necesario volver a abrir/seleccionar el Boss mediante DOM después de cada victoria.
+- La repetición usa la misma selección del Damage Meter y continúa hasta quedarse sin Bronze Boss Tokens o hasta que el usuario pulse Detener.
+
+VALIDACIÓN
+- node --check: CORRECTO.
+- Orden de protocolo comprobado: leave-hunt -> joy-heal -> enter-hunt.
+- Eliminados findNativeBossTarget/findNativeBossConfirm del ciclo automático.
+- @version: 1.0.8.
+- Guard: __pgBossDamageMeterV108.
+- @updateURL y @downloadURL conservados.
+- No publicado en GitHub.
+
+ARCHIVOS
+- pokegrid-boss-damage-meter-v1.0.8.txt
+- actualizaciones-boss-damage-meter-v1.0.8.txt
+
 ## PokeGrid - Boss Damage Meter 1.0.7 — 2026-08-22
 
 POKEGRID - BOSS DAMAGE METER
