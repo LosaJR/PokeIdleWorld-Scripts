@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         PokeGrid - Boss Damage Meter
 // @namespace    ivan-pokegrid-tools
-// @version      1.0.6
-// @description  Medidor automático de daño por Pokémon para cada run de Boss. Top 6 en tiempo real, daño efectivo por pérdida real de HP y reset por run.
+// @version      1.0.7
+// @description  Medidor de daño por Boss con Top 6 en tiempo real, contador de Bronze Boss Token y repetición automática opcional del Boss seleccionado.
 // @match        https://poke.idleworld.online/*
 // @grant        none
 // @run-at       document-idle
@@ -12,13 +12,15 @@
 
 (() => {
   'use strict';
-  if (window.__pgBossDamageMeterV106) return;
-  window.__pgBossDamageMeterV106 = true;
+  if (window.__pgBossDamageMeterV107) return;
+  window.__pgBossDamageMeterV107 = true;
 
-  const VERSION = '1.0.6';
+  const VERSION = '1.0.7';
   const PANEL_ID = 'pg-boss-damage-meter-panel';
   const STYLE_ID = 'pg-boss-damage-meter-style';
   const LAYOUT_KEY = 'pg-boss-damage-meter-v1:layout';
+  const AUTO_BOSS_SELECTION_KEY = 'pg-boss-damage-meter-v1:auto-boss-selection';
+  const BRONZE_TOKEN_ITEM_ID = 70000;
 
   const POLL_MS = 80;
   const SOCKET_REATTACH_MS = 1000;
@@ -26,6 +28,9 @@
   const BOSS_BOOT_REFRESH_MS = 1500;
   const BOSS_BOOT_REFRESH_COUNT = 12;
   const FINISH_AUTO_CLOSE_MS = 4500;
+  const AUTO_BOSS_LOOT_WAIT_MS = 1800;
+  const AUTO_BOSS_RETRY_MS = 7000;
+  const AUTO_BOSS_UI_WAIT_MS = 420;
 
   let bossConfig = null;
   let bossCatalog = new Map();
@@ -43,6 +48,18 @@
   let healthClient = null;
   let uiWindow = null;
   let usingBridgeUi = false;
+
+  // Auto Boss nunca se reactiva tras recargar la página: el usuario debe
+  // activarlo expresamente desde la propia interfaz en cada sesión.
+  let autoBossEnabled = false;
+  let selectedAutoBossKey = String(localStorage.getItem(AUTO_BOSS_SELECTION_KEY) || '');
+  let bronzeTokens = null;
+  let autoBossStatus = 'Inactivo';
+  let autoBossBusy = false;
+  let autoBossNextAttemptAt = 0;
+  let autoBossRuns = 0;
+  let lastInventoryRequestAt = 0;
+  let lastAutoBossRunKey = '';
 
   const finite = (...values) => {
     for (const value of values) {
@@ -84,6 +101,381 @@
     try {
       localStorage.setItem(key, JSON.stringify(value));
     } catch {}
+  }
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function normalizeUiText(value) {
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLocaleLowerCase('es-ES')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  }
+
+  function availableBosses() {
+    const active = Array.isArray(bossConfig?.bosses) ? bossConfig.bosses : [];
+    return active.map(key => {
+      const bossKey = String(key);
+      const catalog = bossCatalog.get(bossKey) || {};
+      const arena = bossConfig?.arenas?.[bossKey] || null;
+      return {
+        key: bossKey,
+        name: String(catalog.name || bossKey),
+        image: String(catalog.img || catalog.icon || ''),
+        level: finite(catalog.level),
+        category: String(catalog.category || ''),
+        arena
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name, 'es-ES'));
+  }
+
+  function selectedAutoBoss() {
+    return availableBosses().find(boss => boss.key === selectedAutoBossKey) || null;
+  }
+
+  function persistAutoBossSelection() {
+    try {
+      if (selectedAutoBossKey) localStorage.setItem(AUTO_BOSS_SELECTION_KEY, selectedAutoBossKey);
+      else localStorage.removeItem(AUTO_BOSS_SELECTION_KEY);
+    } catch {}
+  }
+
+  function ensureAutoBossSelection() {
+    const bosses = availableBosses();
+    if (!bosses.length) {
+      selectedAutoBossKey = '';
+      return null;
+    }
+    const existing = bosses.find(boss => boss.key === selectedAutoBossKey);
+    if (existing) return existing;
+    const currentBoss = bosses.find(boss => boss.key === run?.bossKey);
+    selectedAutoBossKey = (currentBoss || bosses[0]).key;
+    persistAutoBossSelection();
+    return currentBoss || bosses[0];
+  }
+
+  function inventoryItemsFromPayload(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.items)) return payload.items;
+    if (Array.isArray(payload?.inventory)) return payload.inventory;
+    return [];
+  }
+
+  function updateBronzeTokensFromItems(items, shouldRender = true) {
+    if (!Array.isArray(items)) return false;
+    const entry = items.find(item => Number(item?.itemId ?? item?.id) === BRONZE_TOKEN_ITEM_ID);
+    const nextCount = Math.max(0, Math.floor(finite(entry?.quantity, entry?.qty, 0)));
+    const changed = bronzeTokens !== nextCount;
+    bronzeTokens = nextCount;
+    if (autoBossEnabled && bronzeTokens <= 0) {
+      autoBossEnabled = false;
+      autoBossBusy = false;
+      autoBossNextAttemptAt = 0;
+      autoBossStatus = 'Sin Bronze Boss Tokens · Auto Boss detenido';
+    }
+    if (shouldRender && changed) render();
+    return changed;
+  }
+
+  function syncBronzeTokensFromCache(shouldRender = false) {
+    const cached = window.__poke?.ws?.inventory;
+    const items = inventoryItemsFromPayload(cached);
+    if (!items.length && !Array.isArray(cached?.items)) return false;
+    return updateBronzeTokensFromItems(items, shouldRender);
+  }
+
+  function requestInventoryRefresh(force = false) {
+    syncBronzeTokensFromCache(false);
+    const now = nowMs();
+    if (!force && now - lastInventoryRequestAt < 1800) return false;
+    if (!socket || socket.readyState !== WebSocket.OPEN || typeof socket.send !== 'function') return false;
+    lastInventoryRequestAt = now;
+    try {
+      socket.send(JSON.stringify({ type: 'inv-get' }));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function setAutoBossStatus(text, shouldRender = true) {
+    const next = String(text || '');
+    if (autoBossStatus === next) return;
+    autoBossStatus = next;
+    if (shouldRender) render();
+  }
+
+  function stopAutoBoss(reason = 'Detenido por el usuario') {
+    autoBossEnabled = false;
+    autoBossBusy = false;
+    autoBossNextAttemptAt = 0;
+    autoBossStatus = String(reason || 'Inactivo');
+    render();
+    heartbeat();
+    return true;
+  }
+
+  function setAutoBossEnabled(enabled) {
+    if (!enabled) return stopAutoBoss('Detenido por el usuario');
+    const boss = ensureAutoBossSelection();
+    if (!boss) {
+      autoBossStatus = 'No hay Bosses activos disponibles';
+      render();
+      return false;
+    }
+    syncBronzeTokensFromCache(false);
+    requestInventoryRefresh(true);
+    if (bronzeTokens !== null && bronzeTokens <= 0) {
+      autoBossStatus = 'Sin Bronze Boss Tokens';
+      render();
+      return false;
+    }
+    autoBossEnabled = true;
+    autoBossBusy = false;
+    autoBossNextAttemptAt = nowMs();
+    autoBossStatus = run && !run.outcome
+      ? `Activo · esperando que termine ${run.bossName}`
+      : `Activo · preparando ${boss.name}`;
+    panelClosedForRun = false;
+    openPanel(true);
+    render();
+    heartbeat();
+    return true;
+  }
+
+  function elementIsVisible(element) {
+    if (!element?.isConnected) return false;
+    const style = getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 2 && rect.height > 2 && rect.bottom > 0 && rect.right > 0
+      && rect.top < innerHeight && rect.left < innerWidth;
+  }
+
+  function elementDescriptor(element) {
+    if (!element) return '';
+    const parts = [
+      element.textContent,
+      element.getAttribute?.('title'),
+      element.getAttribute?.('aria-label'),
+      element.getAttribute?.('data-boss'),
+      element.getAttribute?.('data-boss-key'),
+      element.getAttribute?.('data-key'),
+      element.getAttribute?.('data-guide')
+    ];
+    element.querySelectorAll?.('img').forEach(img => {
+      parts.push(img.alt, img.title, img.getAttribute('src'));
+    });
+    return normalizeUiText(parts.filter(Boolean).join(' '));
+  }
+
+  function clickableAncestor(element) {
+    if (!element) return null;
+    return element.closest?.('button, [role="button"], a, [tabindex], [data-boss], [data-boss-key]') || element;
+  }
+
+  function findNativeBossTarget(boss) {
+    if (!boss) return null;
+    const panel = document.getElementById(PANEL_ID);
+    const name = normalizeUiText(boss.name);
+    const key = normalizeUiText(boss.key);
+    const image = normalizeUiText(String(boss.image || '').split('/').pop()?.replace(/\.[^.]+$/, '') || '');
+    const selectors = [
+      '[data-boss]', '[data-boss-key]', '[class*="boss"] button', '[class*="boss"] [role="button"]',
+      '[class*="boss-card"]', '[class*="boss-row"]', 'button', '[role="button"]', 'a'
+    ];
+    const seen = new Set();
+    const candidates = [];
+    document.querySelectorAll(selectors.join(',')).forEach(node => {
+      const target = clickableAncestor(node);
+      if (!target || seen.has(target) || panel?.contains(target) || !elementIsVisible(target)) return;
+      seen.add(target);
+      const descriptor = elementDescriptor(target);
+      let score = 0;
+      if (name && descriptor === name) score += 120;
+      if (name && descriptor.includes(name)) score += 80;
+      if (key && descriptor.includes(key)) score += 65;
+      if (image && descriptor.includes(image)) score += 55;
+      if (normalizeUiText(target.getAttribute?.('data-boss-key')) === key) score += 150;
+      if (/boss|chefe|jefe/.test(descriptor)) score += 5;
+      if (score > 0) candidates.push({ target, score });
+    });
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates[0]?.target || null;
+  }
+
+  function findNativeBossLauncher() {
+    const panel = document.getElementById(PANEL_ID);
+    const exactLabels = new Set(['boss', 'bosses', 'chefes', 'jefes']);
+    const candidates = [];
+    document.querySelectorAll('button, [role="button"], a').forEach(target => {
+      if (panel?.contains(target) || !elementIsVisible(target)) return;
+      const descriptor = elementDescriptor(target);
+      if (/damage meter|medidor/.test(descriptor)) return;
+      const guide = normalizeUiText(target.getAttribute?.('data-guide'));
+      let score = 0;
+      if (exactLabels.has(descriptor)) score += 100;
+      if (guide.includes('boss')) score += 90;
+      if (/^(boss|bosses|chefes|jefes)\b/.test(descriptor)) score += 65;
+      if (score) candidates.push({ target, score });
+    });
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates[0]?.target || null;
+  }
+
+  function findNativeBossConfirm() {
+    const panel = document.getElementById(PANEL_ID);
+    const labels = new Set([
+      'lutar', 'enfrentar', 'desafiar', 'entrar', 'iniciar',
+      'fight', 'challenge', 'enter', 'start',
+      'combatir', 'luchar'
+    ]);
+    return Array.from(document.querySelectorAll('button, [role="button"]')).find(target => {
+      if (panel?.contains(target) || !elementIsVisible(target) || target.disabled) return false;
+      return labels.has(normalizeUiText(target.textContent || target.getAttribute?.('aria-label') || target.title));
+    }) || null;
+  }
+
+  async function tryStartSelectedBoss() {
+    if (!autoBossEnabled || autoBossBusy) return false;
+    if (run && !run.outcome) return false;
+    const boss = selectedAutoBoss() || ensureAutoBossSelection();
+    if (!boss) return stopAutoBoss('Boss seleccionado no disponible');
+
+    syncBronzeTokensFromCache(false);
+    if (bronzeTokens !== null && bronzeTokens <= 0) return stopAutoBoss('Sin Bronze Boss Tokens');
+
+    autoBossBusy = true;
+    autoBossNextAttemptAt = nowMs() + AUTO_BOSS_RETRY_MS;
+    setAutoBossStatus(`Abriendo Bosses · ${boss.name}`);
+    try {
+      let target = findNativeBossTarget(boss);
+      if (!target) {
+        const launcher = findNativeBossLauncher();
+        if (launcher) {
+          launcher.click();
+          await sleep(AUTO_BOSS_UI_WAIT_MS);
+          target = findNativeBossTarget(boss);
+        }
+      }
+
+      if (!target) {
+        setAutoBossStatus(`No encuentro ${boss.name} en la interfaz nativa · reintento automático`);
+        return false;
+      }
+
+      target.click();
+      setAutoBossStatus(`Seleccionado ${boss.name} · esperando inicio`);
+      await sleep(AUTO_BOSS_UI_WAIT_MS);
+
+      // Algunas versiones del panel nativo empiezan al pulsar la tarjeta; otras
+      // muestran un segundo botón de confirmación. Solo lo pulsamos después de
+      // haber seleccionado explícitamente el Boss solicitado.
+      const confirm = findNativeBossConfirm();
+      if (confirm && !isBossField(currentField())) confirm.click();
+
+      requestInventoryRefresh(true);
+      return true;
+    } catch (error) {
+      setAutoBossStatus(`Error al seleccionar Boss: ${error?.message || error}`);
+      return false;
+    } finally {
+      autoBossBusy = false;
+      render();
+    }
+  }
+
+  function autoBossTick() {
+    if (!autoBossEnabled || autoBossBusy) return;
+    syncBronzeTokensFromCache(false);
+    if (bronzeTokens !== null && bronzeTokens <= 0) {
+      stopAutoBoss('Sin Bronze Boss Tokens · Auto Boss detenido');
+      return;
+    }
+    if (run && !run.outcome) {
+      setAutoBossStatus(`Activo · combate en curso: ${run.bossName}`, false);
+      return;
+    }
+    if (nowMs() < autoBossNextAttemptAt) return;
+    void tryStartSelectedBoss();
+  }
+
+  function queueNextAutoBossAfterLoot(field) {
+    if (!autoBossEnabled || !run) return false;
+    if (String(run.outcome).toLocaleLowerCase() !== 'won') {
+      stopAutoBoss(`Combate terminado sin victoria (${run.outcome || 'resultado desconocido'})`);
+      return false;
+    }
+    if (!Object.prototype.hasOwnProperty.call(field || {}, 'bossLoot') || !Array.isArray(field?.bossLoot)) {
+      setAutoBossStatus('Victoria detectada · esperando resolución del loot');
+      return false;
+    }
+    if (lastAutoBossRunKey === run.key) return true;
+    lastAutoBossRunKey = run.key;
+    autoBossRuns += 1;
+    requestInventoryRefresh(true);
+    autoBossNextAttemptAt = nowMs() + AUTO_BOSS_LOOT_WAIT_MS;
+    const boss = selectedAutoBoss();
+    setAutoBossStatus(`Loot recibido · siguiente: ${boss?.name || 'Boss seleccionado'}`);
+    return true;
+  }
+
+  function autoBossControlsHtml() {
+    const bosses = availableBosses();
+    const selected = selectedAutoBossKey || bosses[0]?.key || '';
+    const tokenText = bronzeTokens === null ? '—' : fmt(bronzeTokens);
+    const options = bosses.length
+      ? bosses.map(boss => `<option value="${esc(boss.key)}" ${boss.key === selected ? 'selected' : ''}>${esc(boss.name)}${boss.level ? ` · Nv. ${fmt(boss.level)}` : ''}</option>`).join('')
+      : '<option value="">Sin Bosses activos</option>';
+    return `
+      <section class="pg-bdm-auto ${autoBossEnabled ? 'on' : ''}">
+        <div class="pg-bdm-auto-head">
+          <b>🤖 Auto Boss</b>
+          <span class="pg-bdm-token"><img src="/assets/items/bronze_boss_token.png" alt=""> Bronze: <strong>${tokenText}</strong></span>
+        </div>
+        <div class="pg-bdm-auto-controls">
+          <select data-auto-boss-select ${bosses.length ? '' : 'disabled'}>${options}</select>
+          <button type="button" data-auto-boss-toggle class="${autoBossEnabled ? 'stop' : 'start'}">${autoBossEnabled ? '■ Detener' : '▶ Activar'}</button>
+          <button type="button" data-auto-boss-refresh title="Actualizar Bosses y Bronze Tokens">↻</button>
+        </div>
+        <div class="pg-bdm-auto-status">${esc(autoBossStatus)}${autoBossRuns ? ` · ${fmt(autoBossRuns)} victoria${autoBossRuns === 1 ? '' : 's'} auto` : ''}</div>
+      </section>`;
+  }
+
+  function installAutoBossPanelEvents(panel) {
+    if (!panel || panel.dataset.pgAutoBossEvents === '1') return;
+    panel.dataset.pgAutoBossEvents = '1';
+    panel.addEventListener('change', event => {
+      const select = event.target.closest?.('[data-auto-boss-select]');
+      if (!select) return;
+      selectedAutoBossKey = String(select.value || '');
+      persistAutoBossSelection();
+      const boss = selectedAutoBoss();
+      autoBossStatus = autoBossEnabled
+        ? `Activo · próximo Boss: ${boss?.name || selectedAutoBossKey}`
+        : 'Boss seleccionado · pulsa Activar para repetirlo';
+      if (autoBossEnabled && !(run && !run.outcome)) autoBossNextAttemptAt = nowMs();
+      render();
+    });
+    panel.addEventListener('click', event => {
+      const toggle = event.target.closest?.('[data-auto-boss-toggle]');
+      if (toggle) {
+        event.preventDefault();
+        setAutoBossEnabled(!autoBossEnabled);
+        return;
+      }
+      const refresh = event.target.closest?.('[data-auto-boss-refresh]');
+      if (refresh) {
+        event.preventDefault();
+        refreshBossDefinitions().catch(() => {});
+        requestInventoryRefresh(true);
+        setAutoBossStatus('Actualizando Bosses y Bronze Tokens');
+      }
+    });
   }
 
   function normalizeBossPayload(payload) {
@@ -142,8 +534,11 @@
     }
 
     rebuildArenaMap();
+    ensureAutoBossSelection();
+    syncBronzeTokensFromCache(false);
     updateCurrentRunBossIdentity();
     inspectCurrentGameState();
+    render();
     return {
       activeBosses: bossConfig?.bosses?.length || 0,
       arenas: arenaToBoss.size,
@@ -292,6 +687,13 @@
 
     lastFieldSeq = null;
     panelClosedForRun = false;
+    autoBossBusy = false;
+    if (autoBossEnabled) {
+      const selected = selectedAutoBoss();
+      autoBossStatus = selected && selected.key === run.bossKey
+        ? `Activo · combate en curso: ${run.bossName}`
+        : `Activo · combate en curso: ${run.bossName} · después irá ${selected?.name || 'el Boss seleccionado'}`;
+    }
     if (finishCloseTimer) clearTimeout(finishCloseTimer);
     finishCloseTimer = null;
     ensureUi();
@@ -303,18 +705,28 @@
     return run;
   }
 
-  function finishRun(outcome = 'won') {
-    if (!run || run.outcome) return;
+  function finishRun(outcome = 'won', finalField = null) {
+    if (!run) return;
+    if (run.outcome) {
+      if (autoBossEnabled) queueNextAutoBossAfterLoot(finalField);
+      return;
+    }
     run.outcome = String(outcome || 'won');
     run.finishedAt = nowMs();
+    run.bossLoot = Array.isArray(finalField?.bossLoot) ? finalField.bossLoot.map(item => ({ ...item })) : null;
     const finishedAt = run.finishedAt;
     render();
     heartbeat();
     if (finishCloseTimer) clearTimeout(finishCloseTimer);
-    finishCloseTimer = setTimeout(() => {
-      finishCloseTimer = null;
-      if (run?.outcome && run.finishedAt === finishedAt) closePanelForRun();
-    }, FINISH_AUTO_CLOSE_MS);
+    finishCloseTimer = null;
+
+    const queued = autoBossEnabled && queueNextAutoBossAfterLoot(finalField);
+    if (!autoBossEnabled && !queued) {
+      finishCloseTimer = setTimeout(() => {
+        finishCloseTimer = null;
+        if (run?.outcome && run.finishedAt === finishedAt) closePanelForRun();
+      }, FINISH_AUTO_CLOSE_MS);
+    }
     console.info(`[Boss Damage Meter] Run finalizada: ${run.bossName} · daño ${run.totalDamage}/${run.maxBossHp}.`);
   }
 
@@ -405,7 +817,7 @@
     }
 
     if (run.outcome) {
-      if (field?.bossOutcome) finishRun(field.bossOutcome);
+      if (field?.bossOutcome) finishRun(field.bossOutcome, field);
       if (Number.isFinite(seq)) lastFieldSeq = seq;
       return;
     }
@@ -462,7 +874,7 @@
     if (currentIdx !== null) run.activeIdx = currentIdx;
     if (Number.isFinite(seq)) lastFieldSeq = seq;
 
-    if (field?.bossOutcome) finishRun(field.bossOutcome);
+    if (field?.bossOutcome) finishRun(field.bossOutcome, field);
     render();
     heartbeat();
   }
@@ -471,6 +883,7 @@
     if (!payload || typeof payload !== 'object') return;
     if (payload.type === 'field-init') processFieldInit(payload);
     else if (payload.type === 'field') processField(payload);
+    else if (payload.type === 'inventory') updateBronzeTokensFromItems(inventoryItemsFromPayload(payload));
   }
 
   function onSocketMessage(event) {
@@ -504,6 +917,7 @@
   }
 
   function inspectCurrentGameState() {
+    syncBronzeTokensFromCache(false);
     const init = currentFieldInit();
     if (init) processFieldInit(init);
     const field = currentField();
@@ -600,7 +1014,24 @@
       #${PANEL_ID} .pg-bdm-name small{display:block;margin-top:2px;color:#a5b2c4;font-size:8.5px}
       #${PANEL_ID} .pg-bdm-num{text-align:right;font-variant-numeric:tabular-nums}
       #${PANEL_ID} .pg-bdm-damage{font-weight:900;color:#75baff}
-      #${PANEL_ID} .pg-bdm-empty{padding:26px;text-align:center;color:#8e9cb0;font-size:11px}
+      #${PANEL_ID} .pg-bdm-auto{
+        margin:0 0 10px;padding:9px;border:1px solid #34465d;border-radius:10px;
+        background:rgba(14,23,34,var(--pg-ui-card-opacity,.76))
+      }
+      #${PANEL_ID} .pg-bdm-auto.on{border-color:#347649;box-shadow:inset 0 0 0 1px #1d4b2d}
+      #${PANEL_ID} .pg-bdm-auto-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px;font-size:11px}
+      #${PANEL_ID} .pg-bdm-auto-head>b{color:#e7edf6;font-size:12px}
+      #${PANEL_ID} .pg-bdm-token{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border:1px solid #785d26;border-radius:999px;background:#2a2110;color:#ffdc84;white-space:nowrap}
+      #${PANEL_ID} .pg-bdm-token img{width:15px;height:15px;object-fit:contain}
+      #${PANEL_ID} .pg-bdm-auto-controls{display:grid;grid-template-columns:minmax(140px,1fr) auto 32px;gap:6px;align-items:center}
+      #${PANEL_ID} .pg-bdm-auto select{
+        width:100%;min-width:0;height:30px;padding:0 8px;border:1px solid #52657f;border-radius:7px;
+        background:rgba(11,20,31,.94);color:#f3f6fa;font:700 11px system-ui
+      }
+      #${PANEL_ID} [data-auto-boss-toggle].start{border-color:#347649;background:#163522;color:#a7f0bc}
+      #${PANEL_ID} [data-auto-boss-toggle].stop{border-color:#91444d;background:#401a20;color:#ffc1c7}
+      #${PANEL_ID} .pg-bdm-auto-status{margin-top:6px;min-height:13px;color:#91a3b8;font-size:9px;line-height:1.35}
+      #${PANEL_ID} .pg-bdm-empty{padding:18px 12px 22px;text-align:center;color:#8e9cb0;font-size:11px}
       @media(max-width:650px){
         #${PANEL_ID}{left:2vw;top:60px;width:96vw;min-width:0}
         #${PANEL_ID} .pg-bdm-table-head,#${PANEL_ID} .pg-bdm-row{
@@ -608,6 +1039,7 @@
         }
         #${PANEL_ID} .pg-bdm-hide-mobile{display:none}
         #${PANEL_ID} .pg-bdm-summary{grid-template-columns:1fr}
+        #${PANEL_ID} .pg-bdm-auto-controls{grid-template-columns:1fr auto 32px}
       }
     `;
     document.head.appendChild(style);
@@ -887,10 +1319,12 @@
     const body = panel?.querySelector('[data-body]');
     const title = panel?.querySelector('[data-boss-title]');
     if (!panel || !body) return;
+    installAutoBossPanelEvents(panel);
+    ensureAutoBossSelection();
 
     if (!run) {
       if (title) title.textContent = 'Esperando Boss';
-      body.innerHTML = '<div class="pg-bdm-empty">El medidor se abrirá automáticamente al entrar en una arena de Boss activa.</div>';
+      body.innerHTML = `${autoBossControlsHtml()}<div class="pg-bdm-empty">El medidor se abrirá automáticamente al entrar en una arena de Boss activa.<br>También puedes elegir un Boss arriba y activar la repetición automática.</div>`;
       return;
     }
 
@@ -907,6 +1341,7 @@
     const leaderDamage = Math.max(0, finite(rows[0]?.damage));
 
     body.innerHTML = `
+      ${autoBossControlsHtml()}
       <div class="pg-bdm-status">
         <span class="pg-bdm-state ${run.outcome ? 'won' : ''}">${run.outcome ? '🏆 VICTORIA' : '⚔️ EN COMBATE'}</span>
         <span>Top 6 en tiempo real · barras relativas al líder · sin acumulación histórica</span>
@@ -972,6 +1407,15 @@
         key: boss.key,
         name: boss.name
       })),
+      autoBoss: {
+        enabled: autoBossEnabled,
+        selectedBossKey: selectedAutoBossKey,
+        selectedBossName: selectedAutoBoss()?.name || '',
+        bronzeTokens,
+        status: autoBossStatus,
+        victories: autoBossRuns,
+        busy: autoBossBusy
+      },
       run: run ? {
         key: run.key,
         bossKey: run.bossKey,
@@ -1012,6 +1456,10 @@
           bossMaxHp: finite(run?.maxBossHp),
           totalDamage: finite(run?.totalDamage),
           teamRows: run?.team?.length || 0,
+          autoBoss: autoBossEnabled,
+          autoBossKey: selectedAutoBossKey,
+          bronzeTokens: bronzeTokens ?? -1,
+          autoBossVictories: autoBossRuns,
           uiCore: usingBridgeUi,
           opacity: usingBridgeUi && uiWindow ? uiWindow.getOpacity() : 86
         }
@@ -1034,11 +1482,12 @@
         status: 'waiting',
         statusText: 'Esperando entrada a un Boss.',
         staleAfterMs: 45000,
-        capabilities: ['boss-auto-detection', 'per-run-damage', 'team-top6', 'effective-hp-delta', 'bridge-ui-core', 'persistent-opacity']
+        capabilities: ['boss-auto-detection', 'per-run-damage', 'team-top6', 'effective-hp-delta', 'bronze-token-counter', 'manual-auto-boss-toggle', 'native-ui-boss-repeat', 'bridge-ui-core', 'persistent-opacity']
       });
       healthClient.registerCommand('open', () => {
         panelClosedForRun = false;
         openPanel(true);
+        requestInventoryRefresh(true);
         return { opened: true };
       }, { label: 'Abrir Damage Meter' });
       healthClient.registerCommand('get-state', () => state(), { label: 'Obtener estado' });
@@ -1056,15 +1505,26 @@
     open: () => {
       panelClosedForRun = false;
       openPanel(true);
+      requestInventoryRefresh(true);
       return state();
     },
     close: () => closePanelForRun(),
     refreshBosses: refreshBossDefinitions,
+    refreshBronzeTokens: () => requestInventoryRefresh(true),
+    setAutoBoss: (enabled, bossKey = selectedAutoBossKey) => {
+      if (bossKey) {
+        selectedAutoBossKey = String(bossKey);
+        persistAutoBossSelection();
+      }
+      return setAutoBossEnabled(Boolean(enabled));
+    },
     processPayload: payload => processSocketPayload(payload)
   };
 
   ensureUi();
   attachSocket();
+  syncBronzeTokensFromCache(false);
+  setTimeout(() => requestInventoryRefresh(true), 500);
   refreshBossDefinitions().catch(() => {});
   inspectCurrentGameState();
   connectHealth();
@@ -1081,6 +1541,8 @@
     upgradeUiCoreIfAvailable();
     inspectCurrentGameState();
     connectHealth();
+    if (autoBossEnabled && nowMs() - lastInventoryRequestAt >= 5000) requestInventoryRefresh();
+    autoBossTick();
   }, SOCKET_REATTACH_MS);
 
   setInterval(() => {
@@ -1091,5 +1553,5 @@
   setInterval(() => refreshBossDefinitions().catch(() => {}), BOSS_REFRESH_MS);
   setInterval(heartbeat, 10000);
 
-  console.info('[Boss Damage Meter] v1.0.6 cargado · migración dinámica a Bridge UI Core aunque el Bridge cargue después.');
+  console.info('[Boss Damage Meter] v1.0.7 cargado · contador Bronze + Auto Boss opcional desde la interfaz · Bridge UI Core compatible.');
 })();
